@@ -15,6 +15,11 @@ from pydantic import BaseModel, Field
 from app.config.settings import get_settings
 from app.services.monitoring_service import monitoring_service
 
+# Import Agent Builder Platform components for monitoring
+from app.agents.registry import get_agent_registry
+from app.llm.manager import get_enhanced_llm_manager
+from app.core.unified_system_orchestrator import get_enhanced_system_orchestrator
+
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/monitoring", tags=["Monitoring"])
@@ -325,3 +330,300 @@ async def get_monitoring_health() -> Dict[str, Any]:
     except Exception as e:
         logger.error("Failed to get monitoring health", error=str(e))
         raise HTTPException(status_code=500, detail="Failed to retrieve monitoring health")
+
+
+# ============================================================================
+# AGENT BUILDER PLATFORM MONITORING ENDPOINTS
+# ============================================================================
+
+class AgentBuilderMetricsResponse(BaseModel):
+    """Agent Builder platform metrics response."""
+    timestamp: datetime = Field(default_factory=datetime.now)
+    registry_stats: Dict[str, Any]
+    llm_provider_health: Dict[str, Any]
+    agent_performance: Dict[str, Any]
+    system_integration_status: Dict[str, Any]
+
+
+class AgentRegistryStatsResponse(BaseModel):
+    """Agent registry statistics response."""
+    total_agents: int
+    agents_by_status: Dict[str, int]
+    agents_by_type: Dict[str, int]
+    agents_by_health: Dict[str, int]
+    collaboration_groups: int
+    tenants: int
+    top_performing_agents: List[Dict[str, Any]]
+
+
+class LLMProviderHealthResponse(BaseModel):
+    """LLM provider health monitoring response."""
+    providers: Dict[str, Dict[str, Any]]
+    total_requests: int
+    total_errors: int
+    average_response_time: float
+    model_usage_distribution: Dict[str, int]
+
+
+@router.get("/agent-builder/metrics", response_model=AgentBuilderMetricsResponse, tags=["Agent Builder Monitoring"])
+async def get_agent_builder_metrics() -> AgentBuilderMetricsResponse:
+    """
+    Get comprehensive Agent Builder platform metrics.
+
+    Provides detailed insights into agent registry, LLM providers,
+    performance metrics, and system integration status.
+    """
+    try:
+        logger.info("Getting Agent Builder platform metrics")
+
+        # Get agent registry stats
+        registry_stats = {}
+        agent_registry = get_agent_registry()
+        if agent_registry:
+            registry_stats = agent_registry.get_registry_stats()
+
+        # Get LLM provider health
+        llm_provider_health = {}
+        llm_manager = get_enhanced_llm_manager()
+        if llm_manager and llm_manager.is_initialized():
+            llm_provider_health = llm_manager.get_provider_health_status()
+
+        # Get agent performance metrics
+        agent_performance = {}
+        if llm_manager:
+            usage_stats = llm_manager.get_model_usage_stats()
+            agent_performance = {
+                "model_usage_stats": usage_stats,
+                "total_model_requests": sum(stats.get("total_requests", 0) for stats in usage_stats.values()),
+                "total_tokens_processed": sum(stats.get("total_tokens", 0) for stats in usage_stats.values()),
+                "average_response_time": sum(stats.get("avg_response_time", 0) for stats in usage_stats.values()) / len(usage_stats) if usage_stats else 0
+            }
+
+        # Get system integration status
+        system_integration_status = {}
+        enhanced_orchestrator = get_enhanced_system_orchestrator()
+        if enhanced_orchestrator:
+            system_integration_status = enhanced_orchestrator.get_system_status()
+
+        response = AgentBuilderMetricsResponse(
+            registry_stats=registry_stats,
+            llm_provider_health=llm_provider_health,
+            agent_performance=agent_performance,
+            system_integration_status=system_integration_status
+        )
+
+        logger.info("Agent Builder metrics retrieved successfully")
+        return response
+
+    except Exception as e:
+        logger.error(f"Failed to get Agent Builder metrics: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve metrics: {str(e)}")
+
+
+@router.get("/agent-builder/registry/stats", response_model=AgentRegistryStatsResponse, tags=["Agent Builder Monitoring"])
+async def get_agent_registry_statistics() -> AgentRegistryStatsResponse:
+    """
+    Get detailed agent registry statistics.
+
+    Provides comprehensive insights into agent distribution,
+    performance, and operational metrics.
+    """
+    try:
+        logger.info("Getting agent registry statistics")
+
+        agent_registry = get_agent_registry()
+        if not agent_registry:
+            raise HTTPException(status_code=503, detail="Agent registry not available")
+
+        # Get basic registry stats
+        stats = agent_registry.get_registry_stats()
+
+        # Get top performing agents
+        agents = agent_registry.list_agents()
+        top_performing_agents = []
+
+        for agent in agents[:10]:  # Top 10 agents
+            agent_metrics = agent_registry.get_agent_metrics(agent.agent_id)
+            if agent_metrics:
+                performance_data = {
+                    "agent_id": agent.agent_id,
+                    "name": agent.name,
+                    "agent_type": agent.agent_type.value,
+                    "status": agent.status.value,
+                    "health": agent.health.value,
+                    "total_executions": agent_metrics.total_executions,
+                    "success_rate": (agent_metrics.successful_executions / agent_metrics.total_executions * 100) if agent_metrics.total_executions > 0 else 0,
+                    "average_execution_time": agent_metrics.average_execution_time,
+                    "last_activity": agent_metrics.last_activity.isoformat() if agent_metrics.last_activity else None
+                }
+                top_performing_agents.append(performance_data)
+
+        # Sort by success rate and execution count
+        top_performing_agents.sort(key=lambda x: (x["success_rate"], x["total_executions"]), reverse=True)
+
+        response = AgentRegistryStatsResponse(
+            total_agents=stats["total_agents"],
+            agents_by_status=stats["agents_by_status"],
+            agents_by_type=stats["agents_by_type"],
+            agents_by_health=stats["agents_by_health"],
+            collaboration_groups=stats["collaboration_groups"],
+            tenants=stats["tenants"],
+            top_performing_agents=top_performing_agents[:5]  # Top 5
+        )
+
+        logger.info(f"Agent registry statistics retrieved: {stats['total_agents']} total agents")
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get agent registry statistics: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve statistics: {str(e)}")
+
+
+@router.get("/agent-builder/llm-providers/health", response_model=LLMProviderHealthResponse, tags=["Agent Builder Monitoring"])
+async def get_llm_provider_health() -> LLMProviderHealthResponse:
+    """
+    Get LLM provider health and performance metrics.
+
+    Monitors the health and performance of all configured
+    LLM providers including usage statistics and error rates.
+    """
+    try:
+        logger.info("Getting LLM provider health metrics")
+
+        llm_manager = get_enhanced_llm_manager()
+        if not llm_manager or not llm_manager.is_initialized():
+            raise HTTPException(status_code=503, detail="LLM manager not available")
+
+        # Get provider health status
+        provider_health = llm_manager.get_provider_health_status()
+
+        # Get usage statistics
+        usage_stats = llm_manager.get_model_usage_stats()
+
+        # Calculate aggregate metrics
+        total_requests = sum(stats.get("total_requests", 0) for stats in usage_stats.values())
+        total_errors = sum(stats.get("error_count", 0) for stats in usage_stats.values())
+
+        # Calculate average response time
+        response_times = [stats.get("avg_response_time", 0) for stats in usage_stats.values() if stats.get("avg_response_time", 0) > 0]
+        average_response_time = sum(response_times) / len(response_times) if response_times else 0
+
+        # Model usage distribution
+        model_usage_distribution = {}
+        for model_key, stats in usage_stats.items():
+            model_usage_distribution[model_key] = stats.get("total_requests", 0)
+
+        response = LLMProviderHealthResponse(
+            providers=provider_health,
+            total_requests=total_requests,
+            total_errors=total_errors,
+            average_response_time=average_response_time,
+            model_usage_distribution=model_usage_distribution
+        )
+
+        logger.info(f"LLM provider health retrieved: {len(provider_health)} providers")
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get LLM provider health: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve provider health: {str(e)}")
+
+
+@router.get("/agent-builder/performance/dashboard", response_model=Dict[str, Any], tags=["Agent Builder Monitoring"])
+async def get_agent_builder_dashboard() -> Dict[str, Any]:
+    """
+    Get comprehensive Agent Builder platform dashboard data.
+
+    Provides all key metrics and insights needed for a
+    monitoring dashboard in a single endpoint.
+    """
+    try:
+        logger.info("Getting Agent Builder dashboard data")
+
+        # Get all monitoring data
+        agent_metrics = await get_agent_builder_metrics()
+        registry_stats = await get_agent_registry_statistics()
+        provider_health = await get_llm_provider_health()
+
+        # Calculate key performance indicators
+        kpis = {
+            "total_agents": registry_stats.total_agents,
+            "healthy_agents": registry_stats.agents_by_health.get("healthy", 0),
+            "active_agents": registry_stats.agents_by_status.get("running", 0),
+            "total_llm_requests": provider_health.total_requests,
+            "llm_error_rate": (provider_health.total_errors / provider_health.total_requests * 100) if provider_health.total_requests > 0 else 0,
+            "average_response_time": provider_health.average_response_time,
+            "collaboration_groups": registry_stats.collaboration_groups,
+            "system_health": "healthy" if agent_metrics.system_integration_status.get("status") == "running" else "degraded"
+        }
+
+        # Recent activity summary
+        recent_activity = {
+            "new_agents_24h": 0,  # Would be calculated from actual data
+            "completed_tasks_24h": 0,  # Would be calculated from actual data
+            "errors_24h": provider_health.total_errors,
+            "peak_concurrent_agents": registry_stats.agents_by_status.get("running", 0)
+        }
+
+        # Alerts and recommendations
+        alerts = []
+        recommendations = []
+
+        # Generate alerts based on metrics
+        if kpis["llm_error_rate"] > 5:
+            alerts.append({
+                "level": "warning",
+                "message": f"High LLM error rate: {kpis['llm_error_rate']:.1f}%",
+                "timestamp": datetime.now().isoformat()
+            })
+
+        if kpis["average_response_time"] > 5:
+            alerts.append({
+                "level": "warning",
+                "message": f"High average response time: {kpis['average_response_time']:.2f}s",
+                "timestamp": datetime.now().isoformat()
+            })
+
+        # Generate recommendations
+        if registry_stats.total_agents > 0:
+            healthy_ratio = kpis["healthy_agents"] / registry_stats.total_agents
+            if healthy_ratio < 0.9:
+                recommendations.append({
+                    "priority": "high",
+                    "message": "Consider investigating unhealthy agents",
+                    "action": "Review agent health status and logs"
+                })
+
+        dashboard_data = {
+            "timestamp": datetime.now().isoformat(),
+            "kpis": kpis,
+            "registry_overview": {
+                "total_agents": registry_stats.total_agents,
+                "agents_by_type": registry_stats.agents_by_type,
+                "agents_by_status": registry_stats.agents_by_status,
+                "agents_by_health": registry_stats.agents_by_health,
+                "top_performers": registry_stats.top_performing_agents[:3]
+            },
+            "llm_overview": {
+                "providers": len(provider_health.providers),
+                "total_requests": provider_health.total_requests,
+                "error_rate": kpis["llm_error_rate"],
+                "avg_response_time": provider_health.average_response_time,
+                "model_distribution": provider_health.model_usage_distribution
+            },
+            "recent_activity": recent_activity,
+            "alerts": alerts,
+            "recommendations": recommendations,
+            "system_status": agent_metrics.system_integration_status
+        }
+
+        logger.info("Agent Builder dashboard data retrieved successfully")
+        return dashboard_data
+
+    except Exception as e:
+        logger.error(f"Failed to get Agent Builder dashboard: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve dashboard data: {str(e)}")

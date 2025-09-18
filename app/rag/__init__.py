@@ -25,28 +25,58 @@ Components:
 from .core.unified_rag_system import UnifiedRAGSystem, UnifiedRAGConfig, AgentCollections
 from .core.collection_based_kb_manager import CollectionBasedKBManager, KnowledgeBaseInfo, AccessLevel
 from .core.agent_isolation_manager import AgentIsolationManager, AgentIsolationProfile, IsolationLevel, ResourceQuota
-from .core.unified_memory_system import UnifiedMemorySystem, UnifiedMemoryConfig, MemoryEntry, MemoryType, MemoryImportance
-from .core.agent_memory_collections import AgentMemoryCollections, MemoryCollectionType, MemoryCollectionInfo
+# Memory system is now in app.memory, not in RAG core
+# from .core.unified_memory_system import UnifiedMemorySystem, UnifiedMemoryConfig, MemoryEntry, MemoryType, MemoryImportance
+# from .core.agent_memory_collections import AgentMemoryCollections, MemoryCollectionType, MemoryCollectionInfo
 
-# Supporting Components
-from .core.global_embedding_manager import GlobalEmbeddingManager
-from .core.advanced_caching import AdvancedCacheManager
-from .ingestion.pipeline import RevolutionaryIngestionPipeline as IngestionPipeline
-from .ingestion.processors import DocumentProcessor
-from .tools.knowledge_tools import (
-    KnowledgeSearchTool,
-    DocumentIngestTool,
-    FactCheckTool,
-    SynthesisTool
-)
-from .tools.enhanced_knowledge_tools import (
-    EnhancedKnowledgeSearchTool,
-    AgentDocumentIngestTool,
-    AgentMemoryTool
-)
+# Supporting Components (optional - may not be available)
+try:
+    from .core.global_embedding_manager import GlobalEmbeddingManager
+except ImportError:
+    GlobalEmbeddingManager = None
 
+try:
+    from .core.advanced_caching import AdvancedCacheManager
+except ImportError:
+    AdvancedCacheManager = None
+
+try:
+    from .ingestion.pipeline import RevolutionaryIngestionPipeline as IngestionPipeline
+except ImportError:
+    IngestionPipeline = None
+
+try:
+    from .ingestion.processors import DocumentProcessor
+except ImportError:
+    DocumentProcessor = None
+# Tools (optional - may not be available)
+try:
+    from .tools.knowledge_tools import (
+        KnowledgeSearchTool,
+        DocumentIngestTool,
+        FactCheckTool,
+        SynthesisTool
+    )
+except ImportError:
+    KnowledgeSearchTool = None
+    DocumentIngestTool = None
+    FactCheckTool = None
+    SynthesisTool = None
+
+try:
+    from .tools.enhanced_knowledge_tools import (
+        EnhancedKnowledgeSearchTool,
+        AgentDocumentIngestTool,
+        AgentMemoryTool
+    )
+except ImportError:
+    EnhancedKnowledgeSearchTool = None
+    AgentDocumentIngestTool = None
+    AgentMemoryTool = None
+
+# Build __all__ list dynamically based on available components
 __all__ = [
-    # Unified RAG System - Core Components
+    # Unified RAG System - Core Components (always available)
     "UnifiedRAGSystem",
     "UnifiedRAGConfig",
     "AgentCollections",
@@ -56,33 +86,22 @@ __all__ = [
     "AgentIsolationManager",
     "AgentIsolationProfile",
     "IsolationLevel",
-    "ResourceQuota",
-    "UnifiedMemorySystem",
-    "UnifiedMemoryConfig",
-    "MemoryEntry",
-    "MemoryType",
-    "MemoryImportance",
-    "AgentMemoryCollections",
-    "MemoryCollectionType",
-    "MemoryCollectionInfo",
-
-    # Supporting Components
-    "GlobalEmbeddingManager",
-    "AdvancedCacheManager",
-
-    # Ingestion
-    "IngestionPipeline",
-    "DocumentProcessor",
-
-    # Tools
-    "KnowledgeSearchTool",
-    "DocumentIngestTool",
-    "FactCheckTool",
-    "SynthesisTool",
-    "EnhancedKnowledgeSearchTool",
-    "AgentDocumentIngestTool",
-    "AgentMemoryTool"
+    "ResourceQuota"
 ]
+
+# Add optional components if available
+if GlobalEmbeddingManager:
+    __all__.append("GlobalEmbeddingManager")
+if AdvancedCacheManager:
+    __all__.append("AdvancedCacheManager")
+if IngestionPipeline:
+    __all__.append("IngestionPipeline")
+if DocumentProcessor:
+    __all__.append("DocumentProcessor")
+if KnowledgeSearchTool:
+    __all__.extend(["KnowledgeSearchTool", "DocumentIngestTool", "FactCheckTool", "SynthesisTool"])
+if EnhancedKnowledgeSearchTool:
+    __all__.extend(["EnhancedKnowledgeSearchTool", "AgentDocumentIngestTool", "AgentMemoryTool"])
 
 # Version information
 __version__ = "1.0.0"

@@ -1,31 +1,48 @@
 """
-Unified RAG System - Single Entry Point for All RAG Operations.
+Unified RAG System - THE Single RAG System for Multi-Agent Architecture.
 
-This module provides the unified RAG system that replaces all previous
-RAG implementations with a single, efficient, collection-based approach.
+This is THE ONLY RAG system in the entire application. All RAG operations
+flow through this unified system, providing:
 
-Features:
+CORE ARCHITECTURE:
 - Single ChromaDB instance with collection-based isolation
-- Agent-specific knowledge bases and memory collections
-- Unified tool access and knowledge management
-- Built-in agent communication capabilities
-- Optimal resource utilization and performance
+- Agent-specific knowledge bases (kb_agent_{id})
+- Agent-specific memory collections (memory_agent_{id})
+- Unified tool integration
+- Performance-optimized operations
+- Clean, simple, fast architecture
+
+DESIGN PRINCIPLES:
+- One RAG system to rule them all
+- Agent isolation through collections
+- Shared infrastructure, private data
+- Simple, clean, fast operations
+- No complexity unless absolutely necessary
 """
 
 import asyncio
 import uuid
-from typing import Dict, List, Optional, Any, Set
-from datetime import datetime
-from dataclasses import dataclass
+from typing import Dict, List, Optional, Any, Set, Union, Tuple
+from datetime import datetime, timedelta
+from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
+import json
 
 import structlog
 from pydantic import BaseModel, Field
 
-from .chroma_connection_pool import ChromaConnectionPool
-from .global_embedding_manager import GlobalEmbeddingManager
-from .advanced_caching import AdvancedCacheManager
-from ..ingestion.pipeline import IngestionPipeline, IngestionConfig
+# Core RAG components
+try:
+    import chromadb
+    from chromadb.config import Settings as ChromaSettings
+    from chromadb.utils import embedding_functions
+    CHROMADB_AVAILABLE = True
+except ImportError:
+    CHROMADB_AVAILABLE = False
+    chromadb = None
+
+# Internal imports
 from app.config.settings import get_settings
 
 logger = structlog.get_logger(__name__)
@@ -84,41 +101,56 @@ class KnowledgeConfig(BaseModel):
 
 class CollectionType(str, Enum):
     """Types of collections in the unified system."""
-    AGENT_KNOWLEDGE = "agent_knowledge"
-    AGENT_MEMORY_EPISODIC = "agent_memory_episodic"
-    AGENT_MEMORY_SEMANTIC = "agent_memory_semantic"
-    SHARED_DOMAIN = "shared_domain"
-    GLOBAL_KNOWLEDGE = "global_knowledge"
+    AGENT_KNOWLEDGE = "kb_agent"          # Agent knowledge base: kb_agent_{id}
+    AGENT_MEMORY_SHORT = "memory_short"   # Short-term memory: memory_short_{id}
+    AGENT_MEMORY_LONG = "memory_long"     # Long-term memory: memory_long_{id}
+    SHARED_KNOWLEDGE = "shared"           # Shared knowledge: shared_{domain}
+    GLOBAL_KNOWLEDGE = "global"           # Global knowledge: global
 
 
 @dataclass
 class AgentCollections:
-    """Collections associated with a specific agent."""
+    """Collections associated with a specific agent - SIMPLIFIED."""
     agent_id: str
-    knowledge_collection: str
-    episodic_memory_collection: str
-    semantic_memory_collection: str
+    knowledge_collection: str      # kb_agent_{id}
+    short_memory_collection: str   # memory_short_{id}
+    long_memory_collection: str    # memory_long_{id}
     created_at: datetime
     last_accessed: datetime
 
+    @classmethod
+    def create_for_agent(cls, agent_id: str) -> "AgentCollections":
+        """Create standard collections for an agent."""
+        now = datetime.utcnow()
+        return cls(
+            agent_id=agent_id,
+            knowledge_collection=f"kb_agent_{agent_id}",
+            short_memory_collection=f"memory_short_{agent_id}",
+            long_memory_collection=f"memory_long_{agent_id}",
+            created_at=now,
+            last_accessed=now
+        )
+
 
 class UnifiedRAGConfig(BaseModel):
-    """Configuration for the unified RAG system."""
-    # ChromaDB configuration
-    chromadb_persist_directory: str = Field(default="./data/chroma")
-    max_collections: int = Field(default=10000, description="Maximum collections per instance")
-    
-    # Embedding configuration
-    embedding_config: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
-    
-    # Performance settings
-    connection_pool_size: int = Field(default=20)
-    query_timeout: int = Field(default=30)
-    batch_size: int = Field(default=100)
-    
-    # Agent settings
+    """Streamlined configuration for the unified RAG system."""
+    # Core settings - SIMPLIFIED
+    persist_directory: str = Field(default="./data/chroma")
+    embedding_model: str = Field(default="all-MiniLM-L6-v2")
+
+    # Performance settings - OPTIMIZED
+    chunk_size: int = Field(default=1000, ge=100, le=4000)
+    chunk_overlap: int = Field(default=200, ge=0, le=1000)
+    top_k: int = Field(default=10, ge=1, le=100)
+    batch_size: int = Field(default=32, ge=1, le=128)
+
+    # Agent isolation - STRICT BY DEFAULT
     auto_create_collections: bool = Field(default=True)
-    collection_cleanup_days: int = Field(default=30)
+    strict_isolation: bool = Field(default=True)
+
+    # Memory settings - NEW
+    short_term_ttl_hours: int = Field(default=24)  # Short-term memory TTL
+    long_term_max_items: int = Field(default=10000)  # Long-term memory limit
 
 
 class UnifiedRAGSystem:
@@ -138,30 +170,22 @@ class UnifiedRAGSystem:
         self.config = config or UnifiedRAGConfig()
         
         # Core components
-        self.vector_store: Optional[ChromaVectorStore] = None
-        self.embedding_manager: Optional[EmbeddingManager] = None
-        self.ingestion_pipeline: Optional[IngestionPipeline] = None
-        
+        self.chroma_client = None
+        self.embedding_function = None
+
         # Agent management
         self.agent_collections: Dict[str, AgentCollections] = {}
-        self.shared_collections: Set[str] = {
-            "global_knowledge",
-            "shared_research", 
-            "shared_creative",
-            "shared_technical"
-        }
         
         # Performance tracking
         self.stats = {
             "total_agents": 0,
             "total_collections": 0,
             "total_queries": 0,
-            "total_documents": 0,
-            "avg_query_time": 0.0
+            "total_documents": 0
         }
-        
+
         self.is_initialized = False
-        logger.info("Unified RAG system created", config=self.config.dict())
+        logger.info("Unified RAG System initialized")
     
     async def initialize(self) -> None:
         """Initialize the unified RAG system."""
@@ -169,99 +193,49 @@ class UnifiedRAGSystem:
             if self.is_initialized:
                 logger.warning("Unified RAG system already initialized")
                 return
-            
+
+            if not chromadb:
+                raise RuntimeError("ChromaDB not available")
+
             logger.info("Initializing unified RAG system...")
-            
-            # Initialize vector store with single ChromaDB instance
-            vector_config = VectorStoreConfig(
-                persist_directory=self.config.chromadb_persist_directory,
-                collection_name="unified_rag",  # Default collection
-                max_batch_size=self.config.batch_size
+
+            # Initialize ChromaDB client
+            self.chroma_client = chromadb.PersistentClient(
+                path=self.config.persist_directory
             )
-            
-            self.vector_store = ChromaVectorStore(vector_config)
-            await self.vector_store.initialize()
-            
-            # Initialize embedding manager
-            self.embedding_manager = EmbeddingManager(self.config.embedding_config)
-            await self.embedding_manager.initialize()
-            
-            # Initialize ingestion pipeline
-            ingestion_config = IngestionConfig(
-                batch_size=self.config.batch_size,
-                enable_parallel_processing=True
+
+            # Initialize embedding function
+            self.embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
+                model_name=self.config.embedding_model
             )
-            
-            # Create a default knowledge base for the ingestion pipeline
-            default_kb_config = KnowledgeConfig(
-                vector_store=vector_config,
-                embedding_config=self.config.embedding_config
-            )
-            default_kb = KnowledgeBase(default_kb_config)
-            await default_kb.initialize()
-            
-            self.ingestion_pipeline = IngestionPipeline(default_kb, ingestion_config)
-            await self.ingestion_pipeline.initialize()
-            
-            # Create shared collections
-            await self._create_shared_collections()
-            
+
             self.is_initialized = True
             logger.info("Unified RAG system initialized successfully")
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize unified RAG system: {str(e)}")
             raise
     
-    async def _create_shared_collections(self) -> None:
-        """Create shared knowledge collections."""
+    def _get_collection(self, collection_name: str):
+        """Get or create a collection."""
         try:
-            for collection_name in self.shared_collections:
-                # Check if collection exists, create if not
-                if not await self._collection_exists(collection_name):
-                    await self._create_collection(collection_name, CollectionType.SHARED_DOMAIN)
-                    logger.info(f"Created shared collection: {collection_name}")
-            
+            return self.chroma_client.get_or_create_collection(
+                name=collection_name,
+                embedding_function=self.embedding_function
+            )
         except Exception as e:
-            logger.error(f"Failed to create shared collections: {str(e)}")
-            raise
-    
-    async def _collection_exists(self, collection_name: str) -> bool:
-        """Check if a collection exists in ChromaDB."""
-        try:
-            # This would need to be implemented based on ChromaDB API
-            # For now, return False to create collections
-            return False
-        except Exception:
-            return False
-    
-    async def _create_collection(self, collection_name: str, collection_type: CollectionType) -> None:
-        """Create a new collection in ChromaDB."""
-        try:
-            # Create collection with appropriate metadata
-            metadata = {
-                "collection_type": collection_type.value,
-                "created_at": datetime.utcnow().isoformat(),
-                "description": f"Collection for {collection_type.value}"
-            }
-            
-            # This would create the actual collection in ChromaDB
-            # Implementation depends on ChromaDB API
-            logger.info(f"Created collection: {collection_name} of type {collection_type.value}")
-            
-        except Exception as e:
-            logger.error(f"Failed to create collection {collection_name}: {str(e)}")
+            logger.error(f"Failed to get/create collection {collection_name}: {str(e)}")
             raise
 
     async def create_agent_ecosystem(self, agent_id: str) -> AgentCollections:
         """
-        Create a complete ecosystem for a new agent.
+        Create isolated collections for an agent - SIMPLIFIED APPROACH.
 
         Args:
             agent_id: Unique identifier for the agent
 
         Returns:
-            AgentCollections object with all collection names
+            AgentCollections object with collection names
         """
         try:
             if not self.is_initialized:
@@ -271,31 +245,20 @@ class UnifiedRAGSystem:
                 logger.warning(f"Agent ecosystem already exists for {agent_id}")
                 return self.agent_collections[agent_id]
 
-            # Generate collection names
-            knowledge_collection = f"agent_{agent_id}_knowledge"
-            episodic_memory_collection = f"agent_{agent_id}_memory_episodic"
-            semantic_memory_collection = f"agent_{agent_id}_memory_semantic"
+            # Create agent collections using simplified naming
+            agent_collections = AgentCollections.create_for_agent(agent_id)
 
-            # Create collections
-            await self._create_collection(knowledge_collection, CollectionType.AGENT_KNOWLEDGE)
-            await self._create_collection(episodic_memory_collection, CollectionType.AGENT_MEMORY_EPISODIC)
-            await self._create_collection(semantic_memory_collection, CollectionType.AGENT_MEMORY_SEMANTIC)
+            # Create collections (ChromaDB will create them on first use)
+            self._get_collection(agent_collections.knowledge_collection)
+            self._get_collection(agent_collections.short_memory_collection)
+            self._get_collection(agent_collections.long_memory_collection)
 
-            # Create agent collections object
-            agent_collections = AgentCollections(
-                agent_id=agent_id,
-                knowledge_collection=knowledge_collection,
-                episodic_memory_collection=episodic_memory_collection,
-                semantic_memory_collection=semantic_memory_collection,
-                created_at=datetime.utcnow(),
-                last_accessed=datetime.utcnow()
-            )
-
+            # Store agent collections
             self.agent_collections[agent_id] = agent_collections
             self.stats["total_agents"] += 1
-            self.stats["total_collections"] += 3
+            self.stats["total_collections"] += 3  # KB + short memory + long memory
 
-            logger.info(f"Created agent ecosystem for {agent_id}")
+            logger.info(f"Created agent ecosystem for {agent_id} with collections: {agent_collections.knowledge_collection}, {agent_collections.short_memory_collection}, {agent_collections.long_memory_collection}")
             return agent_collections
 
         except Exception as e:
@@ -311,9 +274,8 @@ class UnifiedRAGSystem:
         agent_id: str,
         query: str,
         top_k: int = 10,
-        include_shared: bool = True,
         filters: Optional[Dict[str, Any]] = None
-    ) -> KnowledgeResult:
+    ) -> List[Document]:
         """
         Search knowledge for a specific agent.
 
@@ -321,11 +283,10 @@ class UnifiedRAGSystem:
             agent_id: Agent performing the search
             query: Search query
             top_k: Number of results to return
-            include_shared: Whether to include shared collections
             filters: Additional metadata filters
 
         Returns:
-            Knowledge search results
+            List of matching documents
         """
         try:
             if not self.is_initialized:
@@ -336,74 +297,49 @@ class UnifiedRAGSystem:
             if not agent_collections:
                 agent_collections = await self.create_agent_ecosystem(agent_id)
 
-            # Update last accessed
-            agent_collections.last_accessed = datetime.utcnow()
+            # Get the knowledge collection
+            collection = self._get_collection(agent_collections.knowledge_collection)
 
-            # Search agent's knowledge collection
-            collections_to_search = [agent_collections.knowledge_collection]
-
-            # Add shared collections if requested
-            if include_shared:
-                collections_to_search.extend(self.shared_collections)
-
-            # Perform search across collections
-            all_results = []
-            for collection in collections_to_search:
-                try:
-                    # Create knowledge query for this collection
-                    knowledge_query = KnowledgeQuery(
-                        query=query,
-                        collection=collection,
-                        top_k=top_k // len(collections_to_search) + 1,
-                        filters=filters or {}
-                    )
-
-                    # This would perform the actual search
-                    # For now, create a placeholder result
-                    collection_results = []
-                    all_results.extend(collection_results)
-
-                except Exception as e:
-                    logger.warning(f"Failed to search collection {collection}: {str(e)}")
-                    continue
-
-            # Create unified result
-            result = KnowledgeResult(
-                query=query,
-                results=all_results[:top_k],
-                total_results=len(all_results),
-                processing_time=0.0,  # Would be calculated
-                collection=f"agent_{agent_id}_unified",
-                metadata={
-                    "agent_id": agent_id,
-                    "collections_searched": collections_to_search,
-                    "include_shared": include_shared
-                }
+            # Perform search
+            results = collection.query(
+                query_texts=[query],
+                n_results=top_k,
+                where=filters
             )
 
+            # Convert to Document objects
+            documents = []
+            if results['documents'] and results['documents'][0]:
+                for i, doc in enumerate(results['documents'][0]):
+                    documents.append(Document(
+                        id=results['ids'][0][i] if results['ids'] else f"doc_{i}",
+                        content=doc,
+                        metadata=results['metadatas'][0][i] if results['metadatas'] else {}
+                    ))
+
             self.stats["total_queries"] += 1
-            return result
+            return documents
 
         except Exception as e:
             logger.error(f"Failed to search knowledge for agent {agent_id}: {str(e)}")
             raise
 
-    async def add_document_to_agent(
+    async def add_documents(
         self,
         agent_id: str,
-        document: Document,
+        documents: List[Document],
         collection_type: str = "knowledge"
-    ) -> str:
+    ) -> bool:
         """
-        Add a document to an agent's knowledge base.
+        Add documents to an agent's collection.
 
         Args:
-            agent_id: Agent to add document to
-            document: Document to add
-            collection_type: Type of collection (knowledge, episodic_memory, semantic_memory)
+            agent_id: Agent identifier
+            documents: List of documents to add
+            collection_type: Type of collection ("knowledge" or "memory")
 
         Returns:
-            Document ID
+            True if successful
         """
         try:
             if not self.is_initialized:
@@ -414,55 +350,104 @@ class UnifiedRAGSystem:
             if not agent_collections:
                 agent_collections = await self.create_agent_ecosystem(agent_id)
 
-            # Determine target collection
-            if collection_type == "knowledge":
-                target_collection = agent_collections.knowledge_collection
-            elif collection_type == "episodic_memory":
-                target_collection = agent_collections.episodic_memory_collection
-            elif collection_type == "semantic_memory":
-                target_collection = agent_collections.semantic_memory_collection
-            else:
-                raise ValueError(f"Invalid collection type: {collection_type}")
+            # Select collection based on type - SIMPLIFIED
+            if collection_type == "memory_short":
+                collection_name = agent_collections.short_memory_collection
+            elif collection_type == "memory_long":
+                collection_name = agent_collections.long_memory_collection
+            else:  # Default to knowledge
+                collection_name = agent_collections.knowledge_collection
 
-            # Add metadata
-            document.metadata.update({
-                "agent_id": agent_id,
-                "collection_type": collection_type,
-                "added_at": datetime.utcnow().isoformat()
-            })
+            collection = self._get_collection(collection_name)
 
-            # Use ingestion pipeline to process and add document
-            document_id = str(uuid.uuid4())
+            # Prepare data for ChromaDB
+            ids = [doc.id for doc in documents]
+            texts = [doc.content for doc in documents]
+            metadatas = [doc.metadata or {} for doc in documents]
 
-            # This would use the actual ingestion pipeline
-            # For now, just log the operation
-            logger.info(f"Added document to {target_collection} for agent {agent_id}")
+            # Add timestamp to metadata
+            for metadata in metadatas:
+                metadata["added_at"] = datetime.utcnow().isoformat()
+                metadata["agent_id"] = agent_id
 
-            self.stats["total_documents"] += 1
-            return document_id
+            # Add documents
+            collection.add(
+                ids=ids,
+                documents=texts,
+                metadatas=metadatas
+            )
+
+            self.stats["total_documents"] += len(documents)
+            logger.info(f"Added {len(documents)} documents to {collection_name}")
+            return True
 
         except Exception as e:
-            logger.error(f"Failed to add document for agent {agent_id}: {str(e)}")
+            logger.error(f"Failed to add documents for agent {agent_id}: {str(e)}")
             raise
+
+    async def delete_agent_ecosystem(self, agent_id: str) -> bool:
+        """
+        Delete all collections for an agent - CLEAN REMOVAL.
+
+        Args:
+            agent_id: Agent identifier
+
+        Returns:
+            True if successful
+        """
+        try:
+            if agent_id not in self.agent_collections:
+                logger.warning(f"No ecosystem found for agent {agent_id}")
+                return True
+
+            agent_collections = self.agent_collections[agent_id]
+
+            # Delete all agent collections
+            collections_to_delete = [
+                agent_collections.knowledge_collection,
+                agent_collections.short_memory_collection,
+                agent_collections.long_memory_collection
+            ]
+
+            for collection_name in collections_to_delete:
+                try:
+                    self.chroma_client.delete_collection(collection_name)
+                    logger.debug(f"Deleted collection: {collection_name}")
+                except Exception as e:
+                    logger.warning(f"Error deleting collection {collection_name}: {str(e)}")
+
+            # Remove from tracking
+            del self.agent_collections[agent_id]
+            self.stats["total_agents"] -= 1
+            self.stats["total_collections"] -= 3
+
+            logger.info(f"Deleted agent ecosystem for {agent_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to delete agent ecosystem for {agent_id}: {str(e)}")
+            return False
 
     async def search_agent_memory(
         self,
         agent_id: str,
         query: str,
-        memory_type: str = "both",
-        top_k: int = 10
-    ) -> List[Dict[str, Any]]:
+        memory_type: str = "both",  # "short", "long", or "both"
+        top_k: int = 10,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> List[Document]:
         """
-        Search an agent's memory collections.
+        Search an agent's memory collections - SIMPLIFIED.
 
         Args:
             agent_id: Agent to search memory for
             query: Search query
-            memory_type: Type of memory to search (episodic, semantic, both)
+            memory_type: Type of memory to search ("short", "long", or "both")
             top_k: Number of results to return
+            filters: Additional metadata filters
 
         Returns:
-            List of memory results
+            List of memory documents
         """
         try:
             if not self.is_initialized:
@@ -471,94 +456,140 @@ class UnifiedRAGSystem:
             # Get agent collections
             agent_collections = await self.get_agent_collections(agent_id)
             if not agent_collections:
-                logger.warning(f"No collections found for agent {agent_id}")
-                return []
+                agent_collections = await self.create_agent_ecosystem(agent_id)
 
-            # Determine collections to search
-            collections_to_search = []
-            if memory_type in ["episodic", "both"]:
-                collections_to_search.append(agent_collections.episodic_memory_collection)
-            if memory_type in ["semantic", "both"]:
-                collections_to_search.append(agent_collections.semantic_memory_collection)
+            all_documents = []
 
-            # Search memory collections
-            all_results = []
-            for collection in collections_to_search:
-                try:
-                    # This would perform the actual memory search
-                    # For now, create placeholder results
-                    collection_results = []
-                    all_results.extend(collection_results)
+            # Search short-term memory
+            if memory_type in ["short", "both"]:
+                short_collection = self._get_collection(agent_collections.short_memory_collection)
+                short_results = short_collection.query(
+                    query_texts=[query],
+                    n_results=top_k // 2 if memory_type == "both" else top_k,
+                    where=filters
+                )
 
-                except Exception as e:
-                    logger.warning(f"Failed to search memory collection {collection}: {str(e)}")
-                    continue
+                if short_results['documents'] and short_results['documents'][0]:
+                    for i, doc in enumerate(short_results['documents'][0]):
+                        all_documents.append(Document(
+                            id=short_results['ids'][0][i],
+                            content=doc,
+                            metadata={
+                                **(short_results['metadatas'][0][i] if short_results['metadatas'] else {}),
+                                "memory_type": "short_term"
+                            }
+                        ))
 
-            return all_results[:top_k]
+            # Search long-term memory
+            if memory_type in ["long", "both"]:
+                long_collection = self._get_collection(agent_collections.long_memory_collection)
+                long_results = long_collection.query(
+                    query_texts=[query],
+                    n_results=top_k // 2 if memory_type == "both" else top_k,
+                    where=filters
+                )
+
+                if long_results['documents'] and long_results['documents'][0]:
+                    for i, doc in enumerate(long_results['documents'][0]):
+                        all_documents.append(Document(
+                            id=long_results['ids'][0][i],
+                            content=doc,
+                            metadata={
+                                **(long_results['metadatas'][0][i] if long_results['metadatas'] else {}),
+                                "memory_type": "long_term"
+                            }
+                        ))
+
+            self.stats["total_queries"] += 1
+            return all_documents[:top_k]  # Limit to top_k results
 
         except Exception as e:
             logger.error(f"Failed to search memory for agent {agent_id}: {str(e)}")
             raise
 
-    async def cleanup_inactive_agents(self, days_inactive: int = 30) -> int:
-        """
-        Clean up collections for agents that haven't been accessed recently.
-
-        Args:
-            days_inactive: Number of days of inactivity before cleanup
-
-        Returns:
-            Number of agent ecosystems cleaned up
-        """
-        try:
-            cleanup_count = 0
-            cutoff_date = datetime.utcnow().timestamp() - (days_inactive * 24 * 60 * 60)
-
-            agents_to_cleanup = []
-            for agent_id, collections in self.agent_collections.items():
-                if collections.last_accessed.timestamp() < cutoff_date:
-                    agents_to_cleanup.append(agent_id)
-
-            for agent_id in agents_to_cleanup:
-                await self._cleanup_agent_collections(agent_id)
-                del self.agent_collections[agent_id]
-                cleanup_count += 1
-
-            logger.info(f"Cleaned up {cleanup_count} inactive agent ecosystems")
-            return cleanup_count
-
-        except Exception as e:
-            logger.error(f"Failed to cleanup inactive agents: {str(e)}")
-            raise
-
-    async def _cleanup_agent_collections(self, agent_id: str) -> None:
-        """Clean up all collections for a specific agent."""
-        try:
-            agent_collections = self.agent_collections.get(agent_id)
-            if not agent_collections:
-                return
-
-            # This would delete the actual collections from ChromaDB
-            collections_to_delete = [
-                agent_collections.knowledge_collection,
-                agent_collections.episodic_memory_collection,
-                agent_collections.semantic_memory_collection
-            ]
-
-            for collection in collections_to_delete:
-                # Delete collection from ChromaDB
-                logger.info(f"Deleted collection: {collection}")
-
-            self.stats["total_collections"] -= 3
-
-        except Exception as e:
-            logger.error(f"Failed to cleanup collections for agent {agent_id}: {str(e)}")
-            raise
-
-    def get_system_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> Dict[str, Any]:
         """Get system statistics."""
         return {
             **self.stats,
             "is_initialized": self.is_initialized,
-            "config": self.config.dict()
+            "active_agents": list(self.agent_collections.keys()),
+            "config": {
+                "embedding_model": self.config.embedding_model,
+                "chunk_size": self.config.chunk_size,
+                "strict_isolation": self.config.strict_isolation
+            }
         }
+
+    async def cleanup_expired_memories(self, agent_id: str) -> int:
+        """
+        Clean up expired short-term memories for an agent.
+
+        Args:
+            agent_id: Agent to clean up memories for
+
+        Returns:
+            Number of memories cleaned up
+        """
+        try:
+            agent_collections = await self.get_agent_collections(agent_id)
+            if not agent_collections:
+                return 0
+
+            # Get short-term memory collection
+            collection = self._get_collection(agent_collections.short_memory_collection)
+
+            # Calculate expiry time
+            expiry_time = datetime.utcnow() - timedelta(hours=self.config.short_term_ttl_hours)
+
+            # Query for expired memories
+            results = collection.get(
+                where={"added_at": {"$lt": expiry_time.isoformat()}}
+            )
+
+            if results['ids']:
+                # Delete expired memories
+                collection.delete(ids=results['ids'])
+                logger.info(f"Cleaned up {len(results['ids'])} expired memories for agent {agent_id}")
+                return len(results['ids'])
+
+            return 0
+
+        except Exception as e:
+            logger.error(f"Failed to cleanup memories for agent {agent_id}: {str(e)}")
+            return 0
+
+    async def get_agent_stats(self, agent_id: str) -> Dict[str, Any]:
+        """Get statistics for a specific agent."""
+        try:
+            agent_collections = await self.get_agent_collections(agent_id)
+            if not agent_collections:
+                return {"error": "Agent not found"}
+
+            stats = {
+                "agent_id": agent_id,
+                "collections": {
+                    "knowledge": agent_collections.knowledge_collection,
+                    "short_memory": agent_collections.short_memory_collection,
+                    "long_memory": agent_collections.long_memory_collection
+                },
+                "created_at": agent_collections.created_at.isoformat(),
+                "last_accessed": agent_collections.last_accessed.isoformat()
+            }
+
+            # Get collection counts
+            for collection_type, collection_name in stats["collections"].items():
+                try:
+                    collection = self._get_collection(collection_name)
+                    count_result = collection.count()
+                    stats[f"{collection_type}_count"] = count_result
+                except Exception as e:
+                    stats[f"{collection_type}_count"] = 0
+                    logger.warning(f"Could not get count for {collection_name}: {str(e)}")
+
+            return stats
+
+        except Exception as e:
+            logger.error(f"Failed to get stats for agent {agent_id}: {str(e)}")
+            return {"error": str(e)}
+
+

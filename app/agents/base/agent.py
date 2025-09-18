@@ -75,14 +75,33 @@ class AgentGraphState(TypedDict):
     custom_state: Dict[str, Any]
 
 
+class AgentDNA(BaseModel):
+    """Agent DNA configuration for personality and behavior."""
+    identity: Dict[str, Any] = Field(default_factory=dict, description="Identity configuration")
+    cognition: Dict[str, Any] = Field(default_factory=dict, description="Cognitive configuration")
+    behavior: Dict[str, Any] = Field(default_factory=dict, description="Behavioral configuration")
+
+
+class FrameworkConfig(BaseModel):
+    """Framework-specific configuration."""
+    framework_id: str = Field(..., description="Framework identifier")
+    components: List[Dict[str, Any]] = Field(default_factory=list, description="Framework components")
+    settings: Dict[str, Any] = Field(default_factory=dict, description="Framework-specific settings")
+
+
 class AgentConfig(BaseModel):
-    """LangChain/LangGraph-based agent configuration."""
+    """Enhanced LangChain/LangGraph-based agent configuration with multi-framework support."""
 
     # Basic configuration
     name: str = Field(..., description="Agent name")
     description: str = Field(..., description="Agent description")
     version: str = Field(default="1.0.0", description="Agent version")
     agent_type: str = Field(default="basic", description="Agent type")
+    framework: str = Field(default="basic", description="Agent framework (basic, react, bdi, crewai, autogen, swarm)")
+
+    # Agent DNA configuration
+    agent_dna: Optional[AgentDNA] = Field(default=None, description="Agent DNA configuration")
+    framework_config: Optional[FrameworkConfig] = Field(default=None, description="Framework configuration")
 
     # LangChain LLM configuration
     model_name: str = Field(default="llama3.2:latest", description="LLM model to use")

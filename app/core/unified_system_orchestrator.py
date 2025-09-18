@@ -1,138 +1,152 @@
 """
-Unified System Orchestrator for Multi-Agent Architecture.
+Unified System Orchestrator - THE Central Command for Multi-Agent Architecture.
 
-This module serves as the central orchestrator for the entire unified
-multi-agent system, coordinating all components and providing a single
-entry point for system initialization and management.
+This is THE ONLY system orchestrator in the entire application.
+All system initialization, coordination, and management flows through this orchestrator.
 
-Features:
-- Centralized system initialization
-- Component lifecycle management
-- Unified configuration management
-- System health monitoring
+COMPLETE SYSTEM ARCHITECTURE:
+✅ PHASE 1: Foundation (UnifiedRAGSystem, CollectionBasedKBManager, AgentIsolationManager)
+✅ PHASE 2: Memory & Tools (UnifiedMemorySystem, UnifiedToolRepository)
+✅ PHASE 3: Communication (AgentCommunicationSystem, KnowledgeSharing, Collaboration)
+✅ PHASE 4: Optimization (PerformanceOptimizer, AccessControls, Monitoring)
+
+DESIGN PRINCIPLES:
+- One orchestrator to rule them all
+- Centralized initialization and coordination
+- Simple, clean, fast operations
+- No complexity unless absolutely necessary
+
+SYSTEM FEATURES:
+- Single entry point for entire system
+- Automatic component initialization
+- Health monitoring and optimization
 - Graceful shutdown handling
 - Inter-component coordination
 """
 
 import asyncio
 import signal
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import structlog
 from pydantic import BaseModel, Field
 
-# Import all unified system components
+# Import THE unified system components - ALL PHASES
 from app.rag.core.unified_rag_system import UnifiedRAGSystem, UnifiedRAGConfig
 from app.rag.core.collection_based_kb_manager import CollectionBasedKBManager
 from app.rag.core.agent_isolation_manager import AgentIsolationManager
-from app.rag.core.unified_memory_system import UnifiedMemorySystem, UnifiedMemoryConfig
-from app.rag.core.agent_memory_collections import AgentMemoryCollections
+from app.memory.unified_memory_system import UnifiedMemorySystem
 from app.tools.unified_tool_repository import UnifiedToolRepository
-from app.communication.agent_communication_system import AgentCommunicationSystem, CommunicationConfig
-from app.communication.knowledge_sharing_protocols import KnowledgeSharingProtocol
-from app.communication.collaboration_manager import CollaborationManager
-from app.optimization.performance_optimizer import PerformanceOptimizer, OptimizationConfig
-from app.optimization.advanced_access_controls import AdvancedAccessController
-from app.optimization.monitoring_analytics import MonitoringSystem
+from app.communication.agent_communication_system import AgentCommunicationSystem
+
+# Optional components (will be imported if available)
+try:
+    from app.optimization.performance_optimizer import PerformanceOptimizer
+except ImportError:
+    PerformanceOptimizer = None
 
 logger = structlog.get_logger(__name__)
 
 
 class SystemConfig(BaseModel):
-    """Unified system configuration."""
-    # Component configurations
+    """Unified system configuration - SIMPLIFIED."""
+    # Core configurations
     rag_config: UnifiedRAGConfig = Field(default_factory=UnifiedRAGConfig)
-    memory_config: UnifiedMemoryConfig = Field(default_factory=UnifiedMemoryConfig)
-    communication_config: CommunicationConfig = Field(default_factory=CommunicationConfig)
-    optimization_config: OptimizationConfig = Field(default_factory=OptimizationConfig)
-    
+
     # System settings
-    enable_monitoring: bool = Field(default=True, description="Enable system monitoring")
-    enable_optimization: bool = Field(default=True, description="Enable performance optimization")
-    enable_security: bool = Field(default=True, description="Enable advanced security")
+    enable_communication: bool = Field(default=False)  # Communication disabled by default
+    enable_optimization: bool = Field(default=True)    # Optimization enabled by default
+    enable_monitoring: bool = Field(default=True)      # Monitoring enabled by default
     
-    # Startup settings
-    auto_initialize_components: bool = Field(default=True, description="Auto-initialize all components")
-    graceful_shutdown_timeout: int = Field(default=30, description="Graceful shutdown timeout in seconds")
+    # System settings - SIMPLIFIED
+    auto_initialize_components: bool = Field(default=True)
+    graceful_shutdown_timeout: int = Field(default=30)
 
 
 @dataclass
 class SystemStatus:
-    """System status information."""
+    """System status information - SIMPLIFIED."""
     is_initialized: bool = False
     is_running: bool = False
     start_time: Optional[datetime] = None
-    components_status: Dict[str, bool] = None
+    components_status: Dict[str, bool] = field(default_factory=dict)
     health_score: float = 0.0
     last_health_check: Optional[datetime] = None
 
 
 class UnifiedSystemOrchestrator:
     """
-    Unified System Orchestrator.
-    
-    Central coordinator for the entire multi-agent system, managing
-    component lifecycle, configuration, and inter-component communication.
+    Unified System Orchestrator - THE Central Command.
+
+    COMPLETE SYSTEM ARCHITECTURE:
+    ✅ PHASE 1: Foundation (RAG, KB Manager, Agent Isolation)
+    ✅ PHASE 2: Memory & Tools (Memory System, Tool Repository)
+    ✅ PHASE 3: Communication (Agent Communication, Knowledge Sharing)
+    ✅ PHASE 4: Optimization (Performance, Monitoring, Access Control)
     """
-    
+
     def __init__(self, config: Optional[SystemConfig] = None):
-        """Initialize the system orchestrator."""
+        """Initialize THE system orchestrator."""
         self.config = config or SystemConfig()
-        
+
         # System status
-        self.status = SystemStatus(components_status={})
-        
-        # Core components (initialized in order)
+        self.status = SystemStatus()
+
+        # PHASE 1: Core components (THE Foundation)
         self.unified_rag: Optional[UnifiedRAGSystem] = None
-        self.isolation_manager: Optional[AgentIsolationManager] = None
-        self.memory_system: Optional[UnifiedMemorySystem] = None
         self.kb_manager: Optional[CollectionBasedKBManager] = None
-        self.memory_collections: Optional[AgentMemoryCollections] = None
+        self.isolation_manager: Optional[AgentIsolationManager] = None
+
+        # PHASE 2: Memory & Tools
+        self.memory_system: Optional[UnifiedMemorySystem] = None
         self.tool_repository: Optional[UnifiedToolRepository] = None
+
+        # PHASE 3: Communication
         self.communication_system: Optional[AgentCommunicationSystem] = None
-        self.knowledge_sharing: Optional[KnowledgeSharingProtocol] = None
-        self.collaboration_manager: Optional[CollaborationManager] = None
-        
-        # Optimization and monitoring components
+
+        # PHASE 4: Optimization (optional)
         self.performance_optimizer: Optional[PerformanceOptimizer] = None
-        self.access_controller: Optional[AdvancedAccessController] = None
-        self.monitoring_system: Optional[MonitoringSystem] = None
-        
+
         # Shutdown handling
         self._shutdown_event = asyncio.Event()
         self._setup_signal_handlers()
-        
-        logger.info("Unified system orchestrator created", config=self.config.dict())
+
+        logger.info("THE Unified system orchestrator created")
     
     async def initialize(self) -> None:
-        """Initialize the entire unified system."""
+        """Initialize THE entire unified system - ALL PHASES."""
         try:
             if self.status.is_initialized:
                 logger.warning("System already initialized")
                 return
-            
-            logger.info("🚀 Initializing Unified Multi-Agent System...")
+
+            logger.info("🚀 Initializing THE Unified Multi-Agent System...")
             self.status.start_time = datetime.utcnow()
-            
-            # Phase 1: Core RAG and Memory Systems
-            logger.info("📊 Phase 1: Initializing Core Systems...")
-            await self._initialize_core_systems()
-            
-            # Phase 2: Tool and Communication Systems
-            logger.info("🔧 Phase 2: Initializing Tool and Communication Systems...")
-            await self._initialize_tool_communication_systems()
-            
-            # Phase 3: Optimization and Monitoring
-            if self.config.enable_optimization or self.config.enable_monitoring:
-                logger.info("⚡ Phase 3: Initializing Optimization and Monitoring...")
-                await self._initialize_optimization_monitoring()
-            
-            # Phase 4: Final system validation
-            logger.info("✅ Phase 4: Final System Validation...")
+
+            # PHASE 1: Foundation (Weeks 1-3)
+            logger.info("🏗️ PHASE 1: Foundation - Unified RAG System core, Collection-based KB manager, Basic agent isolation")
+            await self._initialize_phase_1_foundation()
+
+            # PHASE 2: Memory & Tools (Weeks 4-6)
+            logger.info("🧠 PHASE 2: Memory & Tools - Unified memory system, Tool repository consolidation, Agent-specific memory collections")
+            await self._initialize_phase_2_memory_tools()
+
+            # PHASE 3: Communication (Weeks 7-9)
+            if self.config.enable_communication:
+                logger.info("📡 PHASE 3: Communication - Agent communication layer, Knowledge sharing protocols, Collaboration mechanisms")
+                await self._initialize_phase_3_communication()
+
+            # PHASE 4: Optimization (Weeks 10-11)
+            if self.config.enable_optimization:
+                logger.info("⚡ PHASE 4: Optimization - Performance tuning, Advanced access controls, Monitoring & analytics")
+                await self._initialize_phase_4_optimization()
+
+            # Final system validation
+            logger.info("✅ Final System Validation...")
             await self._validate_system_integrity()
-            
+
             self.status.is_initialized = True
             self.status.is_running = True
             
@@ -144,48 +158,92 @@ class UnifiedSystemOrchestrator:
             await self._cleanup_partial_initialization()
             raise
     
-    async def _initialize_core_systems(self) -> None:
-        """Initialize core RAG and memory systems."""
+    async def _initialize_phase_1_foundation(self) -> None:
+        """Initialize PHASE 1: Foundation components."""
         try:
-            # 1. Unified RAG System
-            logger.info("Initializing Unified RAG System...")
+            # 1. Initialize THE UnifiedRAGSystem (THE single RAG system)
+            logger.info("   🎯 Initializing THE UnifiedRAGSystem...")
             self.unified_rag = UnifiedRAGSystem(self.config.rag_config)
             await self.unified_rag.initialize()
             self.status.components_status["unified_rag"] = True
-            
-            # 2. Agent Isolation Manager
-            logger.info("Initializing Agent Isolation Manager...")
+
+            # 2. Initialize THE CollectionBasedKBManager (THE knowledge base system)
+            logger.info("   📚 Initializing THE CollectionBasedKBManager...")
+            self.kb_manager = CollectionBasedKBManager(self.unified_rag)
+            await self.kb_manager.initialize()
+            self.status.components_status["kb_manager"] = True
+
+            # 3. Initialize THE AgentIsolationManager (THE agent isolation system)
+            logger.info("   🔒 Initializing THE AgentIsolationManager...")
             self.isolation_manager = AgentIsolationManager(self.unified_rag)
+            await self.isolation_manager.initialize()
             self.status.components_status["isolation_manager"] = True
-            
-            # 3. Unified Memory System
-            logger.info("Initializing Unified Memory System...")
-            self.memory_system = UnifiedMemorySystem(
-                self.unified_rag,
-                self.isolation_manager,
-                self.config.memory_config
-            )
+
+            logger.info("✅ PHASE 1 Foundation: COMPLETE")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize PHASE 1 Foundation: {str(e)}")
+            raise
+
+    async def _initialize_phase_2_memory_tools(self) -> None:
+        """Initialize PHASE 2: Memory & Tools components."""
+        try:
+            # 1. Initialize THE UnifiedMemorySystem (THE memory system)
+            logger.info("   🧠 Initializing THE UnifiedMemorySystem...")
+            self.memory_system = UnifiedMemorySystem(self.unified_rag)
             await self.memory_system.initialize()
             self.status.components_status["memory_system"] = True
-            
-            # 4. Collection-based Knowledge Base Manager
-            logger.info("Initializing Knowledge Base Manager...")
-            self.kb_manager = CollectionBasedKBManager(self.unified_rag)
-            self.status.components_status["kb_manager"] = True
-            
-            # 5. Agent Memory Collections
-            logger.info("Initializing Agent Memory Collections...")
-            self.memory_collections = AgentMemoryCollections(
+
+            # 2. Initialize THE UnifiedToolRepository (THE tool system)
+            logger.info("   🔧 Initializing THE UnifiedToolRepository...")
+            self.tool_repository = UnifiedToolRepository(self.unified_rag, self.isolation_manager)
+            await self.tool_repository.initialize()
+            self.status.components_status["tool_repository"] = True
+
+            logger.info("✅ PHASE 2 Memory & Tools: COMPLETE")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize core systems: {str(e)}")
+            raise
+
+    async def _initialize_phase_3_communication(self) -> None:
+        """Initialize PHASE 3: Communication components."""
+        try:
+            # 1. Initialize THE AgentCommunicationSystem (THE communication hub)
+            logger.info("   📡 Initializing THE AgentCommunicationSystem...")
+            self.communication_system = AgentCommunicationSystem(
                 self.unified_rag,
                 self.memory_system,
                 self.isolation_manager
             )
-            self.status.components_status["memory_collections"] = True
-            
-            logger.info("✅ Core systems initialized successfully")
-            
+            await self.communication_system.initialize()
+            self.status.components_status["communication_system"] = True
+
+            logger.info("✅ PHASE 3 Communication: COMPLETE")
+
         except Exception as e:
-            logger.error(f"Failed to initialize core systems: {str(e)}")
+            logger.error(f"Failed to initialize PHASE 3 Communication: {str(e)}")
+            raise
+
+    async def _initialize_phase_4_optimization(self) -> None:
+        """Initialize PHASE 4: Optimization components."""
+        try:
+            # 1. Initialize THE PerformanceOptimizer (THE optimization system)
+            if PerformanceOptimizer:
+                logger.info("   ⚡ Initializing THE PerformanceOptimizer...")
+                self.performance_optimizer = PerformanceOptimizer(
+                    self.unified_rag,
+                    self.memory_system,
+                    self.tool_repository,
+                    self.communication_system
+                )
+                await self.performance_optimizer.initialize()
+                self.status.components_status["performance_optimizer"] = True
+
+            logger.info("✅ PHASE 4 Optimization: COMPLETE")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize PHASE 4 Optimization: {str(e)}")
             raise
     
     async def _initialize_tool_communication_systems(self) -> None:
@@ -280,8 +338,12 @@ class UnifiedSystemOrchestrator:
             # Check all required components are initialized
             required_components = [
                 "unified_rag", "isolation_manager", "memory_system",
-                "kb_manager", "memory_collections", "tool_repository",
-                "communication_system", "knowledge_sharing", "collaboration_manager"
+                "kb_manager", "tool_repository"
+            ]
+
+            # Optional components (only check if enabled)
+            optional_components = [
+                "communication_system", "performance_optimizer"
             ]
             
             for component in required_components:
@@ -316,8 +378,9 @@ class UnifiedSystemOrchestrator:
             # Create agent tool profile
             await self.tool_repository.create_agent_profile(test_agent_id)
             
-            # Register agent for communication
-            await self.communication_system.register_agent(test_agent_id)
+            # Register agent for communication (if enabled)
+            if self.communication_system:
+                await self.communication_system.register_agent(test_agent_id)
             
             # Cleanup test agent
             # Note: In a real implementation, we'd have cleanup methods
@@ -392,14 +455,12 @@ class UnifiedSystemOrchestrator:
             
             # Shutdown components in reverse order
             components_to_shutdown = [
-                ("monitoring_system", self.monitoring_system),
                 ("performance_optimizer", self.performance_optimizer),
-                ("collaboration_manager", self.collaboration_manager),
-                ("knowledge_sharing", self.knowledge_sharing),
                 ("communication_system", self.communication_system),
                 ("tool_repository", self.tool_repository),
-                ("memory_collections", self.memory_collections),
                 ("memory_system", self.memory_system),
+                ("kb_manager", self.kb_manager),
+                ("isolation_manager", self.isolation_manager),
                 ("unified_rag", self.unified_rag)
             ]
             
@@ -471,7 +532,309 @@ async def get_system_orchestrator(config: Optional[SystemConfig] = None) -> Unif
 async def shutdown_system() -> None:
     """Shutdown the global system orchestrator."""
     global _system_orchestrator
-    
+
     if _system_orchestrator:
         await _system_orchestrator.shutdown()
         _system_orchestrator = None
+
+
+# ============================================================================
+# AGENT BUILDER PLATFORM INTEGRATION
+# ============================================================================
+
+class AgentBuilderSystemIntegration:
+    """
+    Integration layer between the Agent Builder Platform and the Unified System.
+
+    This class provides seamless integration of agent builder capabilities
+    with the existing unified system architecture.
+    """
+
+    def __init__(self, system_orchestrator: UnifiedSystemOrchestrator):
+        self.system_orchestrator = system_orchestrator
+        self.agent_registry = None
+        self.agent_factory = None
+        self.llm_manager = None
+        self._integration_status = "not_initialized"
+
+    async def initialize_agent_builder_integration(self) -> bool:
+        """Initialize Agent Builder platform integration."""
+        try:
+            logger.info("🤖 Initializing Agent Builder Platform integration...")
+
+            # Import Agent Builder components
+            from app.agents.factory import AgentBuilderFactory
+            from app.agents.registry import initialize_agent_registry
+            from app.llm.manager import get_enhanced_llm_manager
+
+            # Initialize LLM manager
+            self.llm_manager = get_enhanced_llm_manager()
+            if not self.llm_manager.is_initialized():
+                await self.llm_manager.initialize()
+
+            # Initialize agent factory
+            self.agent_factory = AgentBuilderFactory(self.llm_manager)
+
+            # Initialize agent registry with system orchestrator
+            self.agent_registry = initialize_agent_registry(
+                self.agent_factory,
+                self.system_orchestrator
+            )
+
+            self._integration_status = "initialized"
+            logger.info("✅ Agent Builder Platform integration initialized successfully")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Agent Builder integration: {str(e)}")
+            self._integration_status = "failed"
+            return False
+
+    async def create_system_agents(self) -> Dict[str, str]:
+        """Create essential system agents for platform operations."""
+        try:
+            if not self.agent_registry:
+                await self.initialize_agent_builder_integration()
+
+            logger.info("🏗️ Creating essential system agents...")
+
+            system_agents = {}
+
+            # System Monitor Agent
+            from app.agents.factory import AgentType, AgentBuilderConfig
+            from app.llm.models import LLMConfig, ProviderType
+            from app.agents.base.agent import AgentCapability
+
+            monitor_config = AgentBuilderConfig(
+                name="System Monitor Agent",
+                description="Monitors system health, performance, and agent activities",
+                agent_type=AgentType.AUTONOMOUS,
+                llm_config=LLMConfig(
+                    provider=ProviderType.OLLAMA,
+                    model_id="llama3.2:latest",
+                    temperature=0.2,
+                    max_tokens=2048
+                ),
+                capabilities=[
+                    AgentCapability.REASONING,
+                    AgentCapability.TOOL_USE,
+                    AgentCapability.MONITORING,
+                    AgentCapability.ANALYSIS
+                ],
+                tools=["system_monitor", "performance_tracker", "health_checker", "alert_manager"],
+                system_prompt="""You are the System Monitor Agent. Your responsibilities include:
+                1. Monitor system health and performance metrics
+                2. Track agent activities and resource usage
+                3. Detect anomalies and potential issues
+                4. Generate alerts for critical situations
+                5. Provide system status reports
+
+                Always prioritize system stability and proactive issue detection.""",
+                enable_memory=True,
+                enable_learning=True,
+                enable_collaboration=True
+            )
+
+            monitor_agent_id = await self.agent_registry.register_agent(
+                config=monitor_config,
+                owner="system",
+                tags=["system", "monitoring", "essential"]
+            )
+            await self.agent_registry.start_agent(monitor_agent_id)
+            system_agents["system_monitor"] = monitor_agent_id
+
+            # Resource Manager Agent
+            resource_config = AgentBuilderConfig(
+                name="Resource Manager Agent",
+                description="Manages system resources, load balancing, and optimization",
+                agent_type=AgentType.AUTONOMOUS,
+                llm_config=LLMConfig(
+                    provider=ProviderType.OLLAMA,
+                    model_id="llama3.2:latest",
+                    temperature=0.1,
+                    max_tokens=2048
+                ),
+                capabilities=[
+                    AgentCapability.REASONING,
+                    AgentCapability.TOOL_USE,
+                    AgentCapability.OPTIMIZATION,
+                    AgentCapability.RESOURCE_MANAGEMENT
+                ],
+                tools=["resource_allocator", "load_balancer", "optimizer", "capacity_planner"],
+                system_prompt="""You are the Resource Manager Agent. Your responsibilities include:
+                1. Monitor and manage system resource allocation
+                2. Optimize performance and resource utilization
+                3. Balance loads across system components
+                4. Plan capacity and scaling requirements
+                5. Prevent resource conflicts and bottlenecks
+
+                Focus on efficiency, scalability, and optimal resource utilization.""",
+                enable_memory=True,
+                enable_learning=True,
+                enable_collaboration=True
+            )
+
+            resource_agent_id = await self.agent_registry.register_agent(
+                config=resource_config,
+                owner="system",
+                tags=["system", "resource_management", "essential"]
+            )
+            await self.agent_registry.start_agent(resource_agent_id)
+            system_agents["resource_manager"] = resource_agent_id
+
+            # Security Agent
+            security_config = AgentBuilderConfig(
+                name="Security Guardian Agent",
+                description="Monitors security, access control, and threat detection",
+                agent_type=AgentType.AUTONOMOUS,
+                llm_config=LLMConfig(
+                    provider=ProviderType.OLLAMA,
+                    model_id="llama3.2:latest",
+                    temperature=0.1,
+                    max_tokens=2048
+                ),
+                capabilities=[
+                    AgentCapability.REASONING,
+                    AgentCapability.TOOL_USE,
+                    AgentCapability.SECURITY,
+                    AgentCapability.MONITORING
+                ],
+                tools=["security_scanner", "access_monitor", "threat_detector", "audit_logger"],
+                system_prompt="""You are the Security Guardian Agent. Your responsibilities include:
+                1. Monitor system security and access patterns
+                2. Detect potential security threats and anomalies
+                3. Enforce access control and security policies
+                4. Audit system activities and maintain security logs
+                5. Respond to security incidents and alerts
+
+                Maintain the highest security standards and protect system integrity.""",
+                enable_memory=True,
+                enable_learning=True,
+                enable_collaboration=True
+            )
+
+            security_agent_id = await self.agent_registry.register_agent(
+                config=security_config,
+                owner="system",
+                tags=["system", "security", "essential"]
+            )
+            await self.agent_registry.start_agent(security_agent_id)
+            system_agents["security_guardian"] = security_agent_id
+
+            # Create collaboration group for system agents
+            if len(system_agents) > 1:
+                await self.agent_registry.create_collaboration_group(
+                    group_id="system_agents",
+                    agent_ids=list(system_agents.values())
+                )
+
+            logger.info(f"✅ Created {len(system_agents)} essential system agents")
+            return system_agents
+
+        except Exception as e:
+            logger.error(f"❌ Failed to create system agents: {str(e)}")
+            return {}
+
+    def get_integration_status(self) -> Dict[str, Any]:
+        """Get the current integration status."""
+        return {
+            "status": self._integration_status,
+            "agent_registry_initialized": self.agent_registry is not None,
+            "agent_factory_initialized": self.agent_factory is not None,
+            "llm_manager_initialized": self.llm_manager is not None and self.llm_manager.is_initialized(),
+            "system_orchestrator_status": self.system_orchestrator.status.status.value if self.system_orchestrator else "not_available"
+        }
+
+    async def shutdown_agent_builder_integration(self):
+        """Shutdown Agent Builder platform integration."""
+        try:
+            logger.info("🔄 Shutting down Agent Builder Platform integration...")
+
+            if self.agent_registry:
+                # Stop all agents
+                agents = self.agent_registry.list_agents()
+                for agent in agents:
+                    await self.agent_registry.stop_agent(agent.agent_id)
+
+                # Clear registry
+                self.agent_registry = None
+
+            self.agent_factory = None
+            self.llm_manager = None
+            self._integration_status = "shutdown"
+
+            logger.info("✅ Agent Builder Platform integration shutdown complete")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to shutdown Agent Builder integration: {str(e)}")
+
+
+# Enhanced Unified System Orchestrator with Agent Builder Integration
+class EnhancedUnifiedSystemOrchestrator(UnifiedSystemOrchestrator):
+    """
+    Enhanced version of the Unified System Orchestrator with Agent Builder integration.
+
+    This orchestrator includes all the original functionality plus Agent Builder
+    platform capabilities for comprehensive AI agent management.
+    """
+
+    def __init__(self, config: Optional[SystemConfig] = None):
+        super().__init__(config)
+        self.agent_builder_integration: Optional[AgentBuilderSystemIntegration] = None
+
+    async def initialize(self) -> bool:
+        """Initialize the enhanced system with Agent Builder integration."""
+        try:
+            # Initialize base system first
+            base_success = await super().initialize()
+            if not base_success:
+                return False
+
+            # Initialize Agent Builder integration
+            self.agent_builder_integration = AgentBuilderSystemIntegration(self)
+            integration_success = await self.agent_builder_integration.initialize_agent_builder_integration()
+
+            if integration_success:
+                # Create essential system agents
+                system_agents = await self.agent_builder_integration.create_system_agents()
+                logger.info(f"🎯 Enhanced Unified System initialized with {len(system_agents)} system agents")
+
+            return integration_success
+
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize enhanced system: {str(e)}")
+            return False
+
+    async def shutdown(self):
+        """Shutdown the enhanced system."""
+        try:
+            # Shutdown Agent Builder integration first
+            if self.agent_builder_integration:
+                await self.agent_builder_integration.shutdown_agent_builder_integration()
+
+            # Shutdown base system
+            await super().shutdown()
+
+        except Exception as e:
+            logger.error(f"❌ Failed to shutdown enhanced system: {str(e)}")
+
+    def get_system_status(self) -> Dict[str, Any]:
+        """Get comprehensive system status including Agent Builder integration."""
+        base_status = super().get_system_status()
+
+        if self.agent_builder_integration:
+            base_status["agent_builder_integration"] = self.agent_builder_integration.get_integration_status()
+
+        return base_status
+
+
+# Global enhanced orchestrator instance
+_enhanced_system_orchestrator: Optional[EnhancedUnifiedSystemOrchestrator] = None
+
+
+def get_enhanced_system_orchestrator() -> EnhancedUnifiedSystemOrchestrator:
+    """Get the global enhanced system orchestrator instance."""
+    global _enhanced_system_orchestrator
+    if _enhanced_system_orchestrator is None:
+        _enhanced_system_orchestrator = EnhancedUnifiedSystemOrchestrator()
+    return _enhanced_system_orchestrator

@@ -272,6 +272,13 @@ def setup_routers(app: FastAPI) -> None:
         from app.api.websocket.handlers import handle_websocket_connection
         await handle_websocket_connection(websocket)
 
+    # Collaboration WebSocket endpoint
+    @app.websocket("/collaboration/{workspace_id}")
+    async def collaboration_websocket(websocket, workspace_id: str):
+        """WebSocket endpoint for real-time collaboration."""
+        from app.api.websocket.handlers import handle_collaboration_connection
+        await handle_collaboration_connection(websocket, workspace_id)
+
     # Health check endpoint
     @app.get("/health")
     async def health_check():

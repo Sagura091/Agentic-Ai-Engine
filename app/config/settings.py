@@ -90,6 +90,37 @@ class Settings(BaseSettings):
     # Redis settings
     REDIS_URL: str = Field(default="redis://localhost:6379/0", description="Redis connection URL")
     REDIS_POOL_SIZE: int = Field(default=10, description="Redis connection pool size")
+
+    # Distributed Architecture Settings
+    ENABLE_DISTRIBUTED_MODE: bool = Field(default=False, description="Enable distributed agent registry")
+    NODE_ID: Optional[str] = Field(default=None, description="Unique node identifier")
+    CLUSTER_NAME: str = Field(default="agent_builder_cluster", description="Cluster name for node discovery")
+    HEARTBEAT_INTERVAL: int = Field(default=30, description="Node heartbeat interval in seconds")
+
+    # Async Processing Configuration
+    ASYNC_WORKER_COUNT: int = Field(default=4, description="Number of async worker tasks")
+    ASYNC_TASK_TIMEOUT: int = Field(default=300, description="Async task timeout in seconds")
+    ENABLE_ASYNC_PROCESSING: bool = Field(default=True, description="Enable async task processing")
+    TASK_RESULT_TTL: int = Field(default=3600, description="Task result cache TTL in seconds")
+
+    # Enhanced Document Processing
+    MAX_FILE_SIZE_MB: int = Field(default=100, description="Maximum file size for processing")
+    SUPPORTED_FILE_EXTENSIONS: List[str] = Field(
+        default=[
+            ".pdf", ".docx", ".txt", ".md", ".html", ".csv", ".json",
+            ".xlsx", ".pptx", ".rtf", ".odt", ".epub", ".xml", ".yaml", ".yml",
+            ".xls", ".ppt", ".zip", ".tar", ".gz"
+        ],
+        description="Supported file extensions for document processing"
+    )
+    ENABLE_PARALLEL_PROCESSING: bool = Field(default=True, description="Enable parallel document processing")
+    DOCUMENT_PROCESSING_WORKERS: int = Field(default=3, description="Number of document processing workers")
+
+    # Agent Builder UI Configuration
+    ENABLE_VISUAL_BUILDER: bool = Field(default=True, description="Enable visual agent builder")
+    COMPONENT_CACHE_TTL: int = Field(default=3600, description="Component cache TTL in seconds")
+    MAX_CUSTOM_COMPONENTS: int = Field(default=100, description="Maximum custom components per user")
+    ENABLE_TEMPLATE_SHARING: bool = Field(default=True, description="Enable template sharing between users")
     
     # LLM Integration settings - Multi-Provider Support
     # Ollama settings

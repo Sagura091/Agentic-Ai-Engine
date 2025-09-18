@@ -1,8 +1,8 @@
 """
-WebSocket handlers for real-time agent communication.
+WebSocket handlers for real-time agent communication and collaboration.
 
 This module provides WebSocket handlers for real-time communication
-between the frontend and the agentic AI backend.
+between the frontend and the agentic AI backend, including collaborative editing.
 """
 
 import asyncio
@@ -380,3 +380,543 @@ async def send_error(connection_id: str, error_message: str) -> None:
             "timestamp": asyncio.get_event_loop().time()
         }
     )
+
+
+# Collaboration WebSocket Handlers
+collaboration_workspaces: Dict[str, Dict[str, Any]] = {}
+
+
+async def handle_collaboration_connection(websocket: WebSocket, workspace_id: str) -> None:
+    """
+    Handle WebSocket connection for real-time collaboration.
+
+    Args:
+        websocket: WebSocket connection
+        workspace_id: Workspace identifier for collaboration
+    """
+    connection_id = str(uuid.uuid4())
+    user_id = f"user_{connection_id[:8]}"
+
+    try:
+        # Accept the connection
+        await websocket.accept()
+
+        # Initialize workspace if it doesn't exist
+        if workspace_id not in collaboration_workspaces:
+            collaboration_workspaces[workspace_id] = {
+                "users": {},
+                "document_state": {},
+                "comments": {},
+                "last_activity": asyncio.get_event_loop().time()
+            }
+
+        workspace = collaboration_workspaces[workspace_id]
+
+        # Add user to workspace
+        workspace["users"][user_id] = {
+            "connection_id": connection_id,
+            "websocket": websocket,
+            "name": f"User-{connection_id[:4]}",
+            "color": f"hsl({hash(user_id) % 360}, 70%, 50%)",
+            "cursor": None,
+            "selection": None,
+            "joined_at": asyncio.get_event_loop().time()
+        }
+
+        logger.info(
+            "Collaboration connection established",
+            workspace_id=workspace_id,
+            user_id=user_id,
+            total_users=len(workspace["users"])
+        )
+
+        # Send initial workspace state
+        await send_collaboration_state(websocket, workspace_id, user_id)
+
+        # Notify other users about new user
+        await broadcast_user_joined(workspace_id, user_id)
+
+        # Handle incoming collaboration messages
+        while True:
+            try:
+                data = await websocket.receive_text()
+                message = json.loads(data)
+
+                await handle_collaboration_message(workspace_id, user_id, message)
+
+            except WebSocketDisconnect:
+                break
+            except json.JSONDecodeError:
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "message": "Invalid JSON format"
+                }))
+            except Exception as e:
+                logger.error("Error handling collaboration message", error=str(e))
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "message": f"Message handling error: {str(e)}"
+                }))
+
+    except Exception as e:
+        logger.error("Collaboration connection error", error=str(e))
+    finally:
+        # Clean up user from workspace
+        if workspace_id in collaboration_workspaces:
+            workspace = collaboration_workspaces[workspace_id]
+            if user_id in workspace["users"]:
+                del workspace["users"][user_id]
+
+                # Notify other users about user leaving
+                await broadcast_user_left(workspace_id, user_id)
+
+                # Clean up empty workspaces
+                if not workspace["users"]:
+                    del collaboration_workspaces[workspace_id]
+
+        logger.info("Collaboration connection closed", workspace_id=workspace_id, user_id=user_id)
+
+
+async def handle_collaboration_message(workspace_id: str, user_id: str, message: Dict[str, Any]) -> None:
+    """Handle collaboration message from user."""
+
+    message_type = message.get("type")
+    workspace = collaboration_workspaces.get(workspace_id)
+
+    if not workspace or user_id not in workspace["users"]:
+        return
+
+    user = workspace["users"][user_id]
+
+    if message_type == "cursor_update":
+        # Update user cursor position
+        user["cursor"] = message.get("cursor")
+        await broadcast_cursor_update(workspace_id, user_id, message.get("cursor"))
+
+    elif message_type == "selection_update":
+        # Update user selection
+        user["selection"] = message.get("selection")
+        await broadcast_selection_update(workspace_id, user_id, message.get("selection"))
+
+    elif message_type == "document_change":
+        # Handle document changes (Yjs integration would go here)
+        changes = message.get("changes", [])
+        workspace["document_state"] = message.get("document_state", {})
+        await broadcast_document_changes(workspace_id, user_id, changes)
+
+    elif message_type == "comment_add":
+        # Add comment
+        comment_id = str(uuid.uuid4())
+        comment = {
+            "id": comment_id,
+            "user_id": user_id,
+            "user_name": user["name"],
+            "content": message.get("content"),
+            "position": message.get("position"),
+            "timestamp": asyncio.get_event_loop().time()
+        }
+        workspace["comments"][comment_id] = comment
+        await broadcast_comment_added(workspace_id, comment)
+
+    elif message_type == "ping":
+        # Respond to ping
+        await user["websocket"].send_text(json.dumps({
+            "type": "pong",
+            "timestamp": asyncio.get_event_loop().time()
+        }))
+
+
+async def send_collaboration_state(websocket: WebSocket, workspace_id: str, user_id: str) -> None:
+    """Send initial collaboration state to user."""
+    workspace = collaboration_workspaces.get(workspace_id)
+    if not workspace:
+        return
+
+    # Prepare user list (excluding current user)
+    users = {}
+    for uid, user_data in workspace["users"].items():
+        if uid != user_id:
+            users[uid] = {
+                "name": user_data["name"],
+                "color": user_data["color"],
+                "cursor": user_data["cursor"],
+                "selection": user_data["selection"]
+            }
+
+    state = {
+        "type": "collaboration_state",
+        "workspace_id": workspace_id,
+        "user_id": user_id,
+        "users": users,
+        "document_state": workspace["document_state"],
+        "comments": workspace["comments"]
+    }
+
+    await websocket.send_text(json.dumps(state))
+
+
+async def broadcast_user_joined(workspace_id: str, user_id: str) -> None:
+    """Broadcast user joined event to all other users."""
+    workspace = collaboration_workspaces.get(workspace_id)
+    if not workspace:
+        return
+
+    user = workspace["users"][user_id]
+    message = {
+        "type": "user_joined",
+        "user_id": user_id,
+        "user": {
+            "name": user["name"],
+            "color": user["color"]
+        }
+    }
+
+    await broadcast_to_workspace(workspace_id, message, exclude_user=user_id)
+
+
+async def broadcast_user_left(workspace_id: str, user_id: str) -> None:
+    """Broadcast user left event to all other users."""
+    message = {
+        "type": "user_left",
+        "user_id": user_id
+    }
+
+    await broadcast_to_workspace(workspace_id, message, exclude_user=user_id)
+
+
+async def broadcast_cursor_update(workspace_id: str, user_id: str, cursor: Dict[str, Any]) -> None:
+    """Broadcast cursor update to all other users."""
+    message = {
+        "type": "cursor_update",
+        "user_id": user_id,
+        "cursor": cursor
+    }
+
+    await broadcast_to_workspace(workspace_id, message, exclude_user=user_id)
+
+
+async def broadcast_selection_update(workspace_id: str, user_id: str, selection: Dict[str, Any]) -> None:
+    """Broadcast selection update to all other users."""
+    message = {
+        "type": "selection_update",
+        "user_id": user_id,
+        "selection": selection
+    }
+
+    await broadcast_to_workspace(workspace_id, message, exclude_user=user_id)
+
+
+async def broadcast_document_changes(workspace_id: str, user_id: str, changes: list) -> None:
+    """Broadcast document changes to all other users."""
+    message = {
+        "type": "document_changes",
+        "user_id": user_id,
+        "changes": changes
+    }
+
+    await broadcast_to_workspace(workspace_id, message, exclude_user=user_id)
+
+
+async def broadcast_comment_added(workspace_id: str, comment: Dict[str, Any]) -> None:
+    """Broadcast new comment to all users."""
+    message = {
+        "type": "comment_added",
+        "comment": comment
+    }
+
+    await broadcast_to_workspace(workspace_id, message)
+
+
+async def broadcast_to_workspace(workspace_id: str, message: Dict[str, Any], exclude_user: str = None) -> None:
+    """Broadcast message to all users in workspace."""
+    workspace = collaboration_workspaces.get(workspace_id)
+    if not workspace:
+        return
+
+    message_text = json.dumps(message)
+    disconnected_users = []
+
+    for user_id, user_data in workspace["users"].items():
+        if exclude_user and user_id == exclude_user:
+            continue
+
+        try:
+            await user_data["websocket"].send_text(message_text)
+        except Exception as e:
+            logger.warning(f"Failed to send message to user {user_id}: {str(e)}")
+            disconnected_users.append(user_id)
+
+    # Clean up disconnected users
+    for user_id in disconnected_users:
+        if user_id in workspace["users"]:
+            del workspace["users"][user_id]
+
+
+# Collaboration WebSocket Handlers
+collaboration_workspaces: Dict[str, Dict[str, Any]] = {}
+
+
+async def handle_collaboration_connection(websocket: WebSocket, workspace_id: str) -> None:
+    """
+    Handle WebSocket connection for real-time collaboration.
+
+    Args:
+        websocket: WebSocket connection
+        workspace_id: Workspace identifier for collaboration
+    """
+    connection_id = str(uuid.uuid4())
+    user_id = f"user_{connection_id[:8]}"
+
+    try:
+        # Accept the connection
+        await websocket.accept()
+
+        # Initialize workspace if it doesn't exist
+        if workspace_id not in collaboration_workspaces:
+            collaboration_workspaces[workspace_id] = {
+                "users": {},
+                "document_state": {},
+                "comments": {},
+                "last_activity": asyncio.get_event_loop().time()
+            }
+
+        workspace = collaboration_workspaces[workspace_id]
+
+        # Add user to workspace
+        workspace["users"][user_id] = {
+            "connection_id": connection_id,
+            "websocket": websocket,
+            "name": f"User-{connection_id[:4]}",
+            "color": f"hsl({hash(user_id) % 360}, 70%, 50%)",
+            "cursor": None,
+            "selection": None,
+            "joined_at": asyncio.get_event_loop().time()
+        }
+
+        logger.info(
+            "Collaboration connection established",
+            workspace_id=workspace_id,
+            user_id=user_id,
+            total_users=len(workspace["users"])
+        )
+
+        # Send initial workspace state
+        await send_collaboration_state(websocket, workspace_id, user_id)
+
+        # Notify other users about new user
+        await broadcast_user_joined(workspace_id, user_id)
+
+        # Handle incoming collaboration messages
+        while True:
+            try:
+                data = await websocket.receive_text()
+                message = json.loads(data)
+
+                await handle_collaboration_message(workspace_id, user_id, message)
+
+            except WebSocketDisconnect:
+                break
+            except json.JSONDecodeError:
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "message": "Invalid JSON format"
+                }))
+            except Exception as e:
+                logger.error("Error handling collaboration message", error=str(e))
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "message": f"Message handling error: {str(e)}"
+                }))
+
+    except Exception as e:
+        logger.error("Collaboration connection error", error=str(e))
+    finally:
+        # Clean up user from workspace
+        if workspace_id in collaboration_workspaces:
+            workspace = collaboration_workspaces[workspace_id]
+            if user_id in workspace["users"]:
+                del workspace["users"][user_id]
+
+                # Notify other users about user leaving
+                await broadcast_user_left(workspace_id, user_id)
+
+                # Clean up empty workspaces
+                if not workspace["users"]:
+                    del collaboration_workspaces[workspace_id]
+
+        logger.info("Collaboration connection closed", workspace_id=workspace_id, user_id=user_id)
+
+
+async def handle_collaboration_message(workspace_id: str, user_id: str, message: Dict[str, Any]) -> None:
+    """Handle collaboration message from user."""
+
+    message_type = message.get("type")
+    workspace = collaboration_workspaces.get(workspace_id)
+
+    if not workspace or user_id not in workspace["users"]:
+        return
+
+    user = workspace["users"][user_id]
+
+    if message_type == "cursor_update":
+        # Update user cursor position
+        user["cursor"] = message.get("cursor")
+        await broadcast_cursor_update(workspace_id, user_id, message.get("cursor"))
+
+    elif message_type == "selection_update":
+        # Update user selection
+        user["selection"] = message.get("selection")
+        await broadcast_selection_update(workspace_id, user_id, message.get("selection"))
+
+    elif message_type == "document_change":
+        # Handle document changes (Yjs integration would go here)
+        changes = message.get("changes", [])
+        workspace["document_state"] = message.get("document_state", {})
+        await broadcast_document_changes(workspace_id, user_id, changes)
+
+    elif message_type == "comment_add":
+        # Add comment
+        comment_id = str(uuid.uuid4())
+        comment = {
+            "id": comment_id,
+            "user_id": user_id,
+            "user_name": user["name"],
+            "content": message.get("content"),
+            "position": message.get("position"),
+            "timestamp": asyncio.get_event_loop().time()
+        }
+        workspace["comments"][comment_id] = comment
+        await broadcast_comment_added(workspace_id, comment)
+
+    elif message_type == "ping":
+        # Respond to ping
+        await user["websocket"].send_text(json.dumps({
+            "type": "pong",
+            "timestamp": asyncio.get_event_loop().time()
+        }))
+
+
+async def send_collaboration_state(websocket: WebSocket, workspace_id: str, user_id: str) -> None:
+    """Send initial collaboration state to user."""
+    workspace = collaboration_workspaces.get(workspace_id)
+    if not workspace:
+        return
+
+    # Prepare user list (excluding current user)
+    users = {}
+    for uid, user_data in workspace["users"].items():
+        if uid != user_id:
+            users[uid] = {
+                "name": user_data["name"],
+                "color": user_data["color"],
+                "cursor": user_data["cursor"],
+                "selection": user_data["selection"]
+            }
+
+    state = {
+        "type": "collaboration_state",
+        "workspace_id": workspace_id,
+        "user_id": user_id,
+        "users": users,
+        "document_state": workspace["document_state"],
+        "comments": workspace["comments"]
+    }
+
+    await websocket.send_text(json.dumps(state))
+
+
+async def broadcast_user_joined(workspace_id: str, user_id: str) -> None:
+    """Broadcast user joined event to all other users."""
+    workspace = collaboration_workspaces.get(workspace_id)
+    if not workspace:
+        return
+
+    user = workspace["users"][user_id]
+    message = {
+        "type": "user_joined",
+        "user_id": user_id,
+        "user": {
+            "name": user["name"],
+            "color": user["color"]
+        }
+    }
+
+    await broadcast_to_workspace(workspace_id, message, exclude_user=user_id)
+
+
+async def broadcast_user_left(workspace_id: str, user_id: str) -> None:
+    """Broadcast user left event to all other users."""
+    message = {
+        "type": "user_left",
+        "user_id": user_id
+    }
+
+    await broadcast_to_workspace(workspace_id, message, exclude_user=user_id)
+
+
+async def broadcast_cursor_update(workspace_id: str, user_id: str, cursor: Dict[str, Any]) -> None:
+    """Broadcast cursor update to all other users."""
+    message = {
+        "type": "cursor_update",
+        "user_id": user_id,
+        "cursor": cursor
+    }
+
+    await broadcast_to_workspace(workspace_id, message, exclude_user=user_id)
+
+
+async def broadcast_selection_update(workspace_id: str, user_id: str, selection: Dict[str, Any]) -> None:
+    """Broadcast selection update to all other users."""
+    message = {
+        "type": "selection_update",
+        "user_id": user_id,
+        "selection": selection
+    }
+
+    await broadcast_to_workspace(workspace_id, message, exclude_user=user_id)
+
+
+async def broadcast_document_changes(workspace_id: str, user_id: str, changes: list) -> None:
+    """Broadcast document changes to all other users."""
+    message = {
+        "type": "document_changes",
+        "user_id": user_id,
+        "changes": changes
+    }
+
+    await broadcast_to_workspace(workspace_id, message, exclude_user=user_id)
+
+
+async def broadcast_comment_added(workspace_id: str, comment: Dict[str, Any]) -> None:
+    """Broadcast new comment to all users."""
+    message = {
+        "type": "comment_added",
+        "comment": comment
+    }
+
+    await broadcast_to_workspace(workspace_id, message)
+
+
+async def broadcast_to_workspace(workspace_id: str, message: Dict[str, Any], exclude_user: str = None) -> None:
+    """Broadcast message to all users in workspace."""
+    workspace = collaboration_workspaces.get(workspace_id)
+    if not workspace:
+        return
+
+    message_text = json.dumps(message)
+    disconnected_users = []
+
+    for user_id, user_data in workspace["users"].items():
+        if exclude_user and user_id == exclude_user:
+            continue
+
+        try:
+            await user_data["websocket"].send_text(message_text)
+        except Exception as e:
+            logger.warning(f"Failed to send message to user {user_id}: {str(e)}")
+            disconnected_users.append(user_id)
+
+    # Clean up disconnected users
+    for user_id in disconnected_users:
+        if user_id in workspace["users"]:
+            del workspace["users"][user_id]
