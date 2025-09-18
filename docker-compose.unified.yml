@@ -1,0 +1,149 @@
+version: '3.8'
+
+services:
+  # Unified Agentic AI System (Backend + Frontend)
+  agentic-ai-unified:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+      target: unified
+    container_name: agentic_ai_unified
+    ports:
+      - "8001:8001"  # Backend API
+      - "3001:3001"  # Frontend Server
+    environment:
+      # Backend Configuration
+      - PYTHONPATH=/app
+      - DATABASE_URL=postgresql://agentic:agentic_password@postgres:5432/agentic_db
+      - REDIS_URL=redis://redis:6379/0
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - LOG_LEVEL=INFO
+      - ENVIRONMENT=production
+      
+      # Frontend Configuration
+      - NODE_ENV=production
+      - AGENTIC_API_URL=http://localhost:8001
+      - REACT_APP_API_URL=http://localhost:3001
+      - REACT_APP_WS_URL=ws://localhost:3001
+    volumes:
+      - agentic_data:/app/data
+      - agentic_logs:/var/log/supervisor
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    networks:
+      - agentic_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["/app/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: agentic_postgres
+    environment:
+      POSTGRES_DB: agentic_db
+      POSTGRES_USER: agentic
+      POSTGRES_PASSWORD: agentic_password
+      POSTGRES_HOST_AUTH_METHOD: md5
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - agentic_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentic -d agentic_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for State Management
+  redis:
+    image: redis:7-alpine
+    container_name: agentic_redis
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - agentic_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Ollama for Local LLM Inference
+  ollama:
+    image: ollama/ollama:latest
+    container_name: agentic_ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - agentic_network
+    restart: unless-stopped
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_HOST=0.0.0.0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # Test Service for Integration Testing
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: agentic_test_runner
+    depends_on:
+      agentic-ai-unified:
+        condition: service_healthy
+    environment:
+      - FRONTEND_URL=http://agentic-ai-unified:3001
+      - BACKEND_URL=http://agentic-ai-unified:8001
+      - POSTGRES_URL=postgresql://agentic:agentic_password@postgres:5432/agentic_db
+      - REDIS_URL=redis://redis:6379/0
+    networks:
+      - agentic_network
+    profiles:
+      - test
+    command: ["npm", "test"]
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  ollama_data:
+    driver: local
+  agentic_data:
+    driver: local
+  agentic_logs:
+    driver: local
+
+networks:
+  agentic_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

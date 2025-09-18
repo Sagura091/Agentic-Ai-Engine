@@ -1,0 +1,24 @@
+# Testing
+pytest>=7.4.3
+pytest-asyncio>=0.21.1
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+httpx>=0.25.2
+factory-boy>=3.3.0
+
+# Code quality
+black>=23.11.0
+isort>=5.12.0
+flake8>=6.1.0
+mypy>=1.7.1
+pre-commit>=3.6.0
+
+# Documentation
+mkdocs>=1.5.3
+mkdocs-material>=9.4.8
+mkdocstrings[python]>=0.24.0
+
+# Development utilities
+ipython>=8.17.2
+jupyter>=1.0.0
+watchdog>=3.0.0
