@@ -6,7 +6,10 @@ This package contains database models, schemas, and database configuration.
 
 # Import all models to ensure they are registered with SQLAlchemy
 from .agent import Agent, Conversation, Message, TaskExecution
-from .workflow import Workflow, WorkflowExecution, WorkflowStepExecution, WorkflowTemplate
+from .workflow import (
+    Workflow, WorkflowExecution, WorkflowStepExecution, WorkflowTemplate,
+    NodeDefinition, WorkflowNode, WorkflowConnection, NodeExecutionState
+)
 from .tool import Tool, AgentTool, ToolExecution, ToolCategory, ToolTemplate
 from .user import User, UserCreate, UserUpdate, UserInDB, Token, TokenData
 from .autonomous import (
@@ -16,6 +19,19 @@ from .autonomous import (
 from .document import (
     DocumentDB, DocumentChunkDB, DocumentMetadata, DocumentChunkMetadata,
     DocumentCreateRequest, DocumentUploadResponse, DocumentSearchResult
+)
+# New enhanced models
+from .model_management import (
+    ModelRegistry, ModelUsageLog, ModelDownloadHistory, ModelPerformanceMetrics
+)
+from .knowledge_base import (
+    KnowledgeBase, KnowledgeBaseAccess, KnowledgeBaseUsageLog, KnowledgeBaseTemplate
+)
+from .enhanced_user import (
+    UserDB, UserSession, Role, UserRoleAssignment, UserAuditLog
+)
+from .api_management import (
+    APIKey, APIKeyUsageLog, RateLimitLog, APIQuotaUsage, APIEndpointMetrics
 )
 from .database.base import Base
 
@@ -35,6 +51,12 @@ __all__ = [
     "WorkflowStepExecution",
     "WorkflowTemplate",
 
+    # Advanced node system models
+    "NodeDefinition",
+    "WorkflowNode",
+    "WorkflowConnection",
+    "NodeExecutionState",
+
     # Tool models
     "Tool",
     "AgentTool",
@@ -42,13 +64,20 @@ __all__ = [
     "ToolCategory",
     "ToolTemplate",
 
-    # User models
+    # User models (legacy)
     "User",
     "UserCreate",
     "UserUpdate",
     "UserInDB",
     "Token",
     "TokenData",
+
+    # Enhanced user models
+    "UserDB",
+    "UserSession",
+    "Role",
+    "UserRoleAssignment",
+    "UserAuditLog",
 
     # Autonomous agent models
     "AutonomousAgentState",
@@ -65,5 +94,24 @@ __all__ = [
     "DocumentChunkMetadata",
     "DocumentCreateRequest",
     "DocumentUploadResponse",
-    "DocumentSearchResult"
+    "DocumentSearchResult",
+
+    # Model management models
+    "ModelRegistry",
+    "ModelUsageLog",
+    "ModelDownloadHistory",
+    "ModelPerformanceMetrics",
+
+    # Knowledge base models
+    "KnowledgeBase",
+    "KnowledgeBaseAccess",
+    "KnowledgeBaseUsageLog",
+    "KnowledgeBaseTemplate",
+
+    # API management models
+    "APIKey",
+    "APIKeyUsageLog",
+    "RateLimitLog",
+    "APIQuotaUsage",
+    "APIEndpointMetrics"
 ]

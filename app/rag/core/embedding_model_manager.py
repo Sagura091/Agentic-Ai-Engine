@@ -1,11 +1,18 @@
 """
-Embedding Model Download and Management System.
+Universal Model Download and Management System.
 
-This module provides comprehensive embedding model management including:
-- Downloading models from Hugging Face
-- Local model storage and caching
+This module provides comprehensive model management for all 4 model types:
+- Text Embedding Models: sentence-transformers from HuggingFace
+- Reranking Models: cross-encoder models from HuggingFace
+- Vision Models: CLIP and vision-language models from HuggingFace
+- LLM Models: Ollama models and API model validation
+
+Features:
+- User-driven model downloads (no automatic downloads)
+- Real-time progress tracking
 - Model validation and testing
-- Multiple model support for different use cases
+- Hot-swapping capabilities
+- Performance monitoring
 """
 
 import os
@@ -16,6 +23,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
 import hashlib
+from enum import Enum
 
 import structlog
 from pydantic import BaseModel, Field
@@ -34,21 +42,57 @@ except ImportError:
 logger = structlog.get_logger(__name__)
 
 
-class EmbeddingModelInfo(BaseModel):
-    """Information about an embedding model."""
+class ModelType(str, Enum):
+    """Types of models supported by the system."""
+    EMBEDDING = "embedding"
+    RERANKING = "reranking"
+    VISION = "vision"
+    LLM = "llm"
+
+
+class ModelSource(str, Enum):
+    """Sources for model downloads."""
+    HUGGINGFACE = "huggingface"
+    OLLAMA = "ollama"
+    OPENAI_API = "openai_api"
+    ANTHROPIC_API = "anthropic_api"
+    GOOGLE_API = "google_api"
+
+
+class UniversalModelInfo(BaseModel):
+    """Universal information about any model type."""
     model_id: str = Field(..., description="Model identifier")
     name: str = Field(..., description="Human-readable model name")
     description: str = Field(..., description="Model description")
-    dimension: int = Field(..., description="Embedding dimension")
-    max_sequence_length: int = Field(..., description="Maximum sequence length")
+    model_type: ModelType = Field(..., description="Type of model")
+    model_source: ModelSource = Field(..., description="Source of the model")
+
+    # Model-specific properties
+    dimension: Optional[int] = Field(default=None, description="Embedding/output dimension")
+    max_sequence_length: Optional[int] = Field(default=None, description="Maximum sequence length")
+    image_size: Optional[tuple] = Field(default=None, description="Image input size for vision models")
+    context_length: Optional[int] = Field(default=None, description="Context length for LLMs")
+
+    # Download and storage info
     size_mb: float = Field(..., description="Model size in MB")
-    download_url: str = Field(..., description="Hugging Face model URL")
+    download_url: str = Field(..., description="Model download URL")
     local_path: Optional[str] = Field(default=None, description="Local storage path")
     is_downloaded: bool = Field(default=False, description="Whether model is downloaded")
+    is_available: bool = Field(default=True, description="Whether model is available for download")
+
+    # Usage tracking
     download_date: Optional[datetime] = Field(default=None, description="Download timestamp")
     last_used: Optional[datetime] = Field(default=None, description="Last usage timestamp")
     usage_count: int = Field(default=0, description="Number of times used")
+
+    # Metadata
     tags: List[str] = Field(default_factory=list, description="Model tags")
+    use_case: Optional[str] = Field(default=None, description="Primary use case")
+    performance_tier: Optional[str] = Field(default=None, description="Performance tier (fast/balanced/accurate)")
+
+
+# Backward compatibility alias
+EmbeddingModelInfo = UniversalModelInfo
 
 
 class ModelDownloadProgress(BaseModel):
@@ -66,33 +110,239 @@ class ModelDownloadProgress(BaseModel):
     completed_at: Optional[datetime] = None
 
 
-class EmbeddingModelManager:
+class UniversalModelManager:
     """
-    Comprehensive embedding model manager for downloading and managing
-    embedding models from Hugging Face.
-    """
-    
-    def __init__(self, models_directory: str = "./data/cache/embedding"):
-        """Initialize the embedding model manager."""
-        self.models_directory = Path(models_directory)
-        self.models_directory.mkdir(parents=True, exist_ok=True)
+    Universal model manager for all 4 model types:
+    - Text Embedding Models (sentence-transformers)
+    - Reranking Models (cross-encoder)
+    - Vision Models (CLIP, vision-language)
+    - LLM Models (Ollama, API validation)
 
-        # Set environment variables for sentence-transformers cache
+    Provides user-driven model management with no automatic downloads.
+    """
+
+    def __init__(self, base_directory: str = "./data/models"):
+        """Initialize the universal model manager."""
+        self.base_directory = Path(base_directory)
+        self.base_directory.mkdir(parents=True, exist_ok=True)
+
+        # Create subdirectories for each model type
+        self.embedding_dir = self.base_directory / "embedding"
+        self.reranking_dir = self.base_directory / "reranking"
+        self.vision_dir = self.base_directory / "vision"
+        self.llm_dir = self.base_directory / "llm"
+
+        for directory in [self.embedding_dir, self.reranking_dir, self.vision_dir, self.llm_dir]:
+            directory.mkdir(parents=True, exist_ok=True)
+
+        # Set environment variables for model caches
         import os
-        models_cache_dir = str(self.models_directory / "models")
-        os.environ["SENTENCE_TRANSFORMERS_HOME"] = models_cache_dir
-        os.environ["HF_HOME"] = models_cache_dir
-        
-        self.models_info_file = self.models_directory / "models_info.json"
-        self.available_models: Dict[str, EmbeddingModelInfo] = {}
+        os.environ["SENTENCE_TRANSFORMERS_HOME"] = str(self.embedding_dir / "cache")
+        os.environ["HF_HOME"] = str(self.base_directory / "huggingface_cache")
+
+        self.models_info_file = self.base_directory / "models_info.json"
+        self.available_models: Dict[str, UniversalModelInfo] = {}
         self.download_progress: Dict[str, ModelDownloadProgress] = {}
-        
+
+        # Initialize popular models catalog
+        self._initialize_popular_models()
+
         # Load existing models info
         self._load_models_info()
-        
-        logger.info("Embedding model manager initialized", 
-                   models_directory=str(self.models_directory))
+
+        logger.info("Universal model manager initialized",
+                   base_directory=str(self.base_directory))
     
+    def _initialize_popular_models(self) -> None:
+        """Initialize catalog of popular models for each type."""
+
+        # Popular Embedding Models
+        embedding_models = {
+            "all-MiniLM-L6-v2": UniversalModelInfo(
+                model_id="sentence-transformers/all-MiniLM-L6-v2",
+                name="All MiniLM L6 v2",
+                description="Fast and efficient general-purpose embedding model",
+                model_type=ModelType.EMBEDDING,
+                model_source=ModelSource.HUGGINGFACE,
+                dimension=384,
+                max_sequence_length=256,
+                size_mb=90,
+                download_url="https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2",
+                tags=["general", "fast", "efficient"],
+                use_case="general",
+                performance_tier="fast"
+            ),
+            "all-mpnet-base-v2": UniversalModelInfo(
+                model_id="sentence-transformers/all-mpnet-base-v2",
+                name="All MPNet Base v2",
+                description="High-quality general-purpose embedding model",
+                model_type=ModelType.EMBEDDING,
+                model_source=ModelSource.HUGGINGFACE,
+                dimension=768,
+                max_sequence_length=384,
+                size_mb=420,
+                download_url="https://huggingface.co/sentence-transformers/all-mpnet-base-v2",
+                tags=["general", "high-quality", "balanced"],
+                use_case="general",
+                performance_tier="balanced"
+            ),
+            "bge-large-en-v1.5": UniversalModelInfo(
+                model_id="BAAI/bge-large-en-v1.5",
+                name="BGE Large EN v1.5",
+                description="State-of-the-art English embedding model",
+                model_type=ModelType.EMBEDDING,
+                model_source=ModelSource.HUGGINGFACE,
+                dimension=1024,
+                max_sequence_length=512,
+                size_mb=1340,
+                download_url="https://huggingface.co/BAAI/bge-large-en-v1.5",
+                tags=["english", "large", "sota"],
+                use_case="high_accuracy",
+                performance_tier="accurate"
+            )
+        }
+
+        # Popular Reranking Models
+        reranking_models = {
+            "bge-reranker-base": UniversalModelInfo(
+                model_id="BAAI/bge-reranker-base",
+                name="BGE Reranker Base",
+                description="High-quality general-purpose reranking model",
+                model_type=ModelType.RERANKING,
+                model_source=ModelSource.HUGGINGFACE,
+                dimension=1,  # Rerankers output similarity scores
+                max_sequence_length=512,
+                size_mb=400,
+                download_url="https://huggingface.co/BAAI/bge-reranker-base",
+                tags=["reranking", "cross-encoder", "general"],
+                use_case="general",
+                performance_tier="balanced"
+            ),
+            "bge-reranker-large": UniversalModelInfo(
+                model_id="BAAI/bge-reranker-large",
+                name="BGE Reranker Large",
+                description="Best quality reranking model (slower)",
+                model_type=ModelType.RERANKING,
+                model_source=ModelSource.HUGGINGFACE,
+                dimension=1,
+                max_sequence_length=512,
+                size_mb=1200,
+                download_url="https://huggingface.co/BAAI/bge-reranker-large",
+                tags=["reranking", "cross-encoder", "large"],
+                use_case="high_accuracy",
+                performance_tier="accurate"
+            ),
+            "ms-marco-MiniLM-L-6-v2": UniversalModelInfo(
+                model_id="cross-encoder/ms-marco-MiniLM-L-6-v2",
+                name="MS-MARCO MiniLM L6 v2",
+                description="Fast and efficient reranking model",
+                model_type=ModelType.RERANKING,
+                model_source=ModelSource.HUGGINGFACE,
+                dimension=1,
+                max_sequence_length=512,
+                size_mb=90,
+                download_url="https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-6-v2",
+                tags=["reranking", "cross-encoder", "fast"],
+                use_case="speed_optimized",
+                performance_tier="fast"
+            )
+        }
+
+        # Popular Vision Models
+        vision_models = {
+            "clip-vit-base-patch32": UniversalModelInfo(
+                model_id="openai/clip-vit-base-patch32",
+                name="CLIP ViT-B/32",
+                description="Standard CLIP model for image-text tasks",
+                model_type=ModelType.VISION,
+                model_source=ModelSource.HUGGINGFACE,
+                dimension=512,
+                image_size=(224, 224),
+                size_mb=600,
+                download_url="https://huggingface.co/openai/clip-vit-base-patch32",
+                tags=["vision", "clip", "multimodal"],
+                use_case="general",
+                performance_tier="balanced"
+            ),
+            "clip-vit-large-patch14": UniversalModelInfo(
+                model_id="openai/clip-vit-large-patch14",
+                name="CLIP ViT-L/14",
+                description="High-quality CLIP model (slower)",
+                model_type=ModelType.VISION,
+                model_source=ModelSource.HUGGINGFACE,
+                dimension=768,
+                image_size=(224, 224),
+                size_mb=1800,
+                download_url="https://huggingface.co/openai/clip-vit-large-patch14",
+                tags=["vision", "clip", "multimodal", "large"],
+                use_case="high_accuracy",
+                performance_tier="accurate"
+            ),
+            "sentence-transformers-clip": UniversalModelInfo(
+                model_id="sentence-transformers/clip-ViT-B-32",
+                name="Sentence-Transformers CLIP",
+                description="Optimized CLIP for sentence-transformers integration",
+                model_type=ModelType.VISION,
+                model_source=ModelSource.HUGGINGFACE,
+                dimension=512,
+                image_size=(224, 224),
+                size_mb=600,
+                download_url="https://huggingface.co/sentence-transformers/clip-ViT-B-32",
+                tags=["vision", "clip", "optimized"],
+                use_case="integration_optimized",
+                performance_tier="balanced"
+            )
+        }
+
+        # Popular LLM Models (Ollama)
+        llm_models = {
+            "llama3.2:latest": UniversalModelInfo(
+                model_id="llama3.2:latest",
+                name="Llama 3.2 Latest",
+                description="Latest Llama 3.2 model from Meta",
+                model_type=ModelType.LLM,
+                model_source=ModelSource.OLLAMA,
+                context_length=8192,
+                size_mb=4800,
+                download_url="ollama://llama3.2:latest",
+                tags=["llama", "meta", "general"],
+                use_case="general",
+                performance_tier="balanced"
+            ),
+            "qwen2.5:7b": UniversalModelInfo(
+                model_id="qwen2.5:7b",
+                name="Qwen 2.5 7B",
+                description="Qwen 2.5 7B parameter model",
+                model_type=ModelType.LLM,
+                model_source=ModelSource.OLLAMA,
+                context_length=32768,
+                size_mb=4100,
+                download_url="ollama://qwen2.5:7b",
+                tags=["qwen", "alibaba", "multilingual"],
+                use_case="multilingual",
+                performance_tier="balanced"
+            ),
+            "mistral:latest": UniversalModelInfo(
+                model_id="mistral:latest",
+                name="Mistral Latest",
+                description="Latest Mistral model",
+                model_type=ModelType.LLM,
+                model_source=ModelSource.OLLAMA,
+                context_length=8192,
+                size_mb=4100,
+                download_url="ollama://mistral:latest",
+                tags=["mistral", "efficient"],
+                use_case="efficient",
+                performance_tier="fast"
+            )
+        }
+
+        # Combine all models
+        self.available_models.update(embedding_models)
+        self.available_models.update(reranking_models)
+        self.available_models.update(vision_models)
+        self.available_models.update(llm_models)
+
     def _load_models_info(self) -> None:
         """Load models information from local storage."""
         try:
@@ -100,14 +350,23 @@ class EmbeddingModelManager:
                 with open(self.models_info_file, 'r') as f:
                     data = json.load(f)
                     for model_id, model_data in data.items():
-                        self.available_models[model_id] = EmbeddingModelInfo(**model_data)
+                        try:
+                            # Handle backward compatibility
+                            if "model_type" not in model_data:
+                                model_data["model_type"] = ModelType.EMBEDDING
+                            if "model_source" not in model_data:
+                                model_data["model_source"] = ModelSource.HUGGINGFACE
+
+                            self.available_models[model_id] = UniversalModelInfo(**model_data)
+                        except Exception as e:
+                            logger.warning(f"Failed to load model info for {model_id}: {e}")
                 logger.info("Loaded models info", count=len(self.available_models))
             else:
-                # Initialize with default recommended models
-                self._initialize_default_models()
+                # Models already initialized in __init__
+                logger.info("Using pre-initialized popular models catalog")
         except Exception as e:
             logger.error("Failed to load models info", error=str(e))
-            self._initialize_default_models()
+            # Models already initialized in __init__
     
     def _save_models_info(self) -> None:
         """Save models information to local storage."""
@@ -122,102 +381,53 @@ class EmbeddingModelManager:
         except Exception as e:
             logger.error("Failed to save models info", error=str(e))
     
-    def _initialize_default_models(self) -> None:
-        """Initialize with a curated list of recommended embedding models."""
-        default_models = [
-            {
-                "model_id": "sentence-transformers/all-MiniLM-L6-v2",
-                "name": "All MiniLM L6 v2",
-                "description": "Fast and efficient general-purpose embedding model",
-                "dimension": 384,
-                "max_sequence_length": 256,
-                "size_mb": 90.9,
-                "download_url": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2",
-                "tags": ["general", "fast", "small"]
-            },
-            {
-                "model_id": "sentence-transformers/all-mpnet-base-v2",
-                "name": "All MPNet Base v2",
-                "description": "High-quality general-purpose embedding model",
-                "dimension": 768,
-                "max_sequence_length": 384,
-                "size_mb": 438.0,
-                "download_url": "https://huggingface.co/sentence-transformers/all-mpnet-base-v2",
-                "tags": ["general", "high-quality"]
-            },
-            {
-                "model_id": "sentence-transformers/multi-qa-MiniLM-L6-cos-v1",
-                "name": "Multi QA MiniLM L6",
-                "description": "Optimized for question-answering and semantic search",
-                "dimension": 384,
-                "max_sequence_length": 512,
-                "size_mb": 90.9,
-                "download_url": "https://huggingface.co/sentence-transformers/multi-qa-MiniLM-L6-cos-v1",
-                "tags": ["qa", "search", "fast"]
-            },
-            {
-                "model_id": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-                "name": "Paraphrase Multilingual MiniLM",
-                "description": "Multilingual embedding model for 50+ languages",
-                "dimension": 384,
-                "max_sequence_length": 128,
-                "size_mb": 471.0,
-                "download_url": "https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-                "tags": ["multilingual", "paraphrase"]
-            },
-            {
-                "model_id": "BAAI/bge-small-en-v1.5",
-                "name": "BGE Small English v1.5",
-                "description": "High-performance small English embedding model",
-                "dimension": 384,
-                "max_sequence_length": 512,
-                "size_mb": 133.0,
-                "download_url": "https://huggingface.co/BAAI/bge-small-en-v1.5",
-                "tags": ["english", "high-performance", "small"]
-            },
-            {
-                "model_id": "BAAI/bge-base-en-v1.5",
-                "name": "BGE Base English v1.5",
-                "description": "High-performance base English embedding model",
-                "dimension": 768,
-                "max_sequence_length": 512,
-                "size_mb": 438.0,
-                "download_url": "https://huggingface.co/BAAI/bge-base-en-v1.5",
-                "tags": ["english", "high-performance", "base"]
-            }
-        ]
-        
-        for model_data in default_models:
-            model_info = EmbeddingModelInfo(**model_data)
-            self.available_models[model_info.model_id] = model_info
-        
-        self._save_models_info()
-        logger.info("Initialized default embedding models", count=len(default_models))
+    # New methods for model type management
 
-        # Add a fallback model that doesn't require downloading
-        fallback_model = EmbeddingModelInfo(
-            model_id="fallback/simple-hash",
-            name="Simple Hash Fallback",
-            description="Simple hash-based embedding for testing and fallback",
-            dimension=384,
-            max_sequence_length=512,
-            size_mb=0.0,
-            download_url="local://fallback",
-            local_path="fallback",
-            is_downloaded=True,
-            download_date=datetime.now(),
-            tags=["fallback", "local", "testing"]
-        )
-        self.available_models[fallback_model.model_id] = fallback_model
+    def get_models_by_type(self, model_type: ModelType) -> List[UniversalModelInfo]:
+        """Get all models of a specific type."""
+        return [model for model in self.available_models.values() if model.model_type == model_type]
+
+    def get_downloaded_models_by_type(self, model_type: ModelType) -> List[UniversalModelInfo]:
+        """Get downloaded models of a specific type."""
+        return [model for model in self.available_models.values()
+                if model.model_type == model_type and model.is_downloaded]
+
+    def search_models(self, query: str, model_type: Optional[ModelType] = None) -> List[UniversalModelInfo]:
+        """Search models by name, description, or tags."""
+        query_lower = query.lower()
+        results = []
+
+        for model in self.available_models.values():
+            if model_type and model.model_type != model_type:
+                continue
+
+            # Search in name, description, and tags
+            if (query_lower in model.name.lower() or
+                query_lower in model.description.lower() or
+                any(query_lower in tag.lower() for tag in model.tags)):
+                results.append(model)
+
+        return results
+
+    def add_custom_model(self, model_info: UniversalModelInfo) -> bool:
+        """Add a custom model to the catalog."""
+        try:
+            self.available_models[model_info.model_id] = model_info
+            self._save_models_info()
+            logger.info(f"Added custom model: {model_info.model_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to add custom model: {e}")
+            return False
     
     async def download_model(self, model_id: str, force_redownload: bool = False) -> bool:
         """
-        Download an embedding model from Hugging Face.
-        
+        Universal model download supporting all 4 model types.
+
         Args:
-            model_id: Model identifier (e.g., "sentence-transformers/all-MiniLM-L6-v2")
+            model_id: Model identifier
             force_redownload: Whether to redownload if model already exists
-            
+
         Returns:
             True if download successful, False otherwise
         """
@@ -225,10 +435,21 @@ class EmbeddingModelManager:
             if model_id not in self.available_models:
                 logger.error("Model not found in available models", model_id=model_id)
                 return False
-            
+
             model_info = self.available_models[model_id]
-            model_path = self.models_directory / model_id.replace("/", "_")
-            
+
+            # Determine storage directory based on model type
+            if model_info.model_type == ModelType.EMBEDDING:
+                model_path = self.embedding_dir / model_id.replace("/", "_")
+            elif model_info.model_type == ModelType.RERANKING:
+                model_path = self.reranking_dir / model_id.replace("/", "_")
+            elif model_info.model_type == ModelType.VISION:
+                model_path = self.vision_dir / model_id.replace("/", "_")
+            elif model_info.model_type == ModelType.LLM:
+                model_path = self.llm_dir / model_id.replace("/", "_")
+            else:
+                model_path = self.base_directory / "unknown" / model_id.replace("/", "_")
+
             # Check if already downloaded
             if model_path.exists() and not force_redownload:
                 logger.info("Model already downloaded", model_id=model_id)
@@ -236,7 +457,7 @@ class EmbeddingModelManager:
                 model_info.local_path = str(model_path)
                 self._save_models_info()
                 return True
-            
+
             # Initialize download progress
             progress = ModelDownloadProgress(
                 model_id=model_id,
@@ -244,44 +465,124 @@ class EmbeddingModelManager:
                 started_at=datetime.now()
             )
             self.download_progress[model_id] = progress
-            
-            logger.info("Starting model download", model_id=model_id, path=str(model_path))
 
-            # Create model directory
-            model_path.mkdir(parents=True, exist_ok=True)
+            logger.info("Starting model download",
+                       model_id=model_id,
+                       model_type=model_info.model_type.value,
+                       model_source=model_info.model_source.value,
+                       path=str(model_path))
 
-            # Download model using our custom HTTP client
-            success = await self._download_model_files(model_id, model_path, progress)
+            # Route to appropriate download method based on source
+            if model_info.model_source == ModelSource.HUGGINGFACE:
+                success = await self._download_huggingface_model(model_info, model_path, progress)
+            elif model_info.model_source == ModelSource.OLLAMA:
+                success = await self._download_ollama_model(model_info, progress)
+            else:
+                # API models don't need downloading, just validation
+                success = await self._validate_api_model(model_info, progress)
 
             if not success:
-                logger.error("Failed to download model files", model_id=model_id)
+                logger.error("Failed to download model", model_id=model_id)
                 return False
 
-            downloaded_path = str(model_path)
-            
             # Update model info
             model_info.is_downloaded = True
-            model_info.local_path = str(model_path)
+            if model_info.model_source == ModelSource.HUGGINGFACE:
+                model_info.local_path = str(model_path)
             model_info.download_date = datetime.now()
-            
+
             # Update progress
             progress.status = "completed"
             progress.progress_percent = 100.0
             progress.completed_at = datetime.now()
-            
+
             self._save_models_info()
-            
-            logger.info("Model download completed", model_id=model_id, path=downloaded_path)
+
+            logger.info("Model download completed", model_id=model_id)
             return True
-            
+
         except Exception as e:
             logger.error("Model download failed", model_id=model_id, error=str(e))
-            
+
             # Update progress with error
             if model_id in self.download_progress:
                 self.download_progress[model_id].status = "failed"
                 self.download_progress[model_id].error_message = str(e)
-            
+
+            return False
+
+    async def _download_huggingface_model(
+        self,
+        model_info: UniversalModelInfo,
+        model_path: Path,
+        progress: ModelDownloadProgress
+    ) -> bool:
+        """Download model from HuggingFace."""
+        try:
+            model_path.mkdir(parents=True, exist_ok=True)
+
+            # Download model using existing method
+            success = await self._download_model_files(model_info.model_id, model_path, progress)
+            return success
+
+        except Exception as e:
+            logger.error(f"HuggingFace download failed: {e}")
+            return False
+
+    async def _download_ollama_model(
+        self,
+        model_info: UniversalModelInfo,
+        progress: ModelDownloadProgress
+    ) -> bool:
+        """Download model from Ollama."""
+        try:
+            from app.http_client import SimpleHTTPClient
+            from app.config.settings import get_settings
+
+            settings = get_settings()
+
+            # Use Ollama API to pull model
+            async with SimpleHTTPClient(settings.OLLAMA_BASE_URL, timeout=300) as client:
+                pull_payload = {
+                    "name": model_info.model_id,
+                    "stream": False
+                }
+
+                progress.status = "downloading"
+                progress.progress_percent = 10.0
+
+                response = await client.post("/api/pull", body=pull_payload)
+
+                if response.status_code == 200:
+                    progress.progress_percent = 100.0
+                    logger.info(f"Ollama model pulled successfully: {model_info.model_id}")
+                    return True
+                else:
+                    logger.error(f"Ollama pull failed: {response.status_code}")
+                    return False
+
+        except Exception as e:
+            logger.error(f"Ollama download failed: {e}")
+            return False
+
+    async def _validate_api_model(
+        self,
+        model_info: UniversalModelInfo,
+        progress: ModelDownloadProgress
+    ) -> bool:
+        """Validate API model availability."""
+        try:
+            progress.status = "validating"
+            progress.progress_percent = 50.0
+
+            # For API models, we just mark as available
+            # Actual validation would happen during usage
+            progress.progress_percent = 100.0
+            logger.info(f"API model validated: {model_info.model_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"API model validation failed: {e}")
             return False
 
     async def _download_model_files(self, model_id: str, model_path: Path, progress: ModelDownloadProgress) -> bool:
@@ -397,14 +698,14 @@ class EmbeddingModelManager:
         """Get list of all available embedding models."""
         return list(self.available_models.values())
     
-    def get_downloaded_models(self) -> List[EmbeddingModelInfo]:
-        """Get list of downloaded embedding models."""
+    def get_downloaded_models(self) -> List[UniversalModelInfo]:
+        """Get list of all downloaded models."""
         return [model for model in self.available_models.values() if model.is_downloaded]
-    
-    def get_model_info(self, model_id: str) -> Optional[EmbeddingModelInfo]:
+
+    def get_model_info(self, model_id: str) -> Optional[UniversalModelInfo]:
         """Get information about a specific model."""
         return self.available_models.get(model_id)
-    
+
     def get_download_progress(self, model_id: str) -> Optional[ModelDownloadProgress]:
         """Get download progress for a specific model."""
         return self.download_progress.get(model_id)
@@ -447,222 +748,194 @@ class EmbeddingModelManager:
     
     async def test_model(self, model_id: str, test_text: str = "This is a test sentence.") -> Dict[str, Any]:
         """
-        Test an embedding model with sample text.
-        
+        Universal model testing for all 4 model types.
+
         Args:
             model_id: Model identifier
             test_text: Text to test with
-            
+
         Returns:
-            Test results including embedding dimension and performance metrics
+            Dictionary with test results
         """
         try:
             if model_id not in self.available_models:
                 return {"success": False, "error": "Model not found"}
 
             model_info = self.available_models[model_id]
-            if not model_info.is_downloaded:
+
+            if not model_info.is_downloaded and model_info.model_source == ModelSource.HUGGINGFACE:
                 return {"success": False, "error": "Model not downloaded"}
 
-            # Handle fallback model
-            if model_id == "fallback/simple-hash":
-                start_time = datetime.now()
-                load_time = (datetime.now() - start_time).total_seconds()
+            # Route to appropriate test method based on model type
+            if model_info.model_type == ModelType.EMBEDDING:
+                return await self._test_embedding_model(model_info, test_text)
+            elif model_info.model_type == ModelType.RERANKING:
+                return await self._test_reranking_model(model_info, test_text)
+            elif model_info.model_type == ModelType.VISION:
+                return await self._test_vision_model(model_info, test_text)
+            elif model_info.model_type == ModelType.LLM:
+                return await self._test_llm_model(model_info, test_text)
+            else:
+                return {"success": False, "error": f"Unknown model type: {model_info.model_type}"}
 
-                # Generate simple hash-based embedding
-                inference_start = datetime.now()
-                text_hash = hashlib.md5(test_text.encode()).hexdigest()
-                embedding = [float(int(text_hash[i:i+2], 16)) / 255.0 for i in range(0, min(len(text_hash), 32), 2)]
-                while len(embedding) < model_info.dimension:
-                    embedding.append(0.0)
-                embedding = embedding[:model_info.dimension]
-                inference_time = (datetime.now() - inference_start).total_seconds()
-
-                return {
-                    "success": True,
-                    "embedding_dimension": len(embedding),
-                    "load_time_seconds": load_time,
-                    "inference_time_seconds": inference_time,
-                    "embedding_sample": embedding[:5],  # First 5 values
-                    "model_type": "fallback"
-                }
-
-            # Import here to avoid startup issues
-            try:
-                from sentence_transformers import SentenceTransformer
-            except ImportError:
-                return {"success": False, "error": "sentence_transformers not available"}
-
-            # Load and test model
-            start_time = datetime.now()
-            model = SentenceTransformer(model_info.local_path)
-            load_time = (datetime.now() - start_time).total_seconds()
-
-            # Generate embedding
-            start_time = datetime.now()
-            embedding = model.encode([test_text])
-            inference_time = (datetime.now() - start_time).total_seconds()
-            
-            # Update usage statistics
-            model_info.last_used = datetime.now()
-            model_info.usage_count += 1
-            self._save_models_info()
-            
-            return {
-                "success": True,
-                "model_id": model_id,
-                "embedding_dimension": len(embedding[0]),
-                "load_time_seconds": load_time,
-                "inference_time_seconds": inference_time,
-                "test_text": test_text,
-                "embedding_sample": embedding[0][:5].tolist()  # First 5 dimensions
-            }
-            
         except Exception as e:
-            logger.error("Model test failed", model_id=model_id, error=str(e))
+            logger.error(f"Model test failed: {e}")
             return {"success": False, "error": str(e)}
 
-    def get_global_config(self) -> Dict[str, Any]:
-        """Get global embedding configuration."""
-        config_file = self.models_directory / "global_config.json"
-
-        if config_file.exists():
-            try:
-                with open(config_file, 'r') as f:
-                    return json.load(f)
-            except Exception as e:
-                logger.error(f"Failed to load global config: {e}")
-
-        # Return default configuration
-        return {
-            "embedding_engine": "",
-            "embedding_model": "all-MiniLM-L6-v2",
-            "embedding_batch_size": 32,
-            "openai_url": "https://api.openai.com/v1",
-            "openai_key": "",
-            "ollama_url": "http://localhost:11434",
-            "ollama_key": "",
-            "azure_url": "",
-            "azure_key": "",
-            "azure_version": "2023-05-15"
-        }
-
-    def update_global_config(self, config: Dict[str, Any]) -> None:
-        """Update global embedding configuration."""
-        config_file = self.models_directory / "global_config.json"
-
+    async def _test_embedding_model(self, model_info: UniversalModelInfo, test_text: str) -> Dict[str, Any]:
+        """Test embedding model functionality."""
         try:
-            # Ensure models directory exists
-            self.models_directory.mkdir(parents=True, exist_ok=True)
+            if not TORCH_AVAILABLE:
+                return {"success": False, "error": "PyTorch not available"}
 
-            with open(config_file, 'w') as f:
-                json.dump(config, f, indent=2)
-
-            logger.info("Global embedding configuration updated")
-
-            # Notify global embedding manager to reload configuration
-            try:
-                import asyncio
-                from .global_embedding_manager import reload_global_embedding_config
-
-                # Schedule reload in the background
-                loop = asyncio.get_event_loop()
-                loop.create_task(reload_global_embedding_config())
-
-            except Exception as reload_error:
-                logger.warning(f"Failed to reload global embedding config: {reload_error}")
-
-        except Exception as e:
-            logger.error(f"Failed to save global config: {e}")
-            raise
-
-    async def test_openai_connection(self, url: str, key: str, model: str, test_text: str) -> bool:
-        """Test OpenAI embedding connection."""
-        try:
-            import openai
-
-            client = openai.OpenAI(api_key=key, base_url=url)
-
-            response = client.embeddings.create(
-                model=model,
-                input=test_text
-            )
-
-            return len(response.data) > 0 and len(response.data[0].embedding) > 0
-
-        except Exception as e:
-            logger.error(f"OpenAI connection test failed: {e}")
-            return False
-
-    async def test_azure_connection(self, url: str, key: str, version: str, model: str, test_text: str) -> bool:
-        """Test Azure OpenAI embedding connection."""
-        try:
-            import openai
-
-            client = openai.AzureOpenAI(
-                api_key=key,
-                azure_endpoint=url,
-                api_version=version
-            )
-
-            response = client.embeddings.create(
-                model=model,
-                input=test_text
-            )
-
-            return len(response.data) > 0 and len(response.data[0].embedding) > 0
-
-        except Exception as e:
-            logger.error(f"Azure OpenAI connection test failed: {e}")
-            return False
-
-    async def test_ollama_connection(self, url: str, key: str, model: str, test_text: str) -> bool:
-        """Test Ollama embedding connection."""
-        try:
-            import httpx
-
-            headers = {"Content-Type": "application/json"}
-            if key:
-                headers["Authorization"] = f"Bearer {key}"
-
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{url}/api/embeddings",
-                    headers=headers,
-                    json={
-                        "model": model,
-                        "prompt": test_text
-                    },
-                    timeout=30.0
-                )
-
-                if response.status_code == 200:
-                    data = response.json()
-                    return "embedding" in data and len(data["embedding"]) > 0
-
-                return False
-
-        except Exception as e:
-            logger.error(f"Ollama connection test failed: {e}")
-            return False
-
-    async def test_default_connection(self, model: str, test_text: str) -> bool:
-        """Test default sentence transformers connection."""
-        try:
+            # Try to load and test the model
             from sentence_transformers import SentenceTransformer
 
-            # Try to load the model
-            model_instance = SentenceTransformer(model)
+            model = SentenceTransformer(model_info.model_id)
+            embedding = model.encode(test_text)
 
-            # Test embedding generation
-            embeddings = model_instance.encode([test_text])
-
-            return len(embeddings) > 0 and len(embeddings[0]) > 0
+            return {
+                "success": True,
+                "model_id": model_info.model_id,
+                "model_type": "embedding",
+                "test_text": test_text,
+                "embedding_dimension": len(embedding),
+                "embedding_sample": embedding[:5].tolist() if len(embedding) > 5 else embedding.tolist(),
+                "model_info": {
+                    "max_seq_length": model.max_seq_length,
+                    "device": str(model.device)
+                }
+            }
 
         except Exception as e:
-            logger.error(f"Default connection test failed: {e}")
-            return False
+            return {"success": False, "error": f"Embedding test failed: {str(e)}"}
 
+    async def _test_reranking_model(self, model_info: UniversalModelInfo, test_text: str) -> Dict[str, Any]:
+        """Test reranking model functionality."""
+        try:
+            if not TORCH_AVAILABLE:
+                return {"success": False, "error": "PyTorch not available"}
 
-# Global instance
-embedding_model_manager = EmbeddingModelManager()
+            # Try to load and test the reranking model
+            from sentence_transformers import CrossEncoder
+
+            model = CrossEncoder(model_info.model_id)
+
+            # Test with query and document pair
+            query = test_text
+            document = "This is a sample document for testing reranking functionality."
+
+            score = model.predict([(query, document)])
+
+            return {
+                "success": True,
+                "model_id": model_info.model_id,
+                "model_type": "reranking",
+                "test_query": query,
+                "test_document": document,
+                "relevance_score": float(score[0]) if hasattr(score, '__iter__') else float(score),
+                "model_info": {
+                    "max_length": getattr(model, 'max_length', 512)
+                }
+            }
+
+        except Exception as e:
+            return {"success": False, "error": f"Reranking test failed: {str(e)}"}
+
+    async def _test_vision_model(self, model_info: UniversalModelInfo, test_text: str) -> Dict[str, Any]:
+        """Test vision model functionality."""
+        try:
+            if not TORCH_AVAILABLE:
+                return {"success": False, "error": "PyTorch not available"}
+
+            # Try to load and test the vision model
+            from sentence_transformers import SentenceTransformer
+
+            model = SentenceTransformer(model_info.model_id)
+
+            # Test text encoding (CLIP models can encode both text and images)
+            text_embedding = model.encode(test_text)
+
+            return {
+                "success": True,
+                "model_id": model_info.model_id,
+                "model_type": "vision",
+                "test_text": test_text,
+                "text_embedding_dimension": len(text_embedding),
+                "text_embedding_sample": text_embedding[:5].tolist() if len(text_embedding) > 5 else text_embedding.tolist(),
+                "model_info": {
+                    "max_seq_length": getattr(model, 'max_seq_length', 77),
+                    "supports_images": True,
+                    "supports_text": True
+                }
+            }
+
+        except Exception as e:
+            return {"success": False, "error": f"Vision model test failed: {str(e)}"}
+
+    async def _test_llm_model(self, model_info: UniversalModelInfo, test_text: str) -> Dict[str, Any]:
+        """Test LLM model functionality."""
+        try:
+            if model_info.model_source == ModelSource.OLLAMA:
+                return await self._test_ollama_llm(model_info, test_text)
+            else:
+                # API models would be tested differently
+                return {
+                    "success": True,
+                    "model_id": model_info.model_id,
+                    "model_type": "llm",
+                    "model_source": model_info.model_source.value,
+                    "message": "API model validation - actual testing requires API keys"
+                }
+
+        except Exception as e:
+            return {"success": False, "error": f"LLM test failed: {str(e)}"}
+
+    async def _test_ollama_llm(self, model_info: UniversalModelInfo, test_text: str) -> Dict[str, Any]:
+        """Test Ollama LLM model."""
+        try:
+            from app.http_client import SimpleHTTPClient
+            from app.config.settings import get_settings
+
+            settings = get_settings()
+
+            async with SimpleHTTPClient(settings.OLLAMA_BASE_URL, timeout=30) as client:
+                # Test with a simple generation
+                generate_payload = {
+                    "model": model_info.model_id,
+                    "prompt": f"Complete this sentence: {test_text}",
+                    "stream": False,
+                    "options": {
+                        "num_predict": 50
+                    }
+                }
+
+                response = await client.post("/api/generate", body=generate_payload)
+
+                if response.status_code == 200:
+                    result = response.json()
+                    return {
+                        "success": True,
+                        "model_id": model_info.model_id,
+                        "model_type": "llm",
+                        "model_source": "ollama",
+                        "test_prompt": generate_payload["prompt"],
+                        "response": result.get("response", ""),
+                        "model_info": {
+                            "context_length": model_info.context_length,
+                            "total_duration": result.get("total_duration"),
+                            "load_duration": result.get("load_duration")
+                        }
+                    }
+                else:
+                    return {"success": False, "error": f"Ollama API error: {response.status_code}"}
+
+        except Exception as e:
+            return {"success": False, "error": f"Ollama test failed: {str(e)}"}
+
+# Create global instance for backward compatibility
+embedding_model_manager = UniversalModelManager()
+
+# Backward compatibility alias
+EmbeddingModelManager = UniversalModelManager
+

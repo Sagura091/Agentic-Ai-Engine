@@ -27,8 +27,8 @@ class SocketIOManager:
         self.sio = socketio.AsyncServer(
             cors_allowed_origins="*",
             async_mode='asgi',
-            logger=True,
-            engineio_logger=True,
+            logger=False,
+            engineio_logger=False,
             allow_upgrades=True,
             ping_timeout=60,
             ping_interval=25,
@@ -148,11 +148,12 @@ class SocketIOManager:
                     return
                 
                 # Get agents from orchestrator
-                from app.orchestration.orchestrator import orchestrator
-                
+                from app.core.unified_system_orchestrator import get_orchestrator_with_compatibility
+                enhanced_orchestrator = get_orchestrator_with_compatibility()
+
                 agents_data = []
-                if orchestrator.is_initialized:
-                    for agent_id, agent in orchestrator.agents.items():
+                if enhanced_orchestrator.is_initialized:
+                    for agent_id, agent in enhanced_orchestrator.agents.items():
                         agents_data.append({
                             'id': agent_id,
                             'name': getattr(agent.config, 'name', f'Agent-{agent_id}') if hasattr(agent, 'config') else f'Agent-{agent_id}',
@@ -193,7 +194,9 @@ class SocketIOManager:
                     return
 
                 # Create agent using enhanced orchestrator
-                from app.orchestration.enhanced_orchestrator import enhanced_orchestrator, AgentType
+                from app.core.unified_system_orchestrator import get_enhanced_system_orchestrator
+                from app.agents.factory import AgentType
+                enhanced_orchestrator = get_enhanced_system_orchestrator()
 
                 # Convert string agent type to enum
                 try:
@@ -255,13 +258,14 @@ class SocketIOManager:
     async def _send_system_status(self, sid: str):
         """Send system status to a specific client."""
         try:
-            from app.orchestration.orchestrator import orchestrator
-            
+            from app.core.unified_system_orchestrator import get_orchestrator_with_compatibility
+            enhanced_orchestrator = get_orchestrator_with_compatibility()
+
             status = {
                 'system_status': 'healthy',
-                'orchestrator_initialized': orchestrator.is_initialized,
-                'active_agents': len(orchestrator.agents) if orchestrator.is_initialized else 0,
-                'active_workflows': len(orchestrator.workflows) if orchestrator.is_initialized else 0,
+                'orchestrator_initialized': enhanced_orchestrator.status.is_initialized,
+                'active_agents': len(enhanced_orchestrator.agents) if enhanced_orchestrator.status.is_initialized else 0,
+                'active_workflows': len(enhanced_orchestrator.workflows) if enhanced_orchestrator.status.is_initialized else 0,
                 'timestamp': asyncio.get_event_loop().time()
             }
             

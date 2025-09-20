@@ -1,0 +1,19 @@
+{
+	"/": [],
+	"/agents": [],
+	"/agents/create-visual": [],
+	"/agents/create": [],
+	"/auth": [],
+	"/auth/login": [],
+	"/auth/register": [],
+	"/collaboration": [],
+	"/knowledge": [],
+	"/models": [],
+	"/monitoring": [],
+	"/settings": [],
+	"/settings/rag": [],
+	"/testing": [],
+	"/tools": [],
+	"/workflows": [],
+	"/workflows/create": []
+}

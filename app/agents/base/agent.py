@@ -120,15 +120,25 @@ class AgentConfig(BaseModel):
 
     # LangChain prompt configuration
     system_prompt: str = Field(
-        default="""You are an AI assistant with access to tools. When you need to perform calculations, analysis, or data retrieval, you MUST use the appropriate tools by calling them.
+        default="""You are an intelligent AI agent with access to tools to help solve problems.
 
-IMPORTANT: Always use tools when:
-- Mathematical calculations are needed
-- Business analysis is required
-- Data processing is necessary
-- The task explicitly asks you to use tools
+AVAILABLE TOOLS: {tools}
 
-Use the function calling format to invoke tools. Do not attempt to solve problems manually when tools are available.""",
+CRITICAL: You MUST use tools when they are relevant to the task. Do NOT solve problems manually when tools are available.
+
+To use a tool, state exactly: "I will use the [tool_name] tool" then explain why.
+
+Examples:
+- For ANY mathematical calculation: "I will use the calculator tool to compute this expression accurately."
+- For research: "I will use the web_search tool to find current information."
+- For analysis: "I will use the business_intelligence tool to analyze this data."
+
+IMPORTANT:
+- For math problems, ALWAYS use the calculator tool - never do calculations manually
+- The system will detect your tool usage statement and execute the tool automatically
+- After stating tool usage, wait for the tool result before continuing
+
+Always use tools when available and relevant to the task.""",
         description="System prompt for the agent"
     )
 
@@ -227,27 +237,18 @@ class LangGraphAgent(ABC):
         self.compiled_graph: Optional[Runnable] = None
         self.tool_node: Optional[ToolNode] = None
 
-        # CRITICAL: Bind tools to LLM for proper tool calling
-        # Handle different LLM types - some may not support bind_tools
+        # CRITICAL: Handle tool calling - prefer manual approach for compatibility
+        # Many models don't support function calling, so we use text-based tool calling
         if self.tools:
-            try:
-                self.llm_with_tools = self.llm.bind_tools(list(self.tools.values()))
-                self.supports_tool_calling = True
-                logger.info(
-                    "LLM bound with tools",
-                    agent_id=self.agent_id,
-                    tools_bound=list(self.tools.keys())
-                )
-            except (AttributeError, NotImplementedError) as e:
-                # LLM doesn't support bind_tools - use manual tool calling approach
-                self.llm_with_tools = self.llm
-                self.supports_tool_calling = False
-                logger.warning(
-                    "LLM doesn't support bind_tools, using manual tool calling",
-                    agent_id=self.agent_id,
-                    llm_type=type(self.llm).__name__,
-                    error=str(e)
-                )
+            # Always use manual tool calling for maximum compatibility
+            self.llm_with_tools = self.llm
+            self.supports_tool_calling = False
+            logger.info(
+                "Using manual tool calling for maximum compatibility",
+                agent_id=self.agent_id,
+                tools_available=list(self.tools.keys()),
+                llm_type=type(self.llm).__name__
+            )
         else:
             self.llm_with_tools = self.llm
             self.supports_tool_calling = False
@@ -255,6 +256,11 @@ class LangGraphAgent(ABC):
         # State management
         self.current_state: Optional[AgentGraphState] = None
         self._execution_lock = asyncio.Lock()
+
+        # Memory system (assigned by AgentBuilderFactory)
+        self.memory_system: Optional[Any] = None
+        self.memory_collection: Optional[Any] = None
+        self.memory_type: Optional[str] = None
 
         # Initialize the agent graph
         self._build_agent_graph()
@@ -286,6 +292,69 @@ class LangGraphAgent(ABC):
     def is_busy(self) -> bool:
         """Check if agent is currently executing."""
         return self.state.status == AgentStatus.RUNNING
+
+    @property
+    def has_memory(self) -> bool:
+        """Check if agent has a memory system assigned."""
+        return self.memory_system is not None
+
+    async def add_memory(self, content: str, memory_type: str = "short_term", metadata: Optional[Dict[str, Any]] = None):
+        """
+        Add a memory to the agent's memory system.
+
+        Args:
+            content: Memory content
+            memory_type: Type of memory (short_term, long_term, episodic, semantic, etc.)
+            metadata: Additional metadata
+        """
+        if not self.has_memory:
+            logger.warning("No memory system assigned to agent", agent_id=self.agent_id)
+            return
+
+        try:
+            if self.memory_type == "simple":
+                # UnifiedMemorySystem
+                from app.memory.memory_models import MemoryType as UnifiedMemoryType
+                unified_type = UnifiedMemoryType.SHORT_TERM if memory_type == "short_term" else UnifiedMemoryType.LONG_TERM
+                await self.memory_system.add_memory(self.agent_id, unified_type, content, metadata)
+            elif self.memory_type == "advanced":
+                # PersistentMemorySystem
+                from app.agents.autonomous.persistent_memory import MemoryType as PersistentMemoryType, MemoryImportance
+                persistent_type = getattr(PersistentMemoryType, memory_type.upper(), PersistentMemoryType.EPISODIC)
+                await self.memory_system.store_memory(content, persistent_type, MemoryImportance.MEDIUM, metadata=metadata)
+
+            logger.debug("Memory added successfully", agent_id=self.agent_id, memory_type=memory_type)
+        except Exception as e:
+            logger.error("Failed to add memory", agent_id=self.agent_id, error=str(e))
+
+    async def retrieve_memories(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Retrieve memories from the agent's memory system.
+
+        Args:
+            query: Search query
+            limit: Maximum number of memories to retrieve
+
+        Returns:
+            List of memory entries
+        """
+        if not self.has_memory:
+            logger.warning("No memory system assigned to agent", agent_id=self.agent_id)
+            return []
+
+        try:
+            if self.memory_type == "simple":
+                # UnifiedMemorySystem retrieval
+                memories = await self.memory_system.search_memories(self.agent_id, query, limit)
+                return [{"content": m.content, "metadata": m.metadata, "created_at": m.created_at} for m in memories]
+            elif self.memory_type == "advanced":
+                # PersistentMemorySystem retrieval
+                memories = await self.memory_system.retrieve_memories(query, limit)
+                return [{"content": m.content, "metadata": m.metadata, "created_at": m.created_at} for m in memories]
+
+        except Exception as e:
+            logger.error("Failed to retrieve memories", agent_id=self.agent_id, error=str(e))
+            return []
     
     def _build_agent_graph(self) -> None:
         """
@@ -575,18 +644,18 @@ class LangGraphAgent(ABC):
                 }
             )
 
-            # Create the prompt template
+            # Create the prompt template with tools information
+            tools_description = ", ".join(self.tools.keys()) if self.tools else "None"
+            formatted_system_prompt = self.config.system_prompt.format(tools=tools_description)
+
             prompt = ChatPromptTemplate.from_messages([
-                ("system", self.config.system_prompt),
+                ("system", formatted_system_prompt),
                 MessagesPlaceholder(variable_name="messages"),
-                ("human", "Available tools: {tools}\nCurrent task: {task}")
+                ("human", "Current task: {task}")
             ])
 
             # CRITICAL: Use the tool-bound LLM for proper tool calling
             chain = prompt | self.llm_with_tools
-
-            # Prepare input
-            tools_description = ", ".join(self.tools.keys()) if self.tools else "None"
 
             # Log LLM invocation
             backend_logger.debug(
@@ -604,7 +673,6 @@ class LangGraphAgent(ABC):
             # Get response from LLM
             response = await chain.ainvoke({
                 "messages": state["messages"],
-                "tools": tools_description,
                 "task": state["current_task"]
             })
 
@@ -1090,85 +1158,98 @@ class LangGraphAgent(ABC):
     async def _handle_manual_tool_calling(self, response: AIMessage, state: AgentGraphState) -> AIMessage:
         """
         Handle manual tool calling for LLMs that don't support bind_tools.
-        Parse the response for tool usage requests and create tool calls.
+        Parse the response for explicit tool usage requests and create tool calls.
         """
         try:
-            content = response.content.lower()
-
-            # Look for explicit tool usage requests
+            import re
+            import time
+            content = response.content
             tool_calls = []
 
-            # Check for calculator tool usage
-            if "calculator" in self.tools and any(phrase in content for phrase in [
-                "calculate", "computation", "math", "arithmetic", "formula", "calculator"
-            ]):
-                # Extract mathematical expression
-                import re
-                # Look for mathematical expressions in the content
-                math_patterns = [
-                    r'(\d+(?:\.\d+)?\s*[+\-*/]\s*\d+(?:\.\d+)?(?:\s*[+\-*/]\s*\d+(?:\.\d+)?)*)',
-                    r'calculate[:\s]+([^.]+)',
-                    r'compute[:\s]+([^.]+)'
-                ]
+            # Look for explicit tool usage statements: "I will use the [tool_name] tool"
+            tool_usage_patterns = [
+                r'I will use the (\w+) tool',
+                r'I\'ll use the (\w+) tool',
+                r'Using the (\w+) tool',
+                r'Let me use the (\w+) tool',
+                r'I need to use the (\w+) tool'
+            ]
 
-                for pattern in math_patterns:
-                    matches = re.findall(pattern, response.content, re.IGNORECASE)
-                    if matches:
-                        expression = matches[0].strip()
-                        tool_calls.append({
-                            "name": "calculator",
-                            "args": {"expression": expression, "precision": 2},
-                            "id": f"call_{len(tool_calls)}"
-                        })
-                        break
+            for pattern in tool_usage_patterns:
+                matches = re.findall(pattern, content, re.IGNORECASE)
+                for match in matches:
+                    tool_name = match.lower()
 
-                # If no specific expression found, use the one from the test
-                if not tool_calls and "75000 * 1.5 - 45000" in response.content:
-                    tool_calls.append({
-                        "name": "calculator",
-                        "args": {"expression": "(75000 * 1.5 - 45000) / 75000 * 100", "precision": 2},
-                        "id": f"call_{len(tool_calls)}"
-                    })
+                    # Check if this tool is available
+                    if tool_name in self.tools:
+                        # Create tool call with context from the task
+                        tool_call = await self._create_tool_call(tool_name, state)
+                        if tool_call:
+                            tool_calls.append(tool_call)
+                            logger.info(f"🔧 Detected tool usage: {tool_name}")
 
-            # Check for business intelligence tool usage
-            if "business_intelligence" in self.tools and any(phrase in content for phrase in [
-                "business analysis", "financial analysis", "market analysis", "intelligence", "business_intelligence"
-            ]):
-                # Create business intelligence call
-                tool_calls.append({
-                    "name": "business_intelligence",
-                    "args": {
-                        "analysis_type": "financial",
-                        "context": {
-                            "revenue": 50000,
-                            "expenses": 45000,
-                            "cash": 100000,
-                            "industry": "Technology",
-                            "target_market": "SMB"
-                        },
-                        "focus_areas": ["profitability", "growth"],
-                        "time_horizon": "6_months",
-                        "include_recommendations": True,
-                        "detail_level": "comprehensive"
-                    },
-                    "id": f"call_{len(tool_calls)}"
-                })
-
-            # If we found tool calls, add them to the response
+            # If tool calls were detected, create a new response with tool calls
             if tool_calls:
                 response.tool_calls = tool_calls
-                logger.info(
-                    "Manual tool calls detected and added",
-                    agent_id=self.agent_id,
-                    tool_calls=len(tool_calls),
-                    tools=[call["name"] for call in tool_calls]
-                )
+                logger.info(f"✅ Created {len(tool_calls)} tool calls")
 
             return response
 
         except Exception as e:
-            logger.error("Manual tool calling failed", agent_id=self.agent_id, error=str(e))
+            logger.error(f"Error in manual tool calling: {e}")
             return response
+
+    async def _create_tool_call(self, tool_name: str, state: AgentGraphState) -> Optional[Dict]:
+        """
+        Create a tool call with appropriate arguments based on the tool type and context.
+        """
+        try:
+            import re
+            import time
+            current_task = state.get("current_task", "")
+
+            if tool_name == "calculator":
+                # Extract mathematical expression from the task
+                math_patterns = [
+                    r'(\d+(?:\.\d+)?\s*[+\-*/]\s*\d+(?:\.\d+)?(?:\s*[+\-*/]\s*\d+(?:\.\d+)?)*)',
+                    r'calculate[:\s]+([^.!?]+)',
+                    r'compute[:\s]+([^.!?]+)'
+                ]
+
+                for pattern in math_patterns:
+                    matches = re.findall(pattern, current_task, re.IGNORECASE)
+                    if matches:
+                        expression = matches[0].strip()
+                        # Clean up the expression
+                        expression = re.sub(r'[^\d+\-*/().\s]', '', expression).strip()
+                        if expression and any(op in expression for op in ['+', '-', '*', '/']):
+                            return {
+                                "name": "calculator",
+                                "args": {"expression": expression, "precision": 2},
+                                "id": f"call_calculator_{int(time.time())}"
+                            }
+
+            elif tool_name == "web_search":
+                # Extract search query from task
+                return {
+                    "name": "web_search",
+                    "args": {"query": current_task, "num_results": 5},
+                    "id": f"call_web_search_{int(time.time())}"
+                }
+
+            elif tool_name == "business_intelligence":
+                # Create business analysis call
+                return {
+                    "name": "business_intelligence",
+                    "args": {"analysis_type": "general", "data": current_task},
+                    "id": f"call_business_intelligence_{int(time.time())}"
+                }
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error creating tool call for {tool_name}: {e}")
+            return None
 
 
 class AgentInterface(ABC):

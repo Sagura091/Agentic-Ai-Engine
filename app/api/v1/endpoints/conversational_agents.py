@@ -13,12 +13,12 @@ from datetime import datetime
 import time
 
 import structlog
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends
 from pydantic import BaseModel, Field
 
 from app.config.settings import get_settings
-from app.orchestration.orchestrator import orchestrator
-from app.orchestration.enhanced_orchestrator import enhanced_orchestrator
+from app.core.dependencies import get_orchestrator
+# from app.orchestration.enhanced_orchestrator import enhanced_orchestrator
 
 # Import backend logging system
 from app.backend_logging.backend_logger import get_logger
@@ -83,7 +83,10 @@ class TaskExecutionResponse(BaseModel):
 
 
 @router.post("/create-agent", response_model=AgentCreationResponse)
-async def start_conversational_agent_creation(request: AgentCreationRequest):
+async def start_conversational_agent_creation(
+    request: AgentCreationRequest,
+    orchestrator = Depends(get_orchestrator)
+):
     """
     Start a conversational agent creation session.
     
@@ -192,7 +195,8 @@ Be conversational, helpful, and thorough. Ask one question at a time to avoid ov
 async def continue_agent_creation_conversation(
     session_id: str,
     user_message: str,
-    conversation_history: List[ConversationMessage]
+    conversation_history: List[ConversationMessage],
+    orchestrator = Depends(get_orchestrator)
 ):
     """
     Continue the conversational agent creation process.
@@ -291,7 +295,10 @@ async def continue_agent_creation_conversation(
 
 
 @router.post("/execute-task", response_model=TaskExecutionResponse)
-async def execute_task_autonomously(request: TaskExecutionRequest):
+async def execute_task_autonomously(
+    request: TaskExecutionRequest,
+    orchestrator = Depends(get_orchestrator)
+):
     """
     Execute a task autonomously with an agent, showing reasoning process.
     
@@ -359,8 +366,8 @@ async def execute_task_autonomously(request: TaskExecutionRequest):
                     details={"execution_context": task_context}
                 ))
             
-            # Use enhanced orchestrator for task execution
-            result = await enhanced_orchestrator.execute_autonomous_task(
+            # Use orchestrator for task execution
+            result = await orchestrator.execute_autonomous_task(
                 task_description=request.task_description,
                 agent_id=request.agent_id,
                 context=task_context

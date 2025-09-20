@@ -5,7 +5,7 @@ This module aggregates all API endpoints and provides a single router
 for the FastAPI application to include.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 
 from app.api.v1.endpoints import (
     agents,
@@ -25,7 +25,9 @@ from app.api.v1.endpoints import (
     conversational_agents,
     rag,
     embedding_models,
-    rag_upload
+    rag_upload,
+    database_management,
+    nodes
 )
 
 # Create the main API router
@@ -50,17 +52,27 @@ api_router.include_router(
     tags=["workflows"],
 )
 
+api_router.include_router(
+    nodes.router,
+    prefix="/nodes",
+    tags=["nodes"],
+)
+
 # Add explicit route for /agents without trailing slash to avoid 307 redirects
 from app.api.v1.endpoints.agents import create_agent as agents_create_agent, list_agents as agents_list_agents, AgentCreateRequest, AgentResponse
-from app.core.dependencies import get_orchestrator
-from typing import List
+from app.core.dependencies import get_orchestrator, get_current_user
+from app.core.pagination import AdvancedQueryParams
+from app.api.v1.responses import StandardAPIResponse
+from typing import List, Optional
 
-@api_router.get("/agents", response_model=List[AgentResponse], tags=["agents"])
+@api_router.get("/agents", response_model=StandardAPIResponse, tags=["agents"])
 async def list_agents_no_slash(
-    orchestrator = Depends(get_orchestrator)
+    response: Response,
+    query_params: AdvancedQueryParams = Depends(),
+    current_user: Optional[str] = Depends(get_current_user)
 ):
     """List agents endpoint without trailing slash to avoid 307 redirects."""
-    return await agents_list_agents(orchestrator)
+    return await agents_list_agents(response=response, query_params=query_params, current_user=current_user)
 
 @api_router.post("/agents", response_model=AgentResponse, tags=["agents"])
 async def create_agent_no_slash(
@@ -162,6 +174,12 @@ api_router.include_router(
 api_router.include_router(
     rag_upload.router,
     tags=["rag-upload"],
+)
+
+# Database Management API (Migration and maintenance)
+api_router.include_router(
+    database_management.router,
+    tags=["database-management"],
 )
 
 
@@ -450,3 +468,291 @@ async def get_distributed_status():
     except Exception as e:
         logger.error("Failed to get distributed status", error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to get distributed status: {str(e)}")
+
+
+# ============================================================================
+# REVOLUTIONARY COMPONENT WORKFLOW EXECUTION ENDPOINTS
+# ============================================================================
+
+class ComponentWorkflowRequest(BaseModel):
+    """Component workflow execution request."""
+    workflow_id: str = Field(..., description="Unique workflow identifier")
+    components: List[Dict[str, Any]] = Field(..., description="List of workflow components")
+    execution_mode: str = Field(default="sequential", description="Execution mode: sequential, parallel, autonomous")
+    context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Execution context")
+
+
+class ComponentWorkflowResponse(BaseModel):
+    """Component workflow execution response."""
+    workflow_id: str
+    status: str
+    message: str
+    total_steps: int
+    execution_mode: str
+    queued_at: datetime
+
+
+class WorkflowStepStatusResponse(BaseModel):
+    """Workflow step status response."""
+    step_id: str
+    status: str
+    component_type: Optional[str] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    execution_time: Optional[float] = None
+    result: Optional[Dict[str, Any]] = None
+    events: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class ComponentExecutionRequest(BaseModel):
+    """Component execution request."""
+    component_id: str = Field(..., description="Component identifier")
+    component_type: str = Field(..., description="Component type")
+    component_config: Dict[str, Any] = Field(..., description="Component configuration")
+    execution_mode: str = Field(default="default", description="Execution mode")
+    context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Execution context")
+
+
+class ComponentExecutionResponse(BaseModel):
+    """Component execution response."""
+    component_id: str
+    status: str
+    message: str
+    execution_mode: str
+    queued_at: datetime
+
+
+@api_router.post("/workflows/execute-components", response_model=ComponentWorkflowResponse, tags=["Component Workflows"])
+async def execute_component_workflow(request: ComponentWorkflowRequest) -> ComponentWorkflowResponse:
+    """
+    Execute a component-based workflow.
+
+    This revolutionary endpoint allows execution of workflows created from
+    visual components with support for sequential, parallel, and autonomous
+    execution modes.
+    """
+    try:
+        # Get the unified system orchestrator
+        from app.core.unified_system_orchestrator import get_enhanced_system_orchestrator
+        orchestrator = get_enhanced_system_orchestrator()
+
+        if not orchestrator.is_initialized:
+            await orchestrator.initialize()
+
+        # Execute component workflow
+        result = await orchestrator.execute_component_workflow(
+            workflow_id=request.workflow_id,
+            components=request.components,
+            execution_mode=request.execution_mode,
+            context=request.context
+        )
+
+        logger.info(
+            "Component workflow execution started",
+            workflow_id=request.workflow_id,
+            num_components=len(request.components),
+            execution_mode=request.execution_mode
+        )
+
+        return ComponentWorkflowResponse(
+            workflow_id=result["workflow_id"],
+            status=result["status"],
+            message=result["message"],
+            total_steps=result["total_steps"],
+            execution_mode=request.execution_mode,
+            queued_at=datetime.utcnow()
+        )
+
+    except Exception as e:
+        logger.error("Failed to execute component workflow", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to execute component workflow: {str(e)}")
+
+
+@api_router.get("/workflows/steps/{step_id}/status", response_model=WorkflowStepStatusResponse, tags=["Component Workflows"])
+async def get_workflow_step_status(step_id: str) -> WorkflowStepStatusResponse:
+    """
+    Get the status of a specific workflow step.
+
+    This endpoint provides detailed information about the execution state
+    of individual workflow steps, including timing, results, and events.
+    """
+    try:
+        from app.agent_builder_platform import get_step_state_tracker
+        step_tracker = get_step_state_tracker()
+
+        step_state = step_tracker.get_step_state(step_id)
+
+        if not step_state:
+            raise HTTPException(status_code=404, detail=f"Step not found: {step_id}")
+
+        return WorkflowStepStatusResponse(
+            step_id=step_state["step_id"],
+            status=step_state["status"],
+            component_type=step_state.get("component_type"),
+            start_time=step_state.get("start_time"),
+            end_time=step_state.get("end_time"),
+            execution_time=step_state.get("execution_time"),
+            result=step_state.get("result"),
+            events=step_state.get("events", [])
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to get workflow step status", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to get step status: {str(e)}")
+
+
+@api_router.post("/components/execute", response_model=ComponentExecutionResponse, tags=["Component Workflows"])
+async def execute_component(request: ComponentExecutionRequest) -> ComponentExecutionResponse:
+    """
+    Execute a single component.
+
+    This endpoint allows execution of individual components with support
+    for autonomous, instruction-based, and default execution modes.
+    """
+    try:
+        from app.agent_builder_platform import get_component_agent_manager
+        component_manager = await get_component_agent_manager()
+
+        # Create component agent
+        component_agent = await component_manager.create_component_agent(
+            agent_id=request.component_id,
+            component_type=request.component_type,
+            component_config=request.component_config
+        )
+
+        # Execute component agent
+        result = await component_manager.execute_component_agent(
+            agent_id=request.component_id,
+            execution_context=request.context,
+            execution_mode=request.execution_mode
+        )
+
+        logger.info(
+            "Component execution started",
+            component_id=request.component_id,
+            component_type=request.component_type,
+            execution_mode=request.execution_mode
+        )
+
+        return ComponentExecutionResponse(
+            component_id=result["agent_id"],
+            status=result["status"],
+            message=result["message"],
+            execution_mode=request.execution_mode,
+            queued_at=datetime.utcnow()
+        )
+
+    except Exception as e:
+        logger.error("Failed to execute component", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to execute component: {str(e)}")
+
+
+@api_router.get("/workflows/{workflow_id}/steps", tags=["Component Workflows"])
+async def get_workflow_steps(workflow_id: str) -> Dict[str, Any]:
+    """
+    Get all steps for a specific workflow.
+
+    This endpoint returns information about all steps associated with
+    a workflow, including their current status and execution details.
+    """
+    try:
+        from app.agent_builder_platform import get_step_state_tracker
+        step_tracker = get_step_state_tracker()
+
+        step_ids = step_tracker.get_workflow_steps(workflow_id)
+
+        steps = []
+        for step_id in step_ids:
+            step_state = step_tracker.get_step_state(step_id)
+            if step_state:
+                steps.append({
+                    "step_id": step_id,
+                    "status": step_state["status"],
+                    "component_type": step_state.get("component_type"),
+                    "start_time": step_state.get("start_time"),
+                    "end_time": step_state.get("end_time"),
+                    "execution_time": step_state.get("execution_time")
+                })
+
+        return {
+            "workflow_id": workflow_id,
+            "total_steps": len(steps),
+            "steps": steps
+        }
+
+    except Exception as e:
+        logger.error("Failed to get workflow steps", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to get workflow steps: {str(e)}")
+
+
+@api_router.get("/components/agents", tags=["Component Workflows"])
+async def list_component_agents() -> Dict[str, Any]:
+    """
+    List all component agents.
+
+    This endpoint returns information about all component agents
+    currently managed by the system.
+    """
+    try:
+        from app.agent_builder_platform import get_component_agent_manager
+        component_manager = await get_component_agent_manager()
+
+        agents = component_manager.list_component_agents()
+        active_agents = component_manager.get_active_agents()
+
+        return {
+            "total_agents": len(agents),
+            "active_agents": len(active_agents),
+            "agents": agents,
+            "active_agent_ids": active_agents
+        }
+
+    except Exception as e:
+        logger.error("Failed to list component agents", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to list component agents: {str(e)}")
+
+
+@api_router.get("/workflows/active", tags=["Component Workflows"])
+async def get_active_workflows() -> Dict[str, Any]:
+    """
+    Get all active workflows.
+
+    This endpoint returns information about all currently active
+    component workflows and their execution status.
+    """
+    try:
+        from app.core.unified_system_orchestrator import get_enhanced_system_orchestrator
+        orchestrator = get_enhanced_system_orchestrator()
+
+        if orchestrator.component_workflow_executor:
+            active_workflows = orchestrator.component_workflow_executor.list_active_workflows()
+
+            workflow_details = []
+            for workflow_id in active_workflows:
+                workflow_status = orchestrator.component_workflow_executor.get_workflow_status(workflow_id)
+                if workflow_status:
+                    workflow_details.append({
+                        "workflow_id": workflow_id,
+                        "status": workflow_status["status"],
+                        "execution_mode": workflow_status.get("execution_mode"),
+                        "current_step": workflow_status.get("current_step", 0),
+                        "total_steps": workflow_status.get("total_steps", 0),
+                        "start_time": workflow_status.get("start_time")
+                    })
+
+            return {
+                "total_active_workflows": len(active_workflows),
+                "workflows": workflow_details
+            }
+        else:
+            return {
+                "total_active_workflows": 0,
+                "workflows": [],
+                "message": "Component workflow executor not initialized"
+            }
+
+    except Exception as e:
+        logger.error("Failed to get active workflows", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to get active workflows: {str(e)}")

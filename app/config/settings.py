@@ -127,6 +127,7 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = Field(default="http://localhost:11434", description="Ollama base URL")
     OLLAMA_TIMEOUT: int = Field(default=120, description="Ollama request timeout in seconds")
     OLLAMA_RETRY_ATTEMPTS: int = Field(default=3, description="Number of retry attempts for Ollama")
+    OLLAMA_KEEP_ALIVE: str = Field(default="30m", description="How long to keep models loaded in memory (e.g., '30m', '1h', '-1' for indefinite)")
 
     # OpenAI settings
     OPENAI_API_KEY: str = Field(default="", description="OpenAI API key")

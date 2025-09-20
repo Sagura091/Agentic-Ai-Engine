@@ -269,7 +269,18 @@ async def test_llm_config(
         }
         
     except Exception as e:
-        logger.error("Failed to test LLM config", config=request.dict(), error=str(e))
+        request_dict = {}
+        try:
+            if hasattr(request, 'dict'):
+                request_dict = request.dict()
+            elif hasattr(request, '__dict__'):
+                request_dict = request.__dict__
+            else:
+                request_dict = {"type": str(type(request))}
+        except Exception:
+            request_dict = {"error": "Could not serialize request"}
+
+        logger.error("Failed to test LLM config", config=request_dict, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid LLM configuration: {str(e)}"

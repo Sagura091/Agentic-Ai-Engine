@@ -20,7 +20,7 @@ from .test_utils import TestDataGenerator, MockLLMProvider, TestValidator, creat
 
 # Import application components
 from app.orchestration.enhanced_orchestrator import enhanced_orchestrator, AgentType
-from app.orchestration.orchestrator import orchestrator
+# from app.orchestration.orchestrator import orchestrator  # This module doesn't exist
 from app.agents.base.agent import LangGraphAgent, AgentConfig, AgentCapability
 from app.agents.autonomous import (
     AutonomousLangGraphAgent, 

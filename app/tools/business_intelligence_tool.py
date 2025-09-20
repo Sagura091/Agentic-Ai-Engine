@@ -17,8 +17,7 @@ from enum import Enum
 import structlog
 from pydantic import BaseModel, Field
 from langchain_core.callbacks import CallbackManagerForToolRun
-
-from .dynamic_tool_factory import BaseDynamicTool, ToolMetadata, ToolCategory, ToolComplexity
+from langchain_core.tools import BaseTool
 
 logger = structlog.get_logger(__name__)
 
@@ -45,22 +44,15 @@ class BusinessIntelligenceInput(BaseModel):
     detail_level: str = Field(default="comprehensive", description="Level of detail (summary, detailed, comprehensive)")
 
 
-class BusinessIntelligenceTool(BaseDynamicTool):
+class BusinessIntelligenceTool(BaseTool):
     """Comprehensive business intelligence and analysis tool."""
 
     name: str = "business_intelligence"
     description: str = "Perform comprehensive business analysis including financial, market, competitive, and strategic intelligence"
     args_schema: Type[BaseModel] = BusinessIntelligenceInput
 
-    class Config:
-        arbitrary_types_allowed = True
-        extra = "allow"
-    
     def __init__(self):
-        metadata = ToolMetadata(
-            name="business_intelligence",
-            description="Advanced business intelligence and analysis tool",
-            category=ToolCategory.ANALYSIS,
+        super().__init__()
             complexity=ToolComplexity.ADVANCED,
             tags=["business", "analysis", "intelligence", "strategy", "finance", "market"],
             dependencies=["data_analysis", "market_data"],

@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 from app.config.settings import get_settings
 from app.core.dependencies import get_orchestrator, require_admin, get_monitoring_service
-from app.orchestration.orchestrator import LangGraphOrchestrator
+from app.orchestration.subgraphs import HierarchicalWorkflowOrchestrator
 
 logger = structlog.get_logger(__name__)
 
@@ -90,7 +90,7 @@ async def get_system_status(
 
 @router.get("/metrics", response_model=SystemMetrics)
 async def get_system_metrics(
-    orchestrator: LangGraphOrchestrator = Depends(get_orchestrator),
+    orchestrator: HierarchicalWorkflowOrchestrator = Depends(get_orchestrator),
     current_user: dict = Depends(require_admin)
 ) -> SystemMetrics:
     """
@@ -103,7 +103,23 @@ async def get_system_metrics(
         # Get system metrics using psutil
         cpu_usage = psutil.cpu_percent(interval=1)
         memory = psutil.virtual_memory()
-        disk = psutil.disk_usage('/')
+
+        # Get disk usage - handle Windows vs Unix paths
+        import os
+        if os.name == 'nt':  # Windows
+            # Use shutil.disk_usage instead of psutil on Windows
+            import shutil
+            total, used, free = shutil.disk_usage('.')
+            # Create a mock disk object with the same interface as psutil
+            class DiskUsage:
+                def __init__(self, total, used, free):
+                    self.total = total
+                    self.used = used
+                    self.free = free
+                    self.percent = (used / total) * 100 if total > 0 else 0
+            disk = DiskUsage(total, used, free)
+        else:  # Unix/Linux
+            disk = psutil.disk_usage('/')
         
         # Get agent and workflow counts
         active_agents = len(orchestrator.agents) if orchestrator.is_initialized else 0
@@ -129,7 +145,7 @@ async def get_system_metrics(
 
 @router.get("/agents/summary")
 async def get_agents_summary(
-    orchestrator: LangGraphOrchestrator = Depends(get_orchestrator),
+    orchestrator: HierarchicalWorkflowOrchestrator = Depends(get_orchestrator),
     current_user: dict = Depends(require_admin)
 ) -> Dict[str, Any]:
     """
@@ -172,7 +188,7 @@ async def get_agents_summary(
 @router.post("/agents/{agent_id}/restart")
 async def restart_agent(
     agent_id: str,
-    orchestrator: LangGraphOrchestrator = Depends(get_orchestrator),
+    orchestrator: HierarchicalWorkflowOrchestrator = Depends(get_orchestrator),
     current_user: dict = Depends(require_admin)
 ) -> Dict[str, Any]:
     """
@@ -223,7 +239,7 @@ async def restart_agent(
 @router.delete("/agents/{agent_id}")
 async def delete_agent(
     agent_id: str,
-    orchestrator: LangGraphOrchestrator = Depends(get_orchestrator),
+    orchestrator: HierarchicalWorkflowOrchestrator = Depends(get_orchestrator),
     current_user: dict = Depends(require_admin)
 ) -> Dict[str, Any]:
     """

@@ -16,7 +16,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
 from app.config.settings import get_settings
-from app.orchestration.orchestrator import LangGraphOrchestrator
+from app.orchestration.subgraphs import HierarchicalWorkflowOrchestrator
 
 logger = structlog.get_logger(__name__)
 
@@ -68,7 +68,7 @@ class OpenWebUIPipeline:
     def __init__(self):
         """Initialize the OpenWebUI pipeline."""
         self.settings = get_settings()
-        self.orchestrator: Optional[LangGraphOrchestrator] = None
+        self.orchestrator: Optional[HierarchicalWorkflowOrchestrator] = None
         self.available_models: Dict[str, Dict[str, Any]] = {}
         
         logger.info("OpenWebUI pipeline initialized")
@@ -77,10 +77,10 @@ class OpenWebUIPipeline:
         """Initialize the pipeline and orchestrator."""
         try:
             # Initialize the orchestrator
-            from app.orchestration.orchestrator import orchestrator
-            self.orchestrator = orchestrator
-            
-            if not self.orchestrator.is_initialized:
+            from app.core.unified_system_orchestrator import get_enhanced_system_orchestrator
+            self.orchestrator = get_enhanced_system_orchestrator()
+
+            if not self.orchestrator.status.is_initialized:
                 await self.orchestrator.initialize()
             
             # Register default agent models

@@ -63,6 +63,21 @@ class Document:
 
 
 @dataclass
+class DocumentChunk:
+    """Document chunk representation for RAG system."""
+    id: str
+    content: str
+    document_id: str
+    chunk_index: int
+    metadata: Dict[str, Any] = None
+    embedding: Optional[List[float]] = None
+
+    def __post_init__(self):
+        if self.metadata is None:
+            self.metadata = {}
+
+
+@dataclass
 class KnowledgeQuery:
     """Query representation for knowledge search."""
     query: str

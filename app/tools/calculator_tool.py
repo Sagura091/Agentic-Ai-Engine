@@ -13,8 +13,7 @@ from datetime import datetime
 import structlog
 from pydantic import BaseModel, Field
 from langchain_core.callbacks import CallbackManagerForToolRun
-
-from .dynamic_tool_factory import BaseDynamicTool, ToolMetadata, ToolCategory, ToolComplexity
+from langchain_core.tools import BaseTool
 
 logger = structlog.get_logger(__name__)
 
@@ -25,36 +24,46 @@ class CalculatorInput(BaseModel):
     precision: int = Field(default=2, description="Number of decimal places for result")
 
 
-class CalculatorTool(BaseDynamicTool):
+class CalculatorTool(BaseTool):
     """Simple calculator tool for mathematical operations."""
 
     name: str = "calculator"
     description: str = "Perform mathematical calculations including arithmetic, percentages, and basic functions"
     args_schema: Type[BaseModel] = CalculatorInput
 
-    class Config:
-        arbitrary_types_allowed = True
-        extra = "allow"
-    
     def __init__(self):
-        metadata = ToolMetadata(
-            name="calculator",
-            description="Simple calculator for mathematical operations",
-            category=ToolCategory.COMPUTATION,
-            complexity=ToolComplexity.SIMPLE,
-            tags=["math", "calculation", "arithmetic", "basic"],
-            dependencies=[],
-            permissions=[],
-            safety_level="safe"
-        )
-        # Initialize with all required fields for Pydantic validation
-        super().__init__(
-            metadata=metadata,
-            name=metadata.name,
-            description=metadata.description,
-            args_schema=CalculatorInput
-        )
-        self.execution_history = []
+        super().__init__()
+        # Simple metadata tracking (not Pydantic fields)
+        self._execution_history = []
+        self._usage_count = 0
+        self._last_used = None
+        self._average_execution_time = 0.0
+        self._success_rate = 1.0
+        self._last_updated = datetime.utcnow()
+
+    @property
+    def execution_history(self):
+        return self._execution_history
+
+    @property
+    def usage_count(self):
+        return self._usage_count
+
+    @property
+    def last_used(self):
+        return self._last_used
+
+    @property
+    def average_execution_time(self):
+        return self._average_execution_time
+
+    @property
+    def success_rate(self):
+        return self._success_rate
+
+    @property
+    def last_updated(self):
+        return self._last_updated
     
     def _run(
         self,
@@ -76,8 +85,8 @@ class CalculatorTool(BaseDynamicTool):
         
         try:
             # Update usage statistics
-            self.metadata.usage_count += 1
-            self.metadata.last_used = datetime.utcnow()
+            self._usage_count += 1
+            self._last_used = datetime.utcnow()
             
             # Log calculation start
             logger.info(
@@ -85,7 +94,7 @@ class CalculatorTool(BaseDynamicTool):
                 tool_name=self.name,
                 expression=expression,
                 precision=precision,
-                usage_count=self.metadata.usage_count
+                usage_count=self.usage_count
             )
             
             # Sanitize and validate expression
@@ -116,7 +125,7 @@ class CalculatorTool(BaseDynamicTool):
                 "execution_time": execution_time,
                 "success": True
             }
-            self.execution_history.append(execution_record)
+            self._execution_history.append(execution_record)
             
             # Log successful calculation
             logger.info(
@@ -125,7 +134,7 @@ class CalculatorTool(BaseDynamicTool):
                 expression=expression,
                 result=formatted_result,
                 execution_time=execution_time,
-                usage_count=self.metadata.usage_count
+                usage_count=self.usage_count
             )
             
             return f"Calculation: {expression} = {formatted_result}"
@@ -144,7 +153,7 @@ class CalculatorTool(BaseDynamicTool):
                 "execution_time": execution_time,
                 "success": False
             }
-            self.execution_history.append(execution_record)
+            self._execution_history.append(execution_record)
             
             # Log calculation error
             logger.error(
@@ -153,7 +162,7 @@ class CalculatorTool(BaseDynamicTool):
                 expression=expression,
                 error=str(e),
                 execution_time=execution_time,
-                usage_count=self.metadata.usage_count
+                usage_count=self.usage_count
             )
             
             return f"Calculation error: {str(e)}"
@@ -227,33 +236,33 @@ class CalculatorTool(BaseDynamicTool):
     def _update_performance_metrics(self, execution_time: float, success: bool):
         """Update tool performance metrics."""
         # Update average execution time
-        total_executions = self.metadata.usage_count
-        current_avg = self.metadata.average_execution_time
-        
+        total_executions = self._usage_count
+        current_avg = self._average_execution_time
+
         new_avg = ((current_avg * (total_executions - 1)) + execution_time) / total_executions
-        self.metadata.average_execution_time = new_avg
-        
+        self._average_execution_time = new_avg
+
         # Update success rate
         if total_executions == 1:
-            self.metadata.success_rate = 1.0 if success else 0.0
+            self._success_rate = 1.0 if success else 0.0
         else:
-            successful_executions = int(self.metadata.success_rate * (total_executions - 1))
+            successful_executions = int(self._success_rate * (total_executions - 1))
             if success:
                 successful_executions += 1
-            
-            self.metadata.success_rate = successful_executions / total_executions
-        
+
+            self._success_rate = successful_executions / total_executions
+
         # Update last updated timestamp
-        self.metadata.last_updated = datetime.utcnow()
+        self._last_updated = datetime.utcnow()
     
     def get_usage_statistics(self) -> Dict[str, Any]:
         """Get comprehensive usage statistics."""
         return {
             "tool_name": self.name,
-            "total_usage": self.metadata.usage_count,
-            "success_rate": self.metadata.success_rate,
-            "average_execution_time": self.metadata.average_execution_time,
-            "last_used": self.metadata.last_used.isoformat() if self.metadata.last_used else None,
+            "total_usage": self.usage_count,
+            "success_rate": self.success_rate,
+            "average_execution_time": self.average_execution_time,
+            "last_used": self.last_used.isoformat() if self.last_used else None,
             "total_executions": len(self.execution_history),
             "successful_executions": sum(1 for exec in self.execution_history if exec["success"]),
             "failed_executions": sum(1 for exec in self.execution_history if not exec["success"]),

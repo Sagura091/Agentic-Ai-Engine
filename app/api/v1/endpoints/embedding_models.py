@@ -1,13 +1,19 @@
 """
-Embedding Models API Endpoints.
+Universal Model Management API Endpoints.
 
-This module provides REST API endpoints for managing embedding models:
-- List available models
-- Download models from Hugging Face
-- Get download progress
-- Test models
-- Delete models
-- Update configuration
+This module provides REST API endpoints for managing all 4 model types:
+- Text Embedding Models (sentence-transformers)
+- Reranking Models (cross-encoder)
+- Vision Models (CLIP, vision-language)
+- LLM Models (Ollama, API validation)
+
+Features:
+- List available models by type
+- User-driven model downloads
+- Real-time download progress
+- Model testing and validation
+- Model deletion and management
+- Configuration updates
 """
 
 from typing import Dict, List, Any, Optional
@@ -17,8 +23,11 @@ import structlog
 
 from app.rag.core.embedding_model_manager import (
     embedding_model_manager,
-    EmbeddingModelInfo,
-    ModelDownloadProgress
+    UniversalModelInfo,
+    EmbeddingModelInfo,  # Backward compatibility
+    ModelDownloadProgress,
+    ModelType,
+    ModelSource
 )
 from app.core.dependencies import get_current_user
 
@@ -28,15 +37,36 @@ router = APIRouter()
 
 
 class ModelDownloadRequest(BaseModel):
-    """Request to download an embedding model."""
+    """Request to download any model type."""
     model_id: str = Field(..., description="Model identifier")
     force_redownload: bool = Field(default=False, description="Force redownload if exists")
 
 
 class ModelTestRequest(BaseModel):
-    """Request to test an embedding model."""
+    """Request to test any model type."""
     model_id: str = Field(..., description="Model identifier")
     test_text: str = Field(default="This is a test sentence.", description="Text to test with")
+
+
+class ModelSearchRequest(BaseModel):
+    """Request to search models."""
+    query: str = Field(..., description="Search query")
+    model_type: Optional[str] = Field(default=None, description="Filter by model type")
+
+
+class CustomModelRequest(BaseModel):
+    """Request to add a custom model."""
+    model_id: str = Field(..., description="Model identifier")
+    name: str = Field(..., description="Human-readable name")
+    description: str = Field(..., description="Model description")
+    model_type: str = Field(..., description="Model type (embedding/reranking/vision/llm)")
+    model_source: str = Field(..., description="Model source (huggingface/ollama/openai_api/etc)")
+    download_url: str = Field(..., description="Download URL")
+    size_mb: float = Field(..., description="Model size in MB")
+    dimension: Optional[int] = Field(default=None, description="Output dimension")
+    max_sequence_length: Optional[int] = Field(default=None, description="Max sequence length")
+    context_length: Optional[int] = Field(default=None, description="Context length for LLMs")
+    tags: List[str] = Field(default_factory=list, description="Model tags")
 
 
 class EmbeddingConfigUpdateRequest(BaseModel):
@@ -87,32 +117,196 @@ class EmbeddingTestRequest(BaseModel):
     azure_openai_config: Optional[AzureOpenAIConfig] = Field(default=None, description="Azure OpenAI configuration")
 
 
-@router.get("/models", summary="List available embedding models")
-async def list_embedding_models(
+@router.get("/models", summary="List available models")
+async def list_models(
+    model_type: Optional[str] = None,
+    downloaded_only: bool = False,
     current_user: Optional[str] = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
-    Get list of all available embedding models.
-    
+    Get list of all available models, optionally filtered by type.
+
+    Args:
+        model_type: Filter by model type (embedding/reranking/vision/llm)
+        downloaded_only: Only return downloaded models
+
     Returns:
-        List of available embedding models with their information
+        List of available models with their information
     """
     try:
-        models = embedding_model_manager.get_available_models()
-        
+        if model_type:
+            try:
+                model_type_enum = ModelType(model_type.lower())
+                if downloaded_only:
+                    models = embedding_model_manager.get_downloaded_models_by_type(model_type_enum)
+                else:
+                    models = embedding_model_manager.get_models_by_type(model_type_enum)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid model type: {model_type}")
+        else:
+            if downloaded_only:
+                models = embedding_model_manager.get_downloaded_models()
+            else:
+                models = list(embedding_model_manager.available_models.values())
+
+        # Group models by type for better organization
+        models_by_type = {
+            "embedding": [],
+            "reranking": [],
+            "vision": [],
+            "llm": []
+        }
+
+        for model in models:
+            models_by_type[model.model_type.value].append({
+                "model_id": model.model_id,
+                "name": model.name,
+                "description": model.description,
+                "model_type": model.model_type.value,
+                "model_source": model.model_source.value,
+                "dimension": model.dimension,
+                "max_sequence_length": model.max_sequence_length,
+                "context_length": model.context_length,
+                "size_mb": model.size_mb,
+                "is_downloaded": model.is_downloaded,
+                "download_date": model.download_date.isoformat() if model.download_date else None,
+                "last_used": model.last_used.isoformat() if model.last_used else None,
+                "usage_count": model.usage_count,
+                "tags": model.tags,
+                "use_case": model.use_case,
+                "performance_tier": model.performance_tier
+            })
+
         return {
             "success": True,
-            "models": [model.dict() for model in models],
-            "total_count": len(models),
-            "downloaded_count": len([m for m in models if m.is_downloaded])
+            "models_by_type": models_by_type,
+            "total_models": len(models),
+            "downloaded_models": len([m for m in models if m.is_downloaded]),
+            "filter_applied": {
+                "model_type": model_type,
+                "downloaded_only": downloaded_only
+            }
         }
-        
+
     except Exception as e:
-        logger.error("Failed to list embedding models", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to retrieve embedding models")
+        logger.error("Failed to list models", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to retrieve models")
 
 
-@router.get("/models/downloaded", summary="List downloaded embedding models")
+@router.post("/models/search", summary="Search models")
+async def search_models(
+    request: ModelSearchRequest,
+    current_user: Optional[str] = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """
+    Search models by name, description, or tags.
+
+    Args:
+        request: Search request with query and optional model type filter
+
+    Returns:
+        List of matching models
+    """
+    try:
+        model_type_filter = None
+        if request.model_type:
+            try:
+                model_type_filter = ModelType(request.model_type.lower())
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid model type: {request.model_type}")
+
+        results = embedding_model_manager.search_models(request.query, model_type_filter)
+
+        return {
+            "success": True,
+            "query": request.query,
+            "model_type_filter": request.model_type,
+            "results": [
+                {
+                    "model_id": model.model_id,
+                    "name": model.name,
+                    "description": model.description,
+                    "model_type": model.model_type.value,
+                    "model_source": model.model_source.value,
+                    "is_downloaded": model.is_downloaded,
+                    "size_mb": model.size_mb,
+                    "tags": model.tags,
+                    "use_case": model.use_case,
+                    "performance_tier": model.performance_tier
+                }
+                for model in results
+            ],
+            "count": len(results)
+        }
+
+    except Exception as e:
+        logger.error("Failed to search models", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to search models")
+
+
+@router.post("/models/custom", summary="Add custom model")
+async def add_custom_model(
+    request: CustomModelRequest,
+    current_user: Optional[str] = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """
+    Add a custom model to the catalog.
+
+    Args:
+        request: Custom model information
+
+    Returns:
+        Success status and model information
+    """
+    try:
+        # Validate model type and source
+        try:
+            model_type = ModelType(request.model_type.lower())
+            model_source = ModelSource(request.model_source.lower())
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid model type or source: {e}")
+
+        # Create model info
+        model_info = UniversalModelInfo(
+            model_id=request.model_id,
+            name=request.name,
+            description=request.description,
+            model_type=model_type,
+            model_source=model_source,
+            download_url=request.download_url,
+            size_mb=request.size_mb,
+            dimension=request.dimension,
+            max_sequence_length=request.max_sequence_length,
+            context_length=request.context_length,
+            tags=request.tags,
+            use_case="custom",
+            performance_tier="unknown"
+        )
+
+        success = embedding_model_manager.add_custom_model(model_info)
+
+        if success:
+            return {
+                "success": True,
+                "message": f"Custom model {request.model_id} added successfully",
+                "model_info": {
+                    "model_id": model_info.model_id,
+                    "name": model_info.name,
+                    "model_type": model_info.model_type.value,
+                    "model_source": model_info.model_source.value
+                }
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to add custom model")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to add custom model", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to add custom model")
+
+
+@router.get("/models/downloaded", summary="List downloaded models")
 async def list_downloaded_models(
     current_user: Optional[str] = Depends(get_current_user)
 ) -> Dict[str, Any]:
@@ -174,19 +368,23 @@ async def get_model_status(
         raise HTTPException(status_code=500, detail="Failed to retrieve model status")
 
 
-@router.post("/download", summary="Download embedding model")
-async def download_embedding_model(
+@router.post("/download", summary="Download model (any type)")
+async def download_model(
     request: ModelDownloadRequest,
     background_tasks: BackgroundTasks,
     current_user: Optional[str] = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
-    Download an embedding model from Hugging Face.
-    
+    Universal model download supporting all 4 model types:
+    - Text Embedding Models (HuggingFace)
+    - Reranking Models (HuggingFace)
+    - Vision Models (HuggingFace)
+    - LLM Models (Ollama)
+
     Args:
         request: Download request with model ID
         background_tasks: FastAPI background tasks
-        
+
     Returns:
         Download initiation response
     """
@@ -194,13 +392,17 @@ async def download_embedding_model(
         model_info = embedding_model_manager.get_model_info(request.model_id)
         if not model_info:
             raise HTTPException(status_code=404, detail=f"Model {request.model_id} not found")
-        
-        # Check if already downloaded
-        if model_info.is_downloaded and not request.force_redownload:
+
+        # Check if already downloaded (for HuggingFace models)
+        if (model_info.is_downloaded and
+            not request.force_redownload and
+            model_info.model_source == ModelSource.HUGGINGFACE):
             return {
                 "success": True,
                 "message": f"Model {request.model_id} is already downloaded",
                 "model_id": request.model_id,
+                "model_type": model_info.model_type.value,
+                "model_source": model_info.model_source.value,
                 "status": "already_downloaded"
             }
         
@@ -215,9 +417,12 @@ async def download_embedding_model(
         
         return {
             "success": True,
-            "message": f"Download started for model {request.model_id}",
+            "message": f"Download started for {model_info.model_type.value} model {request.model_id}",
             "model_id": request.model_id,
-            "status": "download_started"
+            "model_type": model_info.model_type.value,
+            "model_source": model_info.model_source.value,
+            "status": "download_started",
+            "estimated_size_mb": model_info.size_mb
         }
         
     except HTTPException:
@@ -227,19 +432,23 @@ async def download_embedding_model(
         raise HTTPException(status_code=500, detail="Failed to start model download")
 
 
-@router.post("/test", summary="Test embedding model")
-async def test_embedding_model(
+@router.post("/test", summary="Test model (any type)")
+async def test_model(
     request: ModelTestRequest,
     current_user: Optional[str] = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
-    Test an embedding model with sample text.
-    
+    Universal model testing for all 4 model types:
+    - Text Embedding Models: Generate embeddings
+    - Reranking Models: Score query-document pairs
+    - Vision Models: Process text/image inputs
+    - LLM Models: Generate text completions
+
     Args:
         request: Test request with model ID and text
-        
+
     Returns:
-        Test results including performance metrics
+        Test results including performance metrics and model-specific outputs
     """
     try:
         result = await embedding_model_manager.test_model(request.model_id, request.test_text)

@@ -42,8 +42,8 @@ from langchain_community.document_loaders import (
 from app.config.settings import get_settings
 from app.models.document import DocumentDB, DocumentChunkDB, DocumentMetadata, DocumentChunkMetadata
 from app.models.database.base import get_database_session
-from app.rag.core.vector_store import get_vector_store
-from app.services.embedding_service import get_embedding_service
+from app.rag.core.vector_db_factory import get_vector_db_client
+from app.rag.core.global_embedding_manager import GlobalEmbeddingManager
 
 # Import Agent Builder Platform components for intelligent document processing
 from app.agents.factory import AgentType, AgentBuilderFactory, AgentBuilderConfig
@@ -175,11 +175,13 @@ class RevolutionaryIngestionEngine:
             chunks = await self._chunk_document(processed_content, content_type, document_title)
             
             # Step 6: Generate embeddings
-            embedding_service = await get_embedding_service()
+            embedding_manager = GlobalEmbeddingManager()
+            await embedding_manager.initialize()
             chunk_embeddings = []
-            
+
             for i, chunk in enumerate(chunks):
-                embedding = await embedding_service.embed_text(chunk.page_content)
+                embedding_result = await embedding_manager.generate_embeddings(chunk.page_content)
+                embedding = embedding_result[0] if embedding_result else []
                 chunk_embeddings.append({
                     'chunk_index': i,
                     'content': chunk.page_content,
@@ -188,7 +190,7 @@ class RevolutionaryIngestionEngine:
                 })
             
             # Step 7: Store in vector database
-            vector_store = await get_vector_store(knowledge_base_id)
+            vector_store = get_vector_db_client()
             vector_ids = []
             
             for chunk_data in chunk_embeddings:

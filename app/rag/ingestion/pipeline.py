@@ -37,8 +37,8 @@ from io import BytesIO
 import structlog
 from pydantic import BaseModel, Field
 
-from ..core.knowledge_base import Document, KnowledgeBase
-from ..core.vector_store import DocumentChunk
+from ..core.unified_rag_system import Document, DocumentChunk
+from ..core.collection_based_kb_manager import CollectionBasedKBManager, KnowledgeBaseInfo
 from .processors import ProcessorRegistry, DocumentProcessor
 
 logger = structlog.get_logger(__name__)
@@ -177,7 +177,7 @@ class RevolutionaryIngestionPipeline:
     - Horizontal scaling support
     """
 
-    def __init__(self, knowledge_base: KnowledgeBase, config: RevolutionaryIngestionConfig):
+    def __init__(self, knowledge_base: KnowledgeBaseInfo, config: RevolutionaryIngestionConfig):
         """Initialize the revolutionary ingestion pipeline."""
         self.knowledge_base = knowledge_base
         self.config = config

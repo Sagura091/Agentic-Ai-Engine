@@ -33,7 +33,7 @@ from app.models.user import User
 
 # Import core components for testing
 from app.orchestration.enhanced_orchestrator import enhanced_orchestrator, AgentType
-from app.orchestration.orchestrator import orchestrator
+# from app.orchestration.orchestrator import orchestrator  # This module doesn't exist
 from app.agents.base.agent import LangGraphAgent, AgentConfig
 from app.agents.autonomous import AutonomousLangGraphAgent, AutonomousAgentConfig, AutonomyLevel, LearningMode
 from app.llm.manager import LLMProviderManager

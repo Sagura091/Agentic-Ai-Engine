@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en" class="dark">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="theme-color" content="#0f172a" />
+		<meta name="description" content="Revolutionary AI Agent Builder Platform - Create, test, and deploy intelligent agents with the most advanced visual workflow builder." />
+		<meta name="keywords" content="AI, agents, workflow, automation, machine learning, artificial intelligence, no-code, low-code" />
+		
+		<!-- Open Graph / Facebook -->
+		<meta property="og:type" content="website" />
+		<meta property="og:title" content="Agentic AI - Revolutionary Agent Builder" />
+		<meta property="og:description" content="The most extraordinary frontend for building intelligent AI agents with visual workflows." />
+		<meta property="og:image" content="%sveltekit.assets%/og-image.png" />
+		
+		<!-- Twitter -->
+		<meta property="twitter:card" content="summary_large_image" />
+		<meta property="twitter:title" content="Agentic AI - Revolutionary Agent Builder" />
+		<meta property="twitter:description" content="The most extraordinary frontend for building intelligent AI agents with visual workflows." />
+		<meta property="twitter:image" content="%sveltekit.assets%/twitter-image.png" />
+		
+		<!-- Preload critical fonts -->
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
+		<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..800&display=swap" rel="stylesheet" />
+		
+		<!-- Preload critical resources -->
+		<!-- Service worker disabled for now to avoid 404 errors -->
+		
+		<!-- Global error handler -->
+		<script>
+			window.addEventListener('error', (event) => {
+				console.error('Global error:', event.error);
+				// Send to error tracking service
+			});
+			
+			window.addEventListener('unhandledrejection', (event) => {
+				console.error('Unhandled promise rejection:', event.reason);
+				// Send to error tracking service
+			});
+		</script>
+		
+		<!-- Performance monitoring -->
+		<script>
+			window.addEventListener('load', () => {
+				if ('performance' in window) {
+					const perfData = performance.getEntriesByType('navigation')[0];
+					console.log('Page load time:', perfData.loadEventEnd - perfData.loadEventStart, 'ms');
+				}
+			});
+		</script>
+		
+		%sveltekit.head%
+	</head>
+	<body 
+		data-sveltekit-preload-data="hover" 
+		class="bg-dark-900 text-white antialiased overflow-x-hidden"
+		style="font-family: 'Inter', sans-serif;"
+	>
+		<!-- Loading screen -->
+		<div id="initial-loading" class="fixed inset-0 z-50 flex items-center justify-center bg-dark-900">
+			<div class="text-center">
+				<div class="relative">
+					<!-- Animated logo/spinner -->
+					<div class="w-16 h-16 mx-auto mb-4 relative">
+						<div class="absolute inset-0 rounded-full border-4 border-accent-blue/20"></div>
+						<div class="absolute inset-0 rounded-full border-4 border-transparent border-t-accent-blue animate-spin"></div>
+						<div class="absolute inset-2 rounded-full bg-gradient-to-br from-accent-blue to-accent-purple opacity-20"></div>
+					</div>
+					
+					<!-- Loading text -->
+					<h1 class="text-2xl font-bold text-gradient mb-2">Agentic AI</h1>
+					<p class="text-dark-400 text-sm">Initializing revolutionary agent builder...</p>
+					
+					<!-- Progress bar -->
+					<div class="w-64 h-1 bg-dark-800 rounded-full mx-auto mt-4 overflow-hidden">
+						<div class="h-full bg-gradient-to-r from-accent-blue to-accent-purple animate-pulse"></div>
+					</div>
+				</div>
+			</div>
+		</div>
+		
+		<!-- Main app container -->
+		<div style="display: contents">%sveltekit.body%</div>
+		
+		<!-- Remove loading screen when app is ready -->
+		<script>
+			document.addEventListener('DOMContentLoaded', () => {
+				// Remove loading screen immediately when DOM is ready for faster perceived performance
+				const loadingScreen = document.getElementById('initial-loading');
+				if (loadingScreen) {
+					// Much faster transition
+					loadingScreen.style.opacity = '0';
+					loadingScreen.style.transition = 'opacity 0.2s ease-out';
+					setTimeout(() => {
+						loadingScreen.remove();
+					}, 200); // Reduced from 500ms to 200ms
+				}
+			});
+		</script>
+		
+		<!-- Global styles for better UX -->
+		<style>
+			/* Smooth scrolling */
+			html {
+				scroll-behavior: smooth;
+			}
+			
+			/* Custom scrollbar */
+			::-webkit-scrollbar {
+				width: 8px;
+				height: 8px;
+			}
+			
+			::-webkit-scrollbar-track {
+				background: #1e293b;
+			}
+			
+			::-webkit-scrollbar-thumb {
+				background: #475569;
+				border-radius: 4px;
+			}
+			
+			::-webkit-scrollbar-thumb:hover {
+				background: #64748b;
+			}
+			
+			/* Selection styles */
+			::selection {
+				background: rgba(59, 130, 246, 0.3);
+				color: white;
+			}
+			
+			/* Focus styles */
+			:focus-visible {
+				outline: 2px solid #3b82f6;
+				outline-offset: 2px;
+			}
+			
+			/* Disable text selection on UI elements */
+			.no-select {
+				-webkit-user-select: none;
+				-moz-user-select: none;
+				-ms-user-select: none;
+				user-select: none;
+			}
+			
+			/* Glass morphism utility */
+			.glass-effect {
+				background: rgba(255, 255, 255, 0.05);
+				backdrop-filter: blur(10px);
+				border: 1px solid rgba(255, 255, 255, 0.1);
+			}
+		</style>
+	</body>
+</html>

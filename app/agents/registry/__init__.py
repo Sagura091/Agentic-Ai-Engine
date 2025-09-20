@@ -87,22 +87,22 @@ class AgentMetrics:
 class RegisteredAgent:
     """Registered agent with metadata and management information."""
     
-    # Basic information
+    # Basic information (required fields first)
     agent_id: str
     name: str
     description: str
     agent_type: AgentType
-    template: Optional[AgentTemplate]
-    
-    # Agent instance
+
+    # Agent instance (required)
     agent: Union[LangGraphAgent, AutonomousLangGraphAgent]
-    
-    # Status and health
+
+    # Configuration (required)
+    config: AgentBuilderConfig
+
+    # Optional fields with defaults
+    template: Optional[AgentTemplate] = None
     status: AgentStatus = AgentStatus.CREATED
     health: AgentHealth = AgentHealth.UNKNOWN
-    
-    # Configuration
-    config: AgentBuilderConfig
     
     # Metrics and monitoring
     metrics: AgentMetrics = field(default_factory=AgentMetrics)

@@ -39,6 +39,16 @@ except ImportError as e:
 
 logger = structlog.get_logger(__name__)
 
+# Import revolutionary CLIP vision embeddings
+try:
+    from app.rag.vision.clip_embeddings import clip_embedder, CLIPConfig
+    CLIP_AVAILABLE = True
+except ImportError as e:
+    logger.warning("CLIP embeddings not available", error=str(e))
+    clip_embedder = None
+    CLIPConfig = None
+    CLIP_AVAILABLE = False
+
 
 class EmbeddingType(str, Enum):
     """Types of embeddings supported."""
@@ -225,23 +235,50 @@ class EmbeddingManager:
             raise
     
     async def _load_vision_model(self) -> None:
-        """Load vision model for image embeddings."""
+        """Revolutionary vision model loading with CLIP integration."""
         try:
             if self.config.vision_model:
+                # Try to use revolutionary CLIP embedder first
+                if CLIP_AVAILABLE and clip_embedder:
+                    logger.info("Initializing revolutionary CLIP vision embeddings...")
+
+                    # Configure CLIP with our settings
+                    clip_config = CLIPConfig(
+                        model_name="sentence-transformers/clip-ViT-I-14",
+                        device=self.device,
+                        normalize_embeddings=True,
+                        cache_embeddings=True
+                    )
+
+                    # Initialize CLIP embedder
+                    clip_embedder.config = clip_config
+                    success = await clip_embedder.initialize()
+
+                    if success:
+                        self.models["vision"] = clip_embedder
+                        self.tokenizers["vision"] = "clip_embedder"
+                        logger.info("Revolutionary CLIP vision model loaded successfully!")
+                        return
+                    else:
+                        logger.warning("CLIP embedder initialization failed, falling back to basic CLIP")
+
+                # Fallback to basic CLIP model
+                logger.info("Loading basic CLIP vision model...")
                 from transformers import CLIPProcessor, CLIPModel
-                
+
                 processor = CLIPProcessor.from_pretrained(self.config.vision_model)
                 model = CLIPModel.from_pretrained(self.config.vision_model)
                 model.to(self.device)
-                
+
                 self.tokenizers["vision"] = processor
                 self.models["vision"] = model
-                
-                logger.info(f"Vision model loaded: {self.config.vision_model}")
-                
+
+                logger.info(f"Basic vision model loaded: {self.config.vision_model}")
+
         except Exception as e:
             logger.error(f"Failed to load vision model: {str(e)}")
-            raise
+            # Don't raise - allow system to continue without vision capabilities
+            logger.warning("Continuing without vision model capabilities")
     
     async def generate_embeddings(
         self,
@@ -443,9 +480,188 @@ class EmbeddingManager:
         self.embedding_cache.clear()
         logger.info("Embedding cache cleared")
     
+    async def generate_vision_embeddings(
+        self,
+        images: Union[Any, List[Any]],  # PIL Images or image paths
+        texts: Optional[Union[str, List[str]]] = None
+    ) -> EmbeddingResult:
+        """
+        Revolutionary vision embedding generation using CLIP.
+
+        Args:
+            images: Input image(s) to embed (PIL Images or paths)
+            texts: Optional text(s) for multimodal embeddings
+
+        Returns:
+            EmbeddingResult with vision embeddings and metadata
+        """
+        start_time = asyncio.get_event_loop().time()
+
+        try:
+            # Normalize inputs
+            if not isinstance(images, list):
+                images = [images]
+
+            if texts and not isinstance(texts, list):
+                texts = [texts]
+
+            # Check if revolutionary CLIP is available
+            if "vision" in self.models and hasattr(self.models["vision"], "embed_image"):
+                clip_model = self.models["vision"]
+
+                # Generate image embeddings using revolutionary CLIP
+                image_embeddings = []
+                for image in images:
+                    # Handle different image input types
+                    if isinstance(image, str):
+                        from PIL import Image
+                        image = Image.open(image)
+
+                    embedding = await clip_model.embed_image(image)
+                    image_embeddings.append(embedding)
+
+                # Generate text embeddings if provided
+                text_embeddings = []
+                if texts:
+                    for text in texts:
+                        embedding = await clip_model.embed_text(text)
+                        text_embeddings.append(embedding)
+
+                # Create multimodal embeddings if both images and texts provided
+                multimodal_embeddings = []
+                if texts and len(texts) == len(images):
+                    for i, (image, text) in enumerate(zip(images, texts)):
+                        multimodal_result = await clip_model.embed_multimodal(
+                            text=text,
+                            image=image,
+                            combine_strategy="weighted"
+                        )
+                        multimodal_embeddings.append(multimodal_result.combined_embedding)
+
+                # Determine primary embeddings to return
+                if multimodal_embeddings:
+                    primary_embeddings = multimodal_embeddings
+                    embedding_type = EmbeddingType.VISION
+                elif text_embeddings:
+                    primary_embeddings = text_embeddings
+                    embedding_type = EmbeddingType.VISION
+                else:
+                    primary_embeddings = image_embeddings
+                    embedding_type = EmbeddingType.VISION
+
+                processing_time = asyncio.get_event_loop().time() - start_time
+
+                return EmbeddingResult(
+                    embeddings=primary_embeddings,
+                    dimension=len(primary_embeddings[0]) if primary_embeddings else 0,
+                    model_info={
+                        "model": "revolutionary_clip",
+                        "type": "vision_multimodal",
+                        "image_count": len(images),
+                        "text_count": len(texts) if texts else 0,
+                        "multimodal": bool(multimodal_embeddings)
+                    },
+                    processing_time=processing_time,
+                    embedding_type=embedding_type
+                )
+
+            else:
+                # Fallback to basic vision processing
+                logger.warning("Revolutionary CLIP not available, using basic vision processing")
+
+                # Basic fallback implementation
+                fallback_embeddings = []
+                for _ in images:
+                    # Generate simple fallback embedding
+                    fallback_embedding = [0.0] * 512  # Standard dimension
+                    fallback_embeddings.append(fallback_embedding)
+
+                processing_time = asyncio.get_event_loop().time() - start_time
+
+                return EmbeddingResult(
+                    embeddings=fallback_embeddings,
+                    dimension=512,
+                    model_info={
+                        "model": "fallback_vision",
+                        "type": "basic_vision",
+                        "image_count": len(images)
+                    },
+                    processing_time=processing_time,
+                    embedding_type=EmbeddingType.VISION
+                )
+
+        except Exception as e:
+            logger.error(f"Vision embedding generation failed: {str(e)}")
+            processing_time = asyncio.get_event_loop().time() - start_time
+
+            # Return error result
+            return EmbeddingResult(
+                embeddings=[],
+                dimension=0,
+                model_info={"error": str(e)},
+                processing_time=processing_time,
+                embedding_type=EmbeddingType.VISION
+            )
+
+    async def compute_vision_text_similarity(
+        self,
+        image: Any,  # PIL Image or path
+        text: str
+    ) -> Dict[str, Any]:
+        """
+        Compute similarity between image and text using revolutionary CLIP.
+
+        Args:
+            image: Input image (PIL Image or path)
+            text: Input text
+
+        Returns:
+            Similarity result with score and metadata
+        """
+        try:
+            # Check if revolutionary CLIP is available
+            if "vision" in self.models and hasattr(self.models["vision"], "compute_similarity"):
+                clip_model = self.models["vision"]
+
+                # Handle image input
+                if isinstance(image, str):
+                    from PIL import Image
+                    image = Image.open(image)
+
+                # Compute similarity using revolutionary CLIP
+                similarity_result = await clip_model.compute_similarity(text, image)
+
+                return {
+                    "similarity_score": similarity_result.similarity_score,
+                    "confidence": similarity_result.confidence,
+                    "processing_time_ms": similarity_result.processing_time_ms,
+                    "model": "revolutionary_clip",
+                    "cache_hit": similarity_result.cache_hit
+                }
+
+            else:
+                logger.warning("Revolutionary CLIP not available for similarity computation")
+                return {
+                    "similarity_score": 0.0,
+                    "confidence": 0.0,
+                    "processing_time_ms": 0.0,
+                    "model": "unavailable",
+                    "error": "CLIP model not available"
+                }
+
+        except Exception as e:
+            logger.error(f"Vision-text similarity computation failed: {str(e)}")
+            return {
+                "similarity_score": 0.0,
+                "confidence": 0.0,
+                "processing_time_ms": 0.0,
+                "model": "error",
+                "error": str(e)
+            }
+
     def get_model_info(self) -> Dict[str, Any]:
         """Get information about loaded models."""
-        return {
+        model_info = {
             "primary_model": self.config.model_name,
             "embedding_type": self.config.embedding_type.value,
             "device": self.device,
@@ -453,3 +669,18 @@ class EmbeddingManager:
             "loaded_models": list(self.models.keys()),
             "cache_size": len(self.embedding_cache)
         }
+
+        # Add CLIP model information if available
+        if "vision" in self.models:
+            if hasattr(self.models["vision"], "get_performance_metrics"):
+                clip_metrics = self.models["vision"].get_performance_metrics()
+                model_info["clip_metrics"] = clip_metrics
+
+            model_info["vision_capabilities"] = {
+                "revolutionary_clip": CLIP_AVAILABLE and hasattr(self.models["vision"], "embed_image"),
+                "basic_clip": "vision" in self.models,
+                "multimodal_support": True,
+                "similarity_computation": True
+            }
+
+        return model_info

@@ -22,8 +22,8 @@ import structlog
 import numpy as np
 from langchain_core.language_models import BaseLanguageModel
 
-from app.rag.core.agent_knowledge_manager import AgentMemoryEntry
-from app.services.autonomous_persistence import autonomous_persistence
+from app.memory.memory_models import MemoryEntry as AgentMemoryEntry
+# from app.services.autonomous_persistence import autonomous_persistence  # Optional service
 
 logger = structlog.get_logger(__name__)
 

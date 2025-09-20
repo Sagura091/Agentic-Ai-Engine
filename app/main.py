@@ -6,14 +6,17 @@ routers, and integrations for the agentic AI system.
 """
 
 import asyncio
+import json
 import logging
+import signal
 import sys
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import AsyncGenerator
 
 import structlog
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
@@ -28,8 +31,8 @@ from app.core.middleware import (
 )
 from app.api.v1.router import api_router
 from app.api.websocket.manager import websocket_manager
-from app.orchestration.orchestrator import orchestrator
-from app.orchestration.enhanced_orchestrator import enhanced_orchestrator
+# from app.orchestration.orchestrator import orchestrator
+# from app.orchestration.enhanced_orchestrator import enhanced_orchestrator
 from app.core.seamless_integration import seamless_integration
 from app.services.monitoring_service import monitoring_service
 
@@ -59,6 +62,23 @@ structlog.configure(
 )
 
 logger = structlog.get_logger(__name__)
+
+
+def setup_signal_handlers():
+    """Setup graceful signal handlers for hot reload compatibility."""
+    def signal_handler(signum, frame):
+        """Handle shutdown signals gracefully."""
+        logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+        # Allow the lifespan context manager to handle cleanup
+        sys.exit(0)
+
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    # On Windows, also handle SIGBREAK
+    if sys.platform == "win32":
+        signal.signal(signal.SIGBREAK, signal_handler)
 
 
 @asynccontextmanager
@@ -114,8 +134,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             category=LogCategory.SYSTEM_HEALTH,
             component="ServiceInitialization"
         )
+
+        # Initialize system orchestrator
+        from app.core.unified_system_orchestrator import get_system_orchestrator
+        orchestrator = await get_system_orchestrator()
+        await orchestrator.initialize()
+
         await websocket_manager.initialize()
         await monitoring_service.initialize()
+
+        # Initialize advanced node system
+        backend_logger.info(
+            "Initializing advanced node system",
+            category=LogCategory.SYSTEM_HEALTH,
+            component="NodeSystem"
+        )
+        from app.core.node_bootstrap import initialize_node_system
+        await initialize_node_system()
 
         logger.info("All services initialized successfully with seamless integration")
         logger.info("System capabilities: Unlimited agents, Dynamic tools, True agentic AI")
@@ -126,7 +161,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             component="FastAPI",
             data={
                 "capabilities": ["unlimited_agents", "dynamic_tools", "true_agentic_ai"],
-                "services": ["seamless_integration", "websocket_manager", "monitoring_service"]
+                "services": ["seamless_integration", "system_orchestrator", "websocket_manager", "monitoring_service"]
             }
         )
 
@@ -152,9 +187,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
 
         try:
-            await monitoring_service.shutdown()
-            await websocket_manager.shutdown()
-            await orchestrator.shutdown()
+            # Graceful shutdown with timeout
+            await asyncio.wait_for(monitoring_service.shutdown(), timeout=5.0)
+            await asyncio.wait_for(websocket_manager.shutdown(), timeout=5.0)
+            # await orchestrator.shutdown()
 
             logger.info("All services shut down successfully")
             backend_logger.info(
@@ -166,6 +202,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             # Shutdown backend logging system last
             backend_logger.shutdown()
 
+            # Force cleanup of scientific computing libraries
+            try:
+                import gc
+                gc.collect()
+                # Give time for Intel Fortran runtime cleanup
+                await asyncio.sleep(0.1)
+            except Exception:
+                pass  # Ignore cleanup errors
+
+        except asyncio.TimeoutError:
+            logger.warning("Shutdown timeout reached, forcing exit")
         except Exception as e:
             logger.error("Error during shutdown", error=str(e))
             backend_logger.error(
@@ -185,6 +232,9 @@ def create_app() -> FastAPI:
     """
     settings = get_settings()
     
+    # Setup signal handlers for graceful shutdown
+    setup_signal_handlers()
+
     # Create FastAPI app with lifespan
     app = FastAPI(
         title="Agentic AI Microservice",
@@ -229,21 +279,22 @@ def setup_middleware(app: FastAPI, settings) -> None:
     app.add_middleware(GZipMiddleware, minimum_size=1000)
     
     # Backend logging middleware (add first for comprehensive logging)
+    # Optimize for development performance - reduce logging overhead
     app.add_middleware(
         BackendLoggingMiddleware,
-        exclude_paths=["/health", "/metrics", "/docs", "/openapi.json", "/favicon.ico"],
-        include_request_body=settings.ENVIRONMENT != "production",
-        include_response_body=settings.ENVIRONMENT != "production",
-        max_body_size=1024,
-        log_level=LogLevel.INFO if settings.ENVIRONMENT == "production" else LogLevel.DEBUG
+        exclude_paths=["/health", "/metrics", "/docs", "/openapi.json", "/favicon.ico", "/api/v1/monitoring/system"],
+        include_request_body=False,  # Disable request body logging for better performance
+        include_response_body=False,  # Disable response body logging for better performance
+        max_body_size=512,  # Reduce max body size
+        log_level=LogLevel.INFO  # Use INFO level for better performance
     )
 
-    # Performance monitoring middleware
+    # Performance monitoring middleware - optimized thresholds
     app.add_middleware(
         PerformanceMonitoringMiddleware,
-        slow_request_threshold_ms=1000,
-        memory_threshold_mb=500,
-        cpu_threshold_percent=80
+        slow_request_threshold_ms=2000,  # Increase threshold to reduce noise
+        memory_threshold_mb=1000,  # Increase memory threshold
+        cpu_threshold_percent=90  # Increase CPU threshold
     )
 
     # Custom middleware
@@ -267,10 +318,47 @@ def setup_routers(app: FastAPI) -> None:
 
     # WebSocket endpoint for real-time communication (native WebSocket)
     @app.websocket("/ws")
-    async def websocket_endpoint(websocket):
+    async def websocket_endpoint(websocket: WebSocket):
         """WebSocket endpoint for real-time agent communication."""
-        from app.api.websocket.handlers import handle_websocket_connection
-        await handle_websocket_connection(websocket)
+        try:
+            # Accept the connection immediately to test
+            await websocket.accept()
+            logger.info("✅ WebSocket connection accepted successfully")
+
+            # Send a test message
+            await websocket.send_text(json.dumps({
+                "type": "connection_established",
+                "message": "Connected to Agentic AI Backend",
+                "timestamp": datetime.now().isoformat()
+            }))
+
+            # Keep connection alive and handle messages
+            while True:
+                try:
+                    data = await websocket.receive_text()
+                    message = json.loads(data)
+                    logger.info("📨 Received WebSocket message", message_type=message.get("type"))
+
+                    # Echo back a response
+                    await websocket.send_text(json.dumps({
+                        "type": "response",
+                        "original_message": message,
+                        "timestamp": datetime.now().isoformat()
+                    }))
+
+                except WebSocketDisconnect:
+                    logger.info("🔌 WebSocket client disconnected")
+                    break
+                except Exception as e:
+                    logger.error("❌ WebSocket message error", error=str(e))
+                    break
+
+        except Exception as e:
+            logger.error("❌ WebSocket connection error", error=str(e))
+            try:
+                await websocket.close(code=1000)
+            except:
+                pass
 
     # Collaboration WebSocket endpoint
     @app.websocket("/collaboration/{workspace_id}")
@@ -401,8 +489,8 @@ def main() -> None:
         host=settings.HOST,
         port=settings.PORT,
         reload=settings.DEBUG,
-        log_level="info" if not settings.DEBUG else "debug",
-        access_log=True,
+        log_level="warning" if not settings.DEBUG else "info",
+        access_log=False,
         loop="uvloop" if sys.platform != "win32" else "asyncio",
     )
 

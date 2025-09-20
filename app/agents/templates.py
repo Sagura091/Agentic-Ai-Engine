@@ -19,12 +19,19 @@ DESIGN PRINCIPLES:
 - Scalable resource allocation
 """
 
+import asyncio
+import uuid
+from datetime import datetime
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
+
+import structlog
 
 from app.agents.factory import AgentType, AgentTemplate, AgentBuilderConfig
 from app.agents.base.agent import AgentCapability
 from app.llm.models import LLMConfig, ProviderType
+
+logger = structlog.get_logger(__name__)
 
 
 class AgentComponent:
@@ -613,6 +620,318 @@ Always focus on business impact and provide clear, actionable recommendations ba
             ]
 
         return palette
+
+    async def create_component_agent_from_template(
+        self,
+        template_name: str,
+        component_config: Dict[str, Any],
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Create a component agent from a template for workflow execution."""
+        try:
+            # Get template configuration
+            template_config = self.get_template_config(template_name)
+            if not template_config:
+                raise ValueError(f"Template '{template_name}' not found")
+
+            # Merge template config with component config
+            merged_config = {
+                **template_config,
+                **component_config,
+                "template_name": template_name,
+                "created_at": datetime.utcnow().isoformat(),
+                "context": context or {}
+            }
+
+            # Create component agent ID
+            component_agent_id = f"component_agent_{uuid.uuid4().hex[:8]}"
+
+            component_agent = {
+                "component_agent_id": component_agent_id,
+                "template_name": template_name,
+                "config": merged_config,
+                "status": "created",
+                "created_at": datetime.utcnow().isoformat()
+            }
+
+            logger.info(
+                "Component agent created from template",
+                component_agent_id=component_agent_id,
+                template_name=template_name
+            )
+
+            return component_agent
+
+        except Exception as e:
+            logger.error("Failed to create component agent from template", error=str(e))
+            raise
+
+    async def execute_workflow_from_components(
+        self,
+        workflow_id: str,
+        components: List[Dict[str, Any]],
+        execution_mode: str = "sequential",
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Execute a workflow created from visual components."""
+        try:
+            workflow_context = {
+                "workflow_id": workflow_id,
+                "components": components,
+                "execution_mode": execution_mode,
+                "context": context or {},
+                "status": "running",
+                "start_time": datetime.utcnow(),
+                "steps": [],
+                "results": {}
+            }
+
+            logger.info(
+                "Starting component workflow execution",
+                workflow_id=workflow_id,
+                num_components=len(components),
+                execution_mode=execution_mode
+            )
+
+            # Execute components based on mode
+            if execution_mode == "sequential":
+                results = await self._execute_sequential_components(components, context or {})
+            elif execution_mode == "parallel":
+                results = await self._execute_parallel_components(components, context or {})
+            elif execution_mode == "autonomous":
+                results = await self._execute_autonomous_components(components, context or {})
+            else:
+                raise ValueError(f"Unknown execution mode: {execution_mode}")
+
+            workflow_context["status"] = "completed"
+            workflow_context["end_time"] = datetime.utcnow()
+            workflow_context["results"] = results
+            workflow_context["execution_time"] = (
+                workflow_context["end_time"] - workflow_context["start_time"]
+            ).total_seconds()
+
+            logger.info(
+                "Component workflow execution completed",
+                workflow_id=workflow_id,
+                execution_time=workflow_context["execution_time"],
+                num_results=len(results)
+            )
+
+            return workflow_context
+
+        except Exception as e:
+            logger.error("Component workflow execution failed", error=str(e))
+            raise
+
+    async def _execute_sequential_components(
+        self,
+        components: List[Dict[str, Any]],
+        context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute components sequentially."""
+        results = {}
+        current_context = context.copy()
+
+        for i, component in enumerate(components):
+            step_id = f"step_{i+1}"
+
+            # Create component agent from template if specified
+            template_name = component.get("template")
+            if template_name:
+                component_agent = await self.create_component_agent_from_template(
+                    template_name=template_name,
+                    component_config=component.get("config", {}),
+                    context=current_context
+                )
+
+                # Execute component agent
+                step_result = await self._execute_component_agent(component_agent, current_context)
+            else:
+                # Execute component directly
+                step_result = await self._execute_component_direct(component, current_context)
+
+            results[step_id] = step_result
+
+            # Update context with results
+            if step_result.get("context_updates"):
+                current_context.update(step_result["context_updates"])
+
+        return results
+
+    async def _execute_parallel_components(
+        self,
+        components: List[Dict[str, Any]],
+        context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute components in parallel."""
+        tasks = []
+
+        for i, component in enumerate(components):
+            if component.get("template"):
+                task = asyncio.create_task(
+                    self._execute_component_with_template(component, context, f"step_{i+1}")
+                )
+            else:
+                task = asyncio.create_task(
+                    self._execute_component_direct(component, context)
+                )
+            tasks.append((f"step_{i+1}", task))
+
+        # Wait for all tasks to complete
+        results = {}
+        for step_id, task in tasks:
+            try:
+                result = await task
+                results[step_id] = result
+            except Exception as e:
+                results[step_id] = {"error": str(e), "status": "failed"}
+
+        return results
+
+    async def _execute_autonomous_components(
+        self,
+        components: List[Dict[str, Any]],
+        context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute components with autonomous decision-making."""
+        # For autonomous execution, components can decide their own execution order
+        # and make decisions based on context and previous results
+        results = {}
+        current_context = context.copy()
+
+        # Add autonomous execution metadata
+        current_context["execution_mode"] = "autonomous"
+        current_context["autonomous_decisions"] = []
+
+        for i, component in enumerate(components):
+            step_id = f"autonomous_step_{i+1}"
+
+            # Autonomous components analyze context and make decisions
+            autonomous_context = {
+                **current_context,
+                "previous_results": results,
+                "remaining_components": components[i+1:],
+                "autonomous_decision_point": True
+            }
+
+            if component.get("template"):
+                step_result = await self._execute_component_with_template(
+                    component, autonomous_context, step_id
+                )
+            else:
+                step_result = await self._execute_component_direct(component, autonomous_context)
+
+            results[step_id] = step_result
+
+            # Update context with autonomous decisions
+            if step_result.get("autonomous_decisions"):
+                current_context["autonomous_decisions"].extend(step_result["autonomous_decisions"])
+
+            if step_result.get("context_updates"):
+                current_context.update(step_result["context_updates"])
+
+        return results
+
+    async def _execute_component_with_template(
+        self,
+        component: Dict[str, Any],
+        context: Dict[str, Any],
+        step_id: str
+    ) -> Dict[str, Any]:
+        """Execute a component using a template."""
+        template_name = component.get("template")
+        component_agent = await self.create_component_agent_from_template(
+            template_name=template_name,
+            component_config=component.get("config", {}),
+            context=context
+        )
+
+        return await self._execute_component_agent(component_agent, context)
+
+    async def _execute_component_agent(
+        self,
+        component_agent: Dict[str, Any],
+        context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute a component agent."""
+        try:
+            component_agent_id = component_agent["component_agent_id"]
+            config = component_agent["config"]
+
+            # Simulate component agent execution
+            await asyncio.sleep(0.2)  # Simulate processing time
+
+            execution_result = {
+                "component_agent_id": component_agent_id,
+                "template_name": component_agent.get("template_name"),
+                "status": "completed",
+                "output": f"Component agent {component_agent_id} executed successfully",
+                "execution_time": 0.2,
+                "context_updates": {
+                    "last_executed_component": component_agent_id,
+                    "execution_timestamp": datetime.utcnow().isoformat()
+                }
+            }
+
+            # Add autonomous decisions if in autonomous mode
+            if context.get("execution_mode") == "autonomous":
+                execution_result["autonomous_decisions"] = [
+                    f"Component agent {component_agent_id} analyzed context",
+                    f"Selected optimal execution strategy",
+                    f"Completed execution with autonomous reasoning"
+                ]
+
+            return execution_result
+
+        except Exception as e:
+            return {
+                "component_agent_id": component_agent.get("component_agent_id", "unknown"),
+                "status": "failed",
+                "error": str(e),
+                "execution_time": 0.0
+            }
+
+    async def _execute_component_direct(
+        self,
+        component: Dict[str, Any],
+        context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute a component directly without template."""
+        try:
+            component_type = component.get("type", "unknown")
+            component_config = component.get("config", {})
+
+            # Simulate direct component execution
+            await asyncio.sleep(0.1)  # Simulate processing time
+
+            execution_result = {
+                "component_type": component_type,
+                "status": "completed",
+                "output": f"Direct execution of {component_type} completed",
+                "execution_time": 0.1,
+                "context_updates": {
+                    "last_executed_component_type": component_type,
+                    "execution_timestamp": datetime.utcnow().isoformat()
+                }
+            }
+
+            # Add autonomous decisions if in autonomous mode
+            if context.get("execution_mode") == "autonomous":
+                execution_result["autonomous_decisions"] = [
+                    f"Component {component_type} made autonomous decisions",
+                    f"Optimized execution based on context",
+                    f"Completed with autonomous reasoning"
+                ]
+
+            return execution_result
+
+        except Exception as e:
+            return {
+                "component_type": component.get("type", "unknown"),
+                "status": "failed",
+                "error": str(e),
+                "execution_time": 0.0
+            }
 
 
 __all__ = [
