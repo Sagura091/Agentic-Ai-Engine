@@ -264,6 +264,47 @@ class UnifiedSystemOrchestrator:
             except Exception as e:
                 logger.warning(f"Failed to register revolutionary web research tool: {e}")
 
+            # Import and register production tools
+            try:
+                from app.tools.production.file_system_tool import file_system_tool
+
+                metadata = ToolMetadata(
+                    tool_id="file_system",
+                    name="Revolutionary File System Tool",
+                    description="Revolutionary file system operations with enterprise security - Create, read, write, delete files and directories with advanced compression, search, and security features",
+                    category=ToolCategory.UTILITY,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=False,
+                    use_cases=[
+                        "file_management", "data_processing", "backup_operations",
+                        "content_creation", "automation", "file_operations"
+                    ]
+                )
+                await self.tool_repository.register_tool(file_system_tool, metadata)
+                logger.info("✅ Registered file system tool")
+            except Exception as e:
+                logger.warning(f"Failed to register file system tool: {e}")
+
+            try:
+                from app.tools.production.api_integration_tool import api_integration_tool
+
+                metadata = ToolMetadata(
+                    tool_id="api_integration",
+                    name="Revolutionary API Integration Tool",
+                    description="Revolutionary API integration with intelligent handling and enterprise features - Universal HTTP methods, multiple authentication, rate limiting, caching, and circuit breaker patterns",
+                    category=ToolCategory.COMMUNICATION,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=False,
+                    use_cases=[
+                        "api_integration", "data_retrieval", "web_services",
+                        "authentication", "automation", "http_requests"
+                    ]
+                )
+                await self.tool_repository.register_tool(api_integration_tool, metadata)
+                logger.info("✅ Registered API integration tool")
+            except Exception as e:
+                logger.warning(f"Failed to register API integration tool: {e}")
+
             # Import and register business intelligence tool
             try:
                 from app.tools.business_intelligence_tool import BusinessIntelligenceTool
@@ -1510,10 +1551,10 @@ class OrchestrationCompatibilityLayer:
         agent_config = AgentBuilderConfig(
             name=config.get("name", f"{agent_type} Agent"),
             description=config.get("description", f"Agent of type {agent_type}"),
-            agent_type=AgentType(agent_type.upper()) if hasattr(AgentType, agent_type.upper()) else AgentType.REACT,
+            agent_type=AgentType(agent_type.lower()) if hasattr(AgentType, agent_type.lower()) else AgentType.REACT,
             llm_config=LLMConfig(
                 provider=ProviderType.OLLAMA,
-                model=config.get("model", "llama3.2:3b"),
+                model_id=config.get("model", "llama3.2:3b"),
                 temperature=config.get("temperature", 0.7),
                 max_tokens=config.get("max_tokens", 2048)
             ),

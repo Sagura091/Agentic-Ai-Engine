@@ -1425,7 +1425,7 @@ async def main():
 
     if args.create:
         # Create a specific agent
-        print(f"🚀 Creating {args.create.upper()} agent...")
+        print(f"Creating {args.create.upper()} agent...")
         agent = await create_agent_easy(
             agent_type=args.create,
             name=args.name,

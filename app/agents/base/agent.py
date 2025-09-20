@@ -120,25 +120,19 @@ class AgentConfig(BaseModel):
 
     # LangChain prompt configuration
     system_prompt: str = Field(
-        default="""You are an intelligent AI agent with access to tools to help solve problems.
+        default="""You are an intelligent AI agent with access to powerful tools to help solve problems.
 
 AVAILABLE TOOLS: {tools}
 
-CRITICAL: You MUST use tools when they are relevant to the task. Do NOT solve problems manually when tools are available.
+You have access to these tools and should use them naturally when they would be helpful for the task. Analyze the user's request and determine which tools would be most appropriate to provide accurate, comprehensive answers.
 
-To use a tool, state exactly: "I will use the [tool_name] tool" then explain why.
+Guidelines:
+- Use tools when they would provide better, more accurate, or more current information than your training data
+- For research tasks, web search tools can provide the latest information
+- For calculations, use computational tools for accuracy
+- Choose tools based on what would best serve the user's needs
 
-Examples:
-- For ANY mathematical calculation: "I will use the calculator tool to compute this expression accurately."
-- For research: "I will use the web_search tool to find current information."
-- For analysis: "I will use the business_intelligence tool to analyze this data."
-
-IMPORTANT:
-- For math problems, ALWAYS use the calculator tool - never do calculations manually
-- The system will detect your tool usage statement and execute the tool automatically
-- After stating tool usage, wait for the tool result before continuing
-
-Always use tools when available and relevant to the task.""",
+Think through the task and use the most appropriate tools to provide the best possible response.""",
         description="System prompt for the agent"
     )
 
@@ -1166,8 +1160,38 @@ class LangGraphAgent(ABC):
             content = response.content
             tool_calls = []
 
-            # Look for explicit tool usage statements: "I will use the [tool_name] tool"
+            # Look for natural tool usage patterns - more flexible detection
             tool_usage_patterns = [
+                # Explicit tool mentions
+                r'I will use the (\w+) tool',
+                r'I\'ll use the (\w+) tool',
+                r'Using the (\w+) tool',
+                r'Let me use the (\w+) tool',
+                r'I need to use the (\w+) tool',
+                # Natural language patterns
+                r'I need to search for',
+                r'Let me search for',
+                r'I should search for',
+                r'I\'ll search for',
+                r'Let me find information about',
+                r'I need to find information about',
+                r'I should look up',
+                r'Let me look up',
+                r'I need to research',
+                r'Let me research',
+                r'I should research',
+                r'I\'ll research',
+                # Calculation patterns
+                r'I need to calculate',
+                r'Let me calculate',
+                r'I should calculate',
+                r'I\'ll calculate',
+                r'I need to compute',
+                r'Let me compute'
+            ]
+
+            # Check for explicit tool name patterns first
+            explicit_patterns = [
                 r'I will use the (\w+) tool',
                 r'I\'ll use the (\w+) tool',
                 r'Using the (\w+) tool',
@@ -1175,18 +1199,62 @@ class LangGraphAgent(ABC):
                 r'I need to use the (\w+) tool'
             ]
 
-            for pattern in tool_usage_patterns:
+            for pattern in explicit_patterns:
                 matches = re.findall(pattern, content, re.IGNORECASE)
                 for match in matches:
                     tool_name = match.lower()
-
-                    # Check if this tool is available
                     if tool_name in self.tools:
-                        # Create tool call with context from the task
                         tool_call = await self._create_tool_call(tool_name, state)
                         if tool_call:
                             tool_calls.append(tool_call)
-                            logger.info(f"🔧 Detected tool usage: {tool_name}")
+                            logger.info(f"🔧 Detected explicit tool usage: {tool_name}")
+
+            # If no explicit tool usage found, check for natural language patterns
+            if not tool_calls:
+                # Check for research/search patterns
+                search_patterns = [
+                    r'I need to search for',
+                    r'Let me search for',
+                    r'I should search for',
+                    r'I\'ll search for',
+                    r'Let me find information about',
+                    r'I need to find information about',
+                    r'I should look up',
+                    r'Let me look up',
+                    r'I need to research',
+                    r'Let me research',
+                    r'I should research',
+                    r'I\'ll research'
+                ]
+
+                for pattern in search_patterns:
+                    if re.search(pattern, content, re.IGNORECASE):
+                        if 'web_research' in self.tools:
+                            tool_call = await self._create_tool_call('web_research', state)
+                            if tool_call:
+                                tool_calls.append(tool_call)
+                                logger.info(f"🔧 Detected natural research intent, using web_research tool")
+                                break
+
+                # Check for calculation patterns
+                if not tool_calls:
+                    calc_patterns = [
+                        r'I need to calculate',
+                        r'Let me calculate',
+                        r'I should calculate',
+                        r'I\'ll calculate',
+                        r'I need to compute',
+                        r'Let me compute'
+                    ]
+
+                    for pattern in calc_patterns:
+                        if re.search(pattern, content, re.IGNORECASE):
+                            if 'calculator' in self.tools:
+                                tool_call = await self._create_tool_call('calculator', state)
+                                if tool_call:
+                                    tool_calls.append(tool_call)
+                                    logger.info(f"🔧 Detected natural calculation intent, using calculator tool")
+                                    break
 
             # If tool calls were detected, create a new response with tool calls
             if tool_calls:
