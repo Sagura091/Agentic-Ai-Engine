@@ -4,42 +4,59 @@ Production Tools Module - Week 1 Implementation.
 This module contains the first batch of revolutionary AI agent tools:
 - File System Operations Tool
 - API Integration Tool
+- Database Operations Tool
+- Text Processing & NLP Tool
+- Password & Security Tool
+- Notification & Alert Tool
+- QR Code & Barcode Tool
+- Weather & Environmental Tool
 
-These tools provide the foundation for all other tools and agent operations.
+These tools provide comprehensive capabilities for all agent operations.
 """
 
-from .file_system_tool import FileSystemTool, file_system_tool, FILE_SYSTEM_TOOL_METADATA
-from .api_integration_tool import APIIntegrationTool, api_integration_tool, API_INTEGRATION_TOOL_METADATA
+from .file_system_tool import file_system_tool
+from .api_integration_tool import api_integration_tool
+from .database_operations_tool import database_operations_tool
+from .text_processing_nlp_tool import text_processing_nlp_tool
+from .password_security_tool import password_security_tool
+from .notification_alert_tool import notification_alert_tool
+from .qr_barcode_tool import qr_barcode_tool
+from .weather_environmental_tool import weather_environmental_tool
 
 __all__ = [
-    "FileSystemTool",
     "file_system_tool",
-    "FILE_SYSTEM_TOOL_METADATA",
-    "APIIntegrationTool",
     "api_integration_tool",
-    "API_INTEGRATION_TOOL_METADATA"
+    "database_operations_tool",
+    "text_processing_nlp_tool",
+    "password_security_tool",
+    "notification_alert_tool",
+    "qr_barcode_tool",
+    "weather_environmental_tool"
 ]
 
 # Tool registry for easy access
 PRODUCTION_TOOLS = {
-    "file_system": {
-        "tool_class": FileSystemTool,
-        "metadata": FILE_SYSTEM_TOOL_METADATA
-    },
-    "api_integration": {
-        "tool_class": APIIntegrationTool,
-        "metadata": API_INTEGRATION_TOOL_METADATA
-    }
+    "file_system": file_system_tool,
+    "api_integration": api_integration_tool,
+    "database_operations": database_operations_tool,
+    "text_processing_nlp": text_processing_nlp_tool,
+    "password_security": password_security_tool,
+    "notification_alert": notification_alert_tool,
+    "qr_barcode": qr_barcode_tool,
+    "weather_environmental": weather_environmental_tool
 }
 
 def get_production_tool(tool_name: str):
     """Get production tool by name."""
     if tool_name not in PRODUCTION_TOOLS:
         raise ValueError(f"Unknown production tool: {tool_name}")
-    
-    tool_info = PRODUCTION_TOOLS[tool_name]
-    return tool_info["tool_class"](), tool_info["metadata"]
+
+    return PRODUCTION_TOOLS[tool_name]
 
 def list_production_tools():
     """List all available production tools."""
     return list(PRODUCTION_TOOLS.keys())
+
+def get_all_production_tools():
+    """Get all production tools as a list."""
+    return list(PRODUCTION_TOOLS.values())

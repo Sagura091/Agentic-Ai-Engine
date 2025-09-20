@@ -305,6 +305,127 @@ class UnifiedSystemOrchestrator:
             except Exception as e:
                 logger.warning(f"Failed to register API integration tool: {e}")
 
+            # Register remaining Week 1 production tools
+            try:
+                from app.tools.production.database_operations_tool import database_operations_tool
+
+                metadata = ToolMetadata(
+                    tool_id="database_operations",
+                    name="Revolutionary Database Operations Tool",
+                    description="Revolutionary multi-database connectivity with universal operations - SQLite, PostgreSQL, MySQL, MongoDB, Redis with connection pooling, security, and performance optimization",
+                    category=ToolCategory.DATA,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=False,
+                    use_cases=[
+                        "database_management", "data_storage", "query_execution",
+                        "data_analysis", "backup_operations", "database_operations"
+                    ]
+                )
+                await self.tool_repository.register_tool(database_operations_tool, metadata)
+                logger.info("✅ Registered database operations tool")
+            except Exception as e:
+                logger.warning(f"Failed to register database operations tool: {e}")
+
+            try:
+                from app.tools.production.text_processing_nlp_tool import text_processing_nlp_tool
+
+                metadata = ToolMetadata(
+                    tool_id="text_processing_nlp",
+                    name="Revolutionary Text Processing & NLP Tool",
+                    description="Revolutionary natural language processing with advanced text analysis - Sentiment analysis, entity extraction, keyword extraction, text similarity, and multi-language support",
+                    category=ToolCategory.ANALYSIS,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=False,
+                    use_cases=[
+                        "text_analysis", "nlp_processing", "sentiment_analysis",
+                        "content_analysis", "language_processing", "text_mining"
+                    ]
+                )
+                await self.tool_repository.register_tool(text_processing_nlp_tool, metadata)
+                logger.info("✅ Registered text processing & NLP tool")
+            except Exception as e:
+                logger.warning(f"Failed to register text processing & NLP tool: {e}")
+
+            try:
+                from app.tools.production.password_security_tool import password_security_tool
+
+                metadata = ToolMetadata(
+                    tool_id="password_security",
+                    name="Revolutionary Password & Security Tool",
+                    description="Revolutionary cryptographic operations with military-grade security - Password generation, encryption/decryption, secure hashing, token generation, and security analysis",
+                    category=ToolCategory.SECURITY,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=False,
+                    use_cases=[
+                        "password_management", "encryption", "security_operations",
+                        "cryptography", "token_generation", "security_analysis"
+                    ]
+                )
+                await self.tool_repository.register_tool(password_security_tool, metadata)
+                logger.info("✅ Registered password & security tool")
+            except Exception as e:
+                logger.warning(f"Failed to register password & security tool: {e}")
+
+            try:
+                from app.tools.production.notification_alert_tool import notification_alert_tool
+
+                metadata = ToolMetadata(
+                    tool_id="notification_alert",
+                    name="Revolutionary Notification & Alert Tool",
+                    description="Revolutionary multi-channel messaging with intelligent routing - Email, SMS, Slack, Discord, webhooks with delivery tracking, scheduling, and enterprise reliability",
+                    category=ToolCategory.COMMUNICATION,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=False,
+                    use_cases=[
+                        "notifications", "alerts", "messaging", "communication",
+                        "email_automation", "multi_channel_delivery"
+                    ]
+                )
+                await self.tool_repository.register_tool(notification_alert_tool, metadata)
+                logger.info("✅ Registered notification & alert tool")
+            except Exception as e:
+                logger.warning(f"Failed to register notification & alert tool: {e}")
+
+            try:
+                from app.tools.production.qr_barcode_tool import qr_barcode_tool
+
+                metadata = ToolMetadata(
+                    tool_id="qr_barcode",
+                    name="Revolutionary QR Code & Barcode Tool",
+                    description="Revolutionary barcode generation and scanning with multi-format support - QR codes, Code128, EAN, UPC with customization, batch processing, and high-performance scanning",
+                    category=ToolCategory.UTILITY,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=False,
+                    use_cases=[
+                        "barcode_generation", "qr_codes", "inventory_management",
+                        "document_tracking", "mobile_integration", "barcode_scanning"
+                    ]
+                )
+                await self.tool_repository.register_tool(qr_barcode_tool, metadata)
+                logger.info("✅ Registered QR code & barcode tool")
+            except Exception as e:
+                logger.warning(f"Failed to register QR code & barcode tool: {e}")
+
+            try:
+                from app.tools.production.weather_environmental_tool import weather_environmental_tool
+
+                metadata = ToolMetadata(
+                    tool_id="weather_environmental",
+                    name="Revolutionary Weather & Environmental Tool",
+                    description="Revolutionary weather and environmental monitoring with comprehensive data - Real-time weather, forecasting, air quality, marine conditions, agricultural data, and climate analysis",
+                    category=ToolCategory.DATA,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=False,
+                    use_cases=[
+                        "weather_monitoring", "environmental_data", "forecasting",
+                        "air_quality", "marine_conditions", "agricultural_weather"
+                    ]
+                )
+                await self.tool_repository.register_tool(weather_environmental_tool, metadata)
+                logger.info("✅ Registered weather & environmental tool")
+            except Exception as e:
+                logger.warning(f"Failed to register weather & environmental tool: {e}")
+
             # Import and register business intelligence tool
             try:
                 from app.tools.business_intelligence_tool import BusinessIntelligenceTool
