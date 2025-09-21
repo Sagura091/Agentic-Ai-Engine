@@ -57,7 +57,7 @@ class BackendLogger:
     def _setup_logging(self):
         """Setup logging handlers and formatters"""
         # Create logs directory
-        logs_dir = Path("logs/backend")
+        logs_dir = Path("./data/logs/backend")
         logs_dir.mkdir(parents=True, exist_ok=True)
         
         # Setup file handlers for different categories

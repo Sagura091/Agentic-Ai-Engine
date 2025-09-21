@@ -44,6 +44,9 @@ class ToolCategory(str, Enum):
     RESEARCH = "research"             # Web search, research tools
     BUSINESS = "business"             # Business analysis tools
     UTILITY = "utility"               # File operations, utilities
+    DATA = "data"                     # Database operations, data management
+    ANALYSIS = "analysis"             # Text processing, NLP, analytics
+    SECURITY = "security"             # Password, security, authentication
 
 
 class ToolAccessLevel(str, Enum):
@@ -422,4 +425,26 @@ class UnifiedToolRepository:
             "tools_count": len(self.tools),
             "agent_profiles_count": len(self.agent_profiles)
         }
+
+
+# Global instance
+_unified_tool_repository: Optional[UnifiedToolRepository] = None
+
+
+def get_unified_tool_repository() -> Optional[UnifiedToolRepository]:
+    """Get the global unified tool repository instance."""
+    global _unified_tool_repository
+
+    if _unified_tool_repository is None:
+        try:
+            from app.core.unified_system_orchestrator import get_enhanced_system_orchestrator
+            orchestrator = get_enhanced_system_orchestrator()
+
+            if orchestrator and hasattr(orchestrator, 'tool_repository'):
+                _unified_tool_repository = orchestrator.tool_repository
+
+        except Exception as e:
+            logger.error(f"Failed to get unified tool repository: {e}")
+
+    return _unified_tool_repository
 

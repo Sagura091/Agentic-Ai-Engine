@@ -90,10 +90,10 @@
 		cache_ttl: 3600,
 
 		// Storage Configuration
-		data_dir: 'data',
-		models_dir: 'data/models',
-		vector_db_dir: 'data/vector_databases',
-		cache_dir: 'data/cache',
+		data_dir: './data',
+		models_dir: './data/models',
+		vector_db_dir: './data/chroma',
+		cache_dir: './data/cache',
 
 		// Advanced Features
 		contextual_search: true,

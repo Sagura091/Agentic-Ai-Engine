@@ -31,7 +31,7 @@ class KnowledgeBaseMigrationService:
         """Initialize the migration service."""
         self.session_factory = get_session_factory()
         self.settings = get_settings()
-        self.json_file_path = Path("data/knowledge_bases.json")
+        self.json_file_path = Path("./data/knowledge_bases.json")
         
     async def migrate_from_json(self) -> Dict[str, Any]:
         """
@@ -208,7 +208,7 @@ class KnowledgeBaseMigrationService:
             logger.info("Starting knowledge base export to JSON")
             
             if not output_path:
-                output_path = f"data/knowledge_bases_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                output_path = f"./data/knowledge_bases_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
             
             async with self.session_factory() as session:
                 # Get all knowledge bases

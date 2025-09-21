@@ -68,7 +68,7 @@ data/workflows/
 # ===================================
 logs/
 *.log
-app/logs/
+data/logs/
 *.tmp
 *.temp
 temp/
@@ -186,6 +186,66 @@ restore_after_transfer.ps1
 *.csv.gz
 *.json.gz
 *.parquet
+
+# Test result files
+*test_results.json
+*test_report.txt
+*_test_results.json
+*_results.json
+performance_test*.html
+
+# Test files and directories
+test_*
+*_test_*
+*_test.*
+test/
+tests/
+tests/**
+
+# Demo and simple files
+demo_*
+*_demo_*
+*_demo.*
+simple_*
+*_simple_*
+*_simple.*
+
+# Generated meme files
+generated_*.png
+google_meme_*.png
+
+# Temporary batch files
+start_backend_temp.bat
+launch_*.bat
+
+# Additional data patterns
+data/meme_analysis_cache/
+data/cache/embedding/
+data/chroma/*/
+data/vector_databases/
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Generated agent files
+agent_files/test_*.txt
+agent_files/integration_*.txt
+
+# Test data files
+data/test_*
+data/*/test_*
+data/*_test*
+test_data/
+
+# Demo and simple data files
+data/demo_*
+data/*/demo_*
+data/*_demo*
+data/simple_*
+data/*/simple_*
+data/*_simple*
+demo_data/
+simple_data/
 
 # OS generated files
 .DS_Store

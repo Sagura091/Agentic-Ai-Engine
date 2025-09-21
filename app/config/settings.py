@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     # Agent settings
     MAX_AGENTS: int = Field(default=100, description="Maximum number of agents")
-    DEFAULT_AGENT_MODEL: str = Field(default="llama3.2:latest", description="Default agent model")
+    DEFAULT_AGENT_MODEL: str = Field(default="llama3.1:8b", description="Default agent model")
     
     # Security settings
     SECRET_KEY: str = Field(default="your-secret-key-change-this", description="Secret key for JWT tokens")
@@ -146,18 +146,20 @@ class Settings(BaseSettings):
     GOOGLE_BASE_URL: str = Field(default="https://generativelanguage.googleapis.com/v1beta", description="Google base URL")
     GOOGLE_TIMEOUT: int = Field(default=60, description="Google request timeout in seconds")
 
-    # Available Ollama Models for Agents
+    # Available Ollama Models for Agents (prioritized by tool calling support)
     AVAILABLE_OLLAMA_MODELS: List[str] = Field(
         default=[
-            "llama3.2:latest",
-            "llama3.1:latest",
-            "qwen2.5:latest",
-            "mistral:latest",
-            "codellama:latest",
-            "llama3.2:3b",
-            "phi3:latest"
+            "llama3.1:8b",        # Primary: Excellent tool calling support
+            "llama3.2:latest",    # Secondary: Good tool calling support
+            "llama3.1:latest",    # Tertiary: Good tool calling support
+            "qwen2.5:latest",     # Alternative: May support tools
+            "mistral:latest",     # Alternative: May support tools
+            "codellama:latest",   # Code-focused: Limited tool support
+            "llama3.2:3b",        # Lightweight: Basic tool support
+            "phi4:latest",        # Available but limited tool support in Ollama
+            "phi3:latest"         # Legacy: Limited tool support
         ],
-        description="Available Ollama models for agents"
+        description="Available Ollama models for agents (prioritized by tool calling capability)"
     )
 
     # OpenWebUI Integration settings (OPTIONAL - can be disabled)
@@ -171,9 +173,9 @@ class Settings(BaseSettings):
     # Agent settings - Multi-Provider Support
     MAX_CONCURRENT_AGENTS: int = Field(default=10, description="Maximum concurrent agents")
     AGENT_TIMEOUT_SECONDS: int = Field(default=300, description="Agent execution timeout")
-    DEFAULT_AGENT_MODEL: str = Field(default="llama3.2:latest", description="Default LLM model for agents")
+    DEFAULT_AGENT_MODEL: str = Field(default="llama3.1:8b", description="Default LLM model for agents")
     DEFAULT_AGENT_PROVIDER: str = Field(default="ollama", description="Default LLM provider for agents")
-    BACKUP_AGENT_MODEL: str = Field(default="llama3.1:latest", description="Backup LLM model if default fails")
+    BACKUP_AGENT_MODEL: str = Field(default="llama3.2:latest", description="Backup LLM model if default fails")
     BACKUP_AGENT_PROVIDER: str = Field(default="ollama", description="Backup LLM provider if default fails")
 
     # LLM Provider preferences
@@ -246,11 +248,11 @@ class Settings(BaseSettings):
     LOG_FORMAT: str = Field(default="json", description="Log format (json, text)")
     
     # File storage settings
-    DATA_DIR: str = Field(default="/app/data", description="Data directory path")
-    AGENTS_DIR: str = Field(default="/app/data/agents", description="Agents storage directory")
-    WORKFLOWS_DIR: str = Field(default="/app/data/workflows", description="Workflows storage directory")
-    CHECKPOINTS_DIR: str = Field(default="/app/data/checkpoints", description="Checkpoints storage directory")
-    LOGS_DIR: str = Field(default="/app/data/logs", description="Logs storage directory")
+    DATA_DIR: str = Field(default="./data", description="Data directory path")
+    AGENTS_DIR: str = Field(default="./data/agents", description="Agents storage directory")
+    WORKFLOWS_DIR: str = Field(default="./data/workflows", description="Workflows storage directory")
+    CHECKPOINTS_DIR: str = Field(default="./data/checkpoints", description="Checkpoints storage directory")
+    LOGS_DIR: str = Field(default="./data/logs", description="Logs storage directory")
     
     # Performance settings
     MAX_REQUEST_SIZE: int = Field(default=16 * 1024 * 1024, description="Maximum request size in bytes")

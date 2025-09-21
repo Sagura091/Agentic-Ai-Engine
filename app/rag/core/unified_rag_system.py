@@ -339,6 +339,54 @@ class UnifiedRAGSystem:
             logger.error(f"Failed to search knowledge for agent {agent_id}: {str(e)}")
             raise
 
+    async def search_documents(
+        self,
+        agent_id: str,
+        query: str,
+        collection_type: str = "knowledge",
+        top_k: int = 10,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        🚀 HYBRID RAG INTERFACE: Search documents with compatibility layer.
+
+        This method provides a standardized interface for the hybrid RAG system
+        while maintaining your revolutionary architecture underneath.
+
+        Args:
+            agent_id: Agent performing the search
+            query: Search query
+            collection_type: Type of collection to search ("knowledge" or "memory")
+            top_k: Number of results to return
+            filters: Additional metadata filters
+
+        Returns:
+            List of search results in hybrid-compatible format
+        """
+        try:
+            # Route to appropriate search method based on collection type
+            if collection_type == "memory":
+                documents = await self.search_agent_memory(agent_id, query, "both", top_k, filters)
+            else:  # Default to knowledge
+                documents = await self.search_agent_knowledge(agent_id, query, top_k, filters)
+
+            # Convert to hybrid-compatible format
+            results = []
+            for doc in documents:
+                result = {
+                    'content': doc.content,
+                    'metadata': doc.metadata or {},
+                    'score': 1.0,  # ChromaDB doesn't return scores by default
+                    'id': doc.id
+                }
+                results.append(result)
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Failed to search documents for agent {agent_id}: {str(e)}")
+            return []
+
     async def add_documents(
         self,
         agent_id: str,

@@ -138,7 +138,7 @@ class FileSystemTool(BaseTool):
         super().__init__()
 
         # Security configuration (private attributes to avoid Pydantic validation)
-        self._sandbox_root = Path("data/agent_files")
+        self._sandbox_root = Path("./data/agent_files")
         self._sandbox_root.mkdir(parents=True, exist_ok=True)
 
         # Performance tracking

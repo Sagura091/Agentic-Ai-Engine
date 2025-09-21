@@ -53,6 +53,9 @@ class AgentCapability(str, Enum):
     COLLABORATION = "collaboration"
     LEARNING = "learning"
     MULTIMODAL = "multimodal"
+    VISION = "vision"
+    AUDIO = "audio"
+    COORDINATION = "coordination"
 
 
 # LangGraph State Definition
@@ -231,18 +234,87 @@ class LangGraphAgent(ABC):
         self.compiled_graph: Optional[Runnable] = None
         self.tool_node: Optional[ToolNode] = None
 
-        # CRITICAL: Handle tool calling - prefer manual approach for compatibility
-        # Many models don't support function calling, so we use text-based tool calling
+        # CRITICAL: Handle tool calling - try bind_tools first for automatic tool usage
         if self.tools:
-            # Always use manual tool calling for maximum compatibility
-            self.llm_with_tools = self.llm
-            self.supports_tool_calling = False
-            logger.info(
-                "Using manual tool calling for maximum compatibility",
-                agent_id=self.agent_id,
-                tools_available=list(self.tools.keys()),
-                llm_type=type(self.llm).__name__
-            )
+            # Convert tools to LangChain format for bind_tools
+            langchain_tools = list(self.tools.values())
+
+            # Check if model supports tool calling by testing bind_tools
+            tool_calling_supported = False
+            try:
+                # Test bind_tools without tool_choice first
+                test_llm = self.llm.bind_tools(langchain_tools)
+                tool_calling_supported = True
+
+            except Exception as e:
+                # If bind_tools or test call fails, model doesn't support tool calling
+                error_msg = str(e).lower()
+                if "does not support tools" in error_msg or "tool" in error_msg:
+                    logger.info(
+                        "Model does not support tool calling, using manual tool calling",
+                        agent_id=self.agent_id,
+                        model=type(self.llm).__name__,
+                        error=str(e)[:100]
+                    )
+                else:
+                    logger.warning(
+                        "Tool calling test failed, using manual tool calling",
+                        agent_id=self.agent_id,
+                        error=str(e)[:100]
+                    )
+
+            if tool_calling_supported:
+                try:
+                    # FORCE automatic tool usage with tool_choice="any"
+                    self.llm_with_tools = self.llm.bind_tools(
+                        langchain_tools,
+                        tool_choice="any"  # Forces LLM to use at least one tool
+                    )
+                    self.supports_tool_calling = True
+
+                    logger.info(
+                        "Using automatic tool calling with FORCED tool usage",
+                        agent_id=self.agent_id,
+                        tools_available=list(self.tools.keys()),
+                        llm_type=type(self.llm).__name__,
+                        tool_choice="any"
+                    )
+
+                except Exception as e:
+                    # Even if basic bind_tools worked, tool_choice might not be supported
+                    logger.warning(
+                        "tool_choice='any' not supported, trying without tool_choice",
+                        agent_id=self.agent_id,
+                        error=str(e)[:100]
+                    )
+                    try:
+                        self.llm_with_tools = self.llm.bind_tools(langchain_tools)
+                        self.supports_tool_calling = True
+                        logger.info(
+                            "Using automatic tool calling without forced tool usage",
+                            agent_id=self.agent_id,
+                            tools_available=list(self.tools.keys()),
+                            llm_type=type(self.llm).__name__
+                        )
+                    except Exception as e2:
+                        # Complete fallback to manual tool calling
+                        self.llm_with_tools = self.llm
+                        self.supports_tool_calling = False
+                        logger.warning(
+                            "All automatic tool calling failed, using manual tool calling",
+                            agent_id=self.agent_id,
+                            error=str(e2)[:100]
+                        )
+            else:
+                # Use manual tool calling
+                self.llm_with_tools = self.llm
+                self.supports_tool_calling = False
+                logger.info(
+                    "Using manual tool calling for maximum compatibility",
+                    agent_id=self.agent_id,
+                    tools_available=list(self.tools.keys()),
+                    llm_type=type(self.llm).__name__
+                )
         else:
             self.llm_with_tools = self.llm
             self.supports_tool_calling = False
@@ -609,6 +681,11 @@ class LangGraphAgent(ABC):
         """
         LangGraph reasoning node - where the agent thinks and plans.
 
+        🚀 HYBRID RAG IMPLEMENTATION:
+        - Model-level RAG: Automatic KB context injection for RAG agents
+        - Agent-level RAG: Explicit tools for advanced operations
+        - Best of both worlds: Reliability + Flexibility
+
         Args:
             state: Current graph state
 
@@ -638,9 +715,18 @@ class LangGraphAgent(ABC):
                 }
             )
 
+            # 🚀 HYBRID RAG: Model-level automatic KB context injection
+            kb_context = ""
+            if hasattr(self.config, 'agent_type') and self.config.agent_type == "rag":
+                kb_context = await self._inject_knowledge_base_context(state["current_task"])
+
             # Create the prompt template with tools information
             tools_description = ", ".join(self.tools.keys()) if self.tools else "None"
             formatted_system_prompt = self.config.system_prompt.format(tools=tools_description)
+
+            # Inject KB context if available (model-level RAG)
+            if kb_context:
+                formatted_system_prompt += f"\n\n🧠 RELEVANT KNOWLEDGE BASE CONTEXT:\n{kb_context}"
 
             prompt = ChatPromptTemplate.from_messages([
                 ("system", formatted_system_prompt),
@@ -1318,6 +1404,47 @@ class LangGraphAgent(ABC):
         except Exception as e:
             logger.error(f"Error creating tool call for {tool_name}: {e}")
             return None
+
+    async def _inject_knowledge_base_context(self, query: str) -> str:
+        """
+        🚀 HYBRID RAG: Model-level automatic knowledge base context injection.
+
+        This method automatically searches the agent's knowledge base and injects
+        relevant context into the prompt, providing OpenWebUI-style automatic RAG
+        while maintaining agent flexibility.
+
+        Args:
+            query: The user's query to search for relevant context
+
+        Returns:
+            Formatted knowledge base context string
+        """
+        try:
+            # Use the hybrid RAG integration system
+            from app.rag.integration import get_hybrid_rag_integration
+
+            hybrid_rag = await get_hybrid_rag_integration()
+            if not hybrid_rag or not hybrid_rag.is_initialized:
+                logger.debug("Hybrid RAG integration not available")
+                return ""
+
+            # Get knowledge base context using the hybrid system
+            context = await hybrid_rag.get_knowledge_base_context(
+                agent_id=self.agent_id,
+                query=query,
+                max_results=3  # Limit to top 3 results for prompt efficiency
+            )
+
+            if context:
+                logger.debug(f"🧠 Injected knowledge base context for agent {self.agent_id}")
+                return context
+            else:
+                logger.debug(f"No knowledge base context found for query: {query[:50]}...")
+                return ""
+
+        except Exception as e:
+            logger.warning(f"⚠️ Error injecting knowledge base context: {e}")
+            return ""
 
 
 class AgentInterface(ABC):

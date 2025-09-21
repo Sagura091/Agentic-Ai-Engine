@@ -212,6 +212,11 @@ class UnifiedSystemOrchestrator:
             await self._register_builtin_tools()
             self.status.components_status["tool_repository"] = True
 
+            # 3. Initialize THE Hybrid RAG Integration (THE complete RAG system)
+            logger.info("   🚀 Initializing THE Hybrid RAG Integration...")
+            await self._initialize_hybrid_rag_integration()
+            self.status.components_status["hybrid_rag_integration"] = True
+
             logger.info("✅ PHASE 2 Memory & Tools: COMPLETE")
 
         except Exception as e:
@@ -455,8 +460,7 @@ class UnifiedSystemOrchestrator:
 
                 # Knowledge search tool
                 knowledge_tool = EnhancedKnowledgeSearchTool(
-                    unified_rag=self.unified_rag,
-                    kb_manager=self.kb_manager
+                    rag_system=self.unified_rag
                 )
                 metadata = ToolMetadata(
                     tool_id="knowledge_search",
@@ -472,8 +476,7 @@ class UnifiedSystemOrchestrator:
 
                 # Document ingest tool
                 ingest_tool = AgentDocumentIngestTool(
-                    unified_rag=self.unified_rag,
-                    kb_manager=self.kb_manager
+                    rag_system=self.unified_rag
                 )
                 metadata = ToolMetadata(
                     tool_id="document_ingest",
@@ -490,6 +493,30 @@ class UnifiedSystemOrchestrator:
             except Exception as e:
                 logger.warning(f"Failed to register RAG tools: {e}")
 
+            # Import and register meme tools
+            try:
+                from app.tools.meme_collection_tool import get_meme_collection_tool, MEME_COLLECTION_TOOL_METADATA
+                from app.tools.meme_analysis_tool import get_meme_analysis_tool, MEME_ANALYSIS_TOOL_METADATA
+                from app.tools.meme_generation_tool import get_meme_generation_tool, MEME_GENERATION_TOOL_METADATA
+
+                # Register meme collection tool
+                collection_tool = get_meme_collection_tool()
+                await self.tool_repository.register_tool(collection_tool, MEME_COLLECTION_TOOL_METADATA)
+                logger.info("✅ Registered meme collection tool")
+
+                # Register meme analysis tool
+                analysis_tool = get_meme_analysis_tool()
+                await self.tool_repository.register_tool(analysis_tool, MEME_ANALYSIS_TOOL_METADATA)
+                logger.info("✅ Registered meme analysis tool")
+
+                # Register meme generation tool
+                generation_tool = get_meme_generation_tool()
+                await self.tool_repository.register_tool(generation_tool, MEME_GENERATION_TOOL_METADATA)
+                logger.info("✅ Registered meme generation tool")
+
+            except Exception as e:
+                logger.warning(f"Failed to register meme tools: {e}")
+
             # Log tool registration summary
             stats = self.tool_repository.stats
             logger.info(f"🎯 Tool registration complete: {stats['total_tools']} tools registered")
@@ -497,6 +524,21 @@ class UnifiedSystemOrchestrator:
         except Exception as e:
             logger.error(f"Failed to register built-in tools: {e}")
             # Don't raise - tool registration failure shouldn't stop system initialization
+
+    async def _initialize_hybrid_rag_integration(self) -> None:
+        """Initialize the hybrid RAG integration system."""
+        try:
+            from app.rag.integration import initialize_hybrid_rag_system
+
+            success = await initialize_hybrid_rag_system()
+            if success:
+                logger.info("✅ Hybrid RAG Integration initialized successfully")
+            else:
+                logger.warning("⚠️ Hybrid RAG Integration initialization failed")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize hybrid RAG integration: {e}")
+            # Don't raise - RAG integration failure shouldn't stop system initialization
 
     async def _initialize_phase_3_communication(self) -> None:
         """Initialize PHASE 3: Communication components."""
@@ -1739,6 +1781,87 @@ class OrchestrationCompatibilityLayer:
             task=task,
             context=context or {}
         )
+
+    async def create_agent(
+        self,
+        agent_id: str,
+        agent_type: str = "rag",
+        model_name: str = "llama3.1:8b",
+        **kwargs
+    ) -> Any:
+        """
+        Create an agent using the Agent Builder integration.
+
+        Args:
+            agent_id: Unique identifier for the agent
+            agent_type: Type of agent to create
+            model_name: LLM model to use
+            **kwargs: Additional agent configuration
+
+        Returns:
+            Created agent instance
+        """
+        try:
+            if not self.agent_builder_integration:
+                raise RuntimeError("Agent Builder integration not initialized")
+
+            # Use the agent builder integration to create agent
+            from app.agents.factory import AgentBuilderFactory, AgentBuilderConfig, AgentType
+
+            # Map string type to enum
+            agent_type_enum = AgentType.RAG if agent_type == "rag" else AgentType.REACT
+
+            config = AgentBuilderConfig(
+                agent_id=agent_id,
+                agent_type=agent_type_enum,
+                model_name=model_name,
+                **kwargs
+            )
+
+            factory = AgentBuilderFactory()
+            agent = await factory.create_agent(config)
+
+            logger.info(f"✅ Created agent {agent_id} of type {agent_type}")
+            return agent
+
+        except Exception as e:
+            logger.error(f"❌ Failed to create agent {agent_id}: {str(e)}")
+            raise
+
+    async def create_agent_knowledge_base(
+        self,
+        agent_id: str,
+        documents: List[Any] = None
+    ) -> str:
+        """
+        Create a knowledge base for an agent.
+
+        Args:
+            agent_id: Agent identifier
+            documents: Optional list of documents to ingest
+
+        Returns:
+            Knowledge base identifier
+        """
+        try:
+            if not self.unified_rag:
+                raise RuntimeError("RAG system not initialized")
+
+            # Create agent ecosystem in RAG system
+            agent_collections = await self.unified_rag.create_agent_ecosystem(agent_id)
+
+            # Ingest documents if provided
+            if documents:
+                await self.unified_rag.add_documents(agent_id, documents)
+                logger.info(f"✅ Ingested {len(documents)} documents for agent {agent_id}")
+
+            kb_id = f"kb_agent_{agent_id}"
+            logger.info(f"✅ Created knowledge base {kb_id} for agent {agent_id}")
+            return kb_id
+
+        except Exception as e:
+            logger.error(f"❌ Failed to create knowledge base for agent {agent_id}: {str(e)}")
+            raise
 
 
 # Create compatibility wrapper for the enhanced orchestrator

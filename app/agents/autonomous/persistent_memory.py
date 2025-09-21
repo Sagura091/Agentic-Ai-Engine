@@ -21,6 +21,14 @@ from collections import deque, defaultdict
 import structlog
 import numpy as np
 from langchain_core.language_models import BaseLanguageModel
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, insert, update, delete
+from sqlalchemy.orm import selectinload
+
+# Import database models
+from app.models.database.base import get_database_session
+from app.models.agent import Agent
+from app.models.autonomous import AgentMemoryDB, AutonomousAgentState
 
 from app.memory.memory_models import MemoryEntry as AgentMemoryEntry
 # from app.services.autonomous_persistence import autonomous_persistence  # Optional service
@@ -59,6 +67,7 @@ class MemoryTrace:
     # Temporal information
     created_at: datetime = field(default_factory=datetime.utcnow)
     last_accessed: datetime = field(default_factory=datetime.utcnow)
+    expires_at: Optional[datetime] = None  # When this memory expires (None = never)
     access_count: int = 0
     
     # Associations and context
@@ -154,9 +163,18 @@ class PersistentMemorySystem:
             True if initialization successful
         """
         try:
-            # Load persistent memories from database
+            # **NEW: Ensure agent is registered in database first**
+            await self._ensure_agent_registered()
+
+            # **NEW: Load memories from PostgreSQL database first**
+            memories_loaded = await self.load_memories_from_database()
+            logger.info("Loaded memories from PostgreSQL database",
+                       agent_id=self.agent_id,
+                       count=memories_loaded)
+
+            # Load persistent memories from database (legacy support)
             await self._load_persistent_memories()
-            
+
             # Rebuild indices
             await self._rebuild_indices()
             
@@ -326,38 +344,235 @@ class PersistentMemorySystem:
                         agent_id=self.agent_id,
                         error=str(e))
 
-    async def _persist_memory(self, memory: MemoryTrace) -> bool:
-        """Persist memory to database if persistence service is available."""
+    async def load_memories_from_database(self) -> int:
+        """Load memories from PostgreSQL database."""
         try:
-            if not self.persistence_service:
-                logger.debug("No persistence service available", memory_id=memory.memory_id)
-                return False
+            memories_loaded = 0
 
-            # Convert memory to database format
-            memory_data = {
-                "agent_id": self.agent_id,
-                "memory_id": memory.memory_id,
-                "content": memory.content,
-                "memory_type": memory.memory_type.value,
-                "importance": memory.importance.value,
-                "emotional_valence": memory.emotional_valence,
-                "tags": memory.tags,
-                "context": memory.context,
-                "created_at": memory.created_at,
-                "expires_at": memory.expires_at
-            }
+            async for session in get_database_session():
+                # Get agent state
+                agent_state = await session.execute(
+                    select(AutonomousAgentState).where(AutonomousAgentState.agent_id == self.agent_id)
+                )
+                agent_state_record = agent_state.scalar_one_or_none()
 
-            # Save to database
-            await self.persistence_service.save_agent_memory(memory_data)
+                if not agent_state_record:
+                    logger.info("No agent state found in database", agent_id=self.agent_id)
+                    return 0
 
-            logger.debug("Memory persisted to database", memory_id=memory.memory_id)
-            return True
+                # Load memories for this agent
+                memories_query = await session.execute(
+                    select(AgentMemoryDB)
+                    .where(AgentMemoryDB.agent_state_id == agent_state_record.id)
+                    .order_by(AgentMemoryDB.created_at.desc())
+                    .limit(1000)  # Load last 1000 memories
+                )
+                memory_records = memories_query.scalars().all()
+
+                for memory_record in memory_records:
+                    # Convert database record back to MemoryTrace
+                    memory_type = MemoryType(memory_record.memory_type)
+                    importance = MemoryImportance(memory_record.importance)
+
+                    memory = MemoryTrace(
+                        memory_id=memory_record.memory_id,
+                        content=memory_record.content,
+                        memory_type=memory_type,
+                        importance=importance,
+                        emotional_valence=memory_record.emotional_valence,
+                        tags=set(memory_record.tags) if memory_record.tags else set(),
+                        context=memory_record.context or {},
+                        created_at=memory_record.created_at,
+                        last_accessed=memory_record.last_accessed,
+                        access_count=memory_record.access_count,
+                        consolidation_level=memory_record.consolidation_level,
+                        decay_rate=memory_record.decay_rate
+                    )
+
+                    # Store in appropriate memory store
+                    if memory_type == MemoryType.EPISODIC:
+                        self.episodic_memory[memory.memory_id] = memory
+                    elif memory_type == MemoryType.SEMANTIC:
+                        self.semantic_memory[memory.memory_id] = memory
+                    elif memory_type == MemoryType.PROCEDURAL:
+                        self.procedural_memory[memory.memory_id] = memory
+
+                    # Update indices
+                    self._update_indices(memory)
+                    memories_loaded += 1
+
+                logger.info("Loaded memories from PostgreSQL database",
+                          agent_id=self.agent_id,
+                          memories_loaded=memories_loaded)
+                return memories_loaded
 
         except Exception as e:
-            logger.error("Failed to persist memory",
-                        memory_id=memory.memory_id,
+            logger.error("Failed to load memories from database",
+                        agent_id=self.agent_id,
+                        error=str(e))
+            return 0
+
+    async def _ensure_agent_registered(self) -> bool:
+        """Ensure the agent is registered in the agents table."""
+        try:
+            async for session in get_database_session():
+                try:
+                    # Check if agent already exists
+                    agent_query = await session.execute(
+                        select(Agent).where(Agent.id == self.agent_id)
+                    )
+                    existing_agent = agent_query.scalar_one_or_none()
+
+                    if not existing_agent:
+                        # Register the agent
+                        agent_record = Agent(
+                            id=self.agent_id,
+                            name=f"autonomous_agent_{str(self.agent_id)[:8]}",
+                            agent_type="autonomous",
+                            description="Autonomous meme collection and generation agent",
+                            capabilities=["meme_collection", "meme_analysis", "meme_generation", "web_research"],
+                            tools=["meme_collection_tool", "meme_analysis_tool", "meme_generation_tool", "web_research_tool"],
+                            system_prompt="You are an autonomous meme collection and generation agent.",
+                            autonomy_level="autonomous",
+                            learning_mode="active",
+                            status="active"
+                        )
+
+                        session.add(agent_record)
+                        await session.commit()
+
+                        logger.info("Agent registered in database",
+                                   agent_id=self.agent_id,
+                                   agent_name=agent_record.name)
+
+                    return True
+
+                except Exception as e:
+                    await session.rollback()
+                    # If it's a unique constraint violation, the agent is already registered
+                    if "UniqueViolationError" in str(e) and "agents_pkey" in str(e):
+                        logger.info("Agent already registered in database", agent_id=self.agent_id)
+                        return True
+                    raise e
+
+        except Exception as e:
+            logger.error("Failed to register agent",
+                        agent_id=self.agent_id,
                         error=str(e))
             return False
+
+    async def _persist_memory(self, memory: MemoryTrace) -> bool:
+        """Persist memory to PostgreSQL database."""
+        try:
+            # **NEW: Direct PostgreSQL storage**
+            async for session in get_database_session():
+                try:
+                    # First, ensure we have an agent state record
+                    agent_state = await session.execute(
+                        select(AutonomousAgentState).where(AutonomousAgentState.agent_id == self.agent_id)
+                    )
+                    agent_state_record = agent_state.scalar_one_or_none()
+
+                    if not agent_state_record:
+                        # Create agent state record
+                        agent_state_record = AutonomousAgentState(
+                            agent_id=self.agent_id,
+                            session_id=memory.session_id or f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                            custom_state={"initialized": True, "created_by": "persistent_memory_system"}
+                        )
+                        session.add(agent_state_record)
+                        await session.flush()  # Get the ID
+
+                    # Create memory record
+                    memory_record = AgentMemoryDB(
+                        memory_id=memory.memory_id,
+                        agent_state_id=agent_state_record.id,
+                        content=memory.content,
+                        memory_type=memory.memory_type.value,
+                        context=memory.context,
+                        importance=self._importance_to_float(memory.importance),
+                        emotional_valence=memory.emotional_valence,
+                        tags=list(memory.tags) if memory.tags else [],
+                        created_at=memory.created_at,
+                        last_accessed=memory.last_accessed,
+                        access_count=memory.access_count,
+                        session_id=memory.session_id,
+                        expires_at=memory.expires_at
+                    )
+
+                    session.add(memory_record)
+                    await session.commit()
+
+                    logger.debug("Memory persisted to PostgreSQL",
+                               memory_id=memory.memory_id,
+                               agent_id=self.agent_id)
+                    return True
+
+                except Exception as e:
+                    await session.rollback()
+                    raise e
+
+        except Exception as e:
+            # Check if this is a foreign key violation for missing agent
+            if "ForeignKeyViolationError" in str(e) and "agents" in str(e):
+                logger.info("Agent not registered, attempting to register and retry",
+                           agent_id=self.agent_id)
+
+                # Try to register the agent and retry
+                if await self._ensure_agent_registered():
+                    logger.info("Agent registered successfully, retrying memory persistence",
+                               agent_id=self.agent_id)
+                    # Retry the memory persistence
+                    return await self._persist_memory(memory)
+                else:
+                    logger.error("Failed to register agent, cannot persist memory",
+                                agent_id=self.agent_id)
+
+            logger.error("Failed to persist memory to PostgreSQL",
+                        memory_id=memory.memory_id,
+                        agent_id=self.agent_id,
+                        error=str(e))
+
+            # Fallback to legacy persistence service
+            if self.persistence_service:
+                try:
+                    memory_data = {
+                        "agent_id": self.agent_id,
+                        "memory_id": memory.memory_id,
+                        "content": memory.content,
+                        "memory_type": memory.memory_type.value,
+                        "importance": memory.importance.value,
+                        "emotional_valence": memory.emotional_valence,
+                        "tags": memory.tags,
+                        "context": memory.context,
+                        "created_at": memory.created_at,
+                        "expires_at": memory.expires_at
+                    }
+                    await self.persistence_service.save_agent_memory(memory_data)
+                    logger.debug("Memory persisted via legacy service", memory_id=memory.memory_id)
+                    return True
+                except Exception as fallback_error:
+                    logger.error("Legacy persistence also failed", error=str(fallback_error))
+
+            return False
+
+    def _importance_to_float(self, importance) -> float:
+        """Convert MemoryImportance enum to float value."""
+        importance_map = {
+            "low": 0.2,
+            "medium": 0.5,
+            "high": 0.8,
+            "critical": 1.0
+        }
+
+        if hasattr(importance, 'value'):
+            return importance_map.get(importance.value, 0.5)
+        elif isinstance(importance, str):
+            return importance_map.get(importance, 0.5)
+        elif isinstance(importance, (int, float)):
+            return float(importance)
+        else:
+            return 0.5  # Default to medium importance
 
     async def _get_associated_memories(self, memory_id: str, max_associations: int = 5) -> List[MemoryTrace]:
         """Get memories associated with the given memory ID."""

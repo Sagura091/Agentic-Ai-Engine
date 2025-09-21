@@ -51,22 +51,11 @@ class BusinessIntelligenceTool(BaseTool):
     description: str = "Perform comprehensive business analysis including financial, market, competitive, and strategic intelligence"
     args_schema: Type[BaseModel] = BusinessIntelligenceInput
 
-    def __init__(self):
-        super().__init__()
-            complexity=ToolComplexity.ADVANCED,
-            tags=["business", "analysis", "intelligence", "strategy", "finance", "market"],
-            dependencies=["data_analysis", "market_data"],
-            permissions=["data_access", "external_apis"],
-            safety_level="safe"
-        )
-        super().__init__(
-            metadata=metadata,
-            name=metadata.name,
-            description=metadata.description,
-            args_schema=BusinessIntelligenceInput
-        )
-        self.analysis_cache = {}
-        self.analysis_history = []
+    analysis_cache: Dict[str, Any] = Field(default_factory=dict, exclude=True)
+    analysis_history: List[Dict[str, Any]] = Field(default_factory=list, exclude=True)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
     
     def _run(
         self,
