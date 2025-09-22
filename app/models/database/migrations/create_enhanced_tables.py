@@ -5,7 +5,7 @@ This migration creates all necessary tables for the enhanced platform with:
 - Model management and tracking
 - Knowledge base database persistence
 - Enhanced user management and authentication
-- API key management and rate limiting
+- User-owned API key management (in auth.py)
 - Proper async/await patterns
 - Transaction management
 - Error handling and rollback
@@ -16,7 +16,7 @@ Tables created:
 - Model Management: model_registry, model_usage_logs, model_download_history, model_performance_metrics
 - Knowledge Bases: knowledge_bases, knowledge_base_access, knowledge_base_usage_logs, knowledge_base_templates
 - Enhanced Users: users, user_sessions, roles, user_role_assignments, user_audit_logs
-- API Management: api_keys, api_key_usage_logs, rate_limit_logs, api_quota_usage, api_endpoint_metrics
+- User API Keys: user_api_keys (in auth.py - user-owned API key system)
 """
 
 import asyncio
@@ -37,12 +37,11 @@ from app.models.model_management import (
 from app.models.knowledge_base import (
     KnowledgeBase, KnowledgeBaseAccess, KnowledgeBaseUsageLog, KnowledgeBaseTemplate
 )
+from app.models.auth import UserDB
 from app.models.enhanced_user import (
-    UserDB, UserSession, Role, UserRoleAssignment, UserAuditLog
+    UserSession, Role, UserRoleAssignment, UserAuditLog
 )
-from app.models.api_management import (
-    APIKey, APIKeyUsageLog, RateLimitLog, APIQuotaUsage, APIEndpointMetrics
-)
+# API management models removed - replaced with user-owned API key system
 
 import structlog
 

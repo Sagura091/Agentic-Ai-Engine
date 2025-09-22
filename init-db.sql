@@ -1,26 +1,44 @@
--- Database initialization script for Agentic AI System
--- This script sets up the basic database structure
+-- OPTIMIZED Database Initialization Script for Agentic AI System
+-- This script sets up the ESSENTIAL database structure for immediate startup
+--
+-- PURPOSE: Quick startup database with core functionality
+-- DIFFERENCE FROM MIGRATIONS: This is for immediate use, migrations are for full production setup
+--
+-- ✅ INCLUDES: Core tables, sample data, basic functionality
+-- ❌ EXCLUDES: Advanced autonomous learning (use migrations for full features)
 
 -- Create extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
--- Create agents table
+-- Create agents table (OPTIMIZED - matches migration schema)
 CREATE TABLE IF NOT EXISTS agents (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
     description TEXT,
     agent_type VARCHAR(100) NOT NULL DEFAULT 'general',
+
+    -- LLM configuration
     model VARCHAR(255) NOT NULL DEFAULT 'llama3.2:latest',
+    model_provider VARCHAR(50) NOT NULL DEFAULT 'ollama',
+    temperature FLOAT DEFAULT 0.7,
+    max_tokens INTEGER DEFAULT 2048,
+
+    -- Agent capabilities and tools
     capabilities JSONB DEFAULT '[]',
     tools JSONB DEFAULT '[]',
     system_prompt TEXT,
-    temperature FLOAT DEFAULT 0.7,
-    max_tokens INTEGER DEFAULT 2048,
+
+    -- Status and metadata
     status VARCHAR(50) DEFAULT 'active',
+    last_activity TIMESTAMP WITH TIME ZONE,
+
+    -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    metadata JSONB DEFAULT '{}'
+
+    -- Metadata
+    agent_metadata JSONB DEFAULT '{}'
 );
 
 -- Create workflows table
@@ -76,15 +94,8 @@ CREATE TABLE IF NOT EXISTS agent_conversations (
     metadata JSONB DEFAULT '{}'
 );
 
--- Create system_metrics table
-CREATE TABLE IF NOT EXISTS system_metrics (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    metric_type VARCHAR(100) NOT NULL,
-    metric_name VARCHAR(255) NOT NULL,
-    metric_value FLOAT NOT NULL,
-    timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    metadata JSONB DEFAULT '{}'
-);
+-- REMOVED: system_metrics table (not needed for core functionality)
+-- Use migrations for advanced autonomous agent learning and memory features
 
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_agents_type ON agents(agent_type);
@@ -104,8 +115,7 @@ CREATE INDEX IF NOT EXISTS idx_custom_tools_category ON custom_tools(category);
 CREATE INDEX IF NOT EXISTS idx_agent_conversations_agent_id ON agent_conversations(agent_id);
 CREATE INDEX IF NOT EXISTS idx_agent_conversations_session_id ON agent_conversations(session_id);
 
-CREATE INDEX IF NOT EXISTS idx_system_metrics_type_name ON system_metrics(metric_type, metric_name);
-CREATE INDEX IF NOT EXISTS idx_system_metrics_timestamp ON system_metrics(timestamp);
+-- REMOVED: system_metrics indexes (table removed)
 
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -176,3 +186,19 @@ GROUP BY status;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO agentic;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO agentic;
 GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO agentic;
+
+-- ===================================
+-- MIGRATION SYSTEM INTEGRATION
+-- ===================================
+--
+-- FOR FULL PRODUCTION FEATURES, RUN THE MIGRATION SYSTEM:
+--
+-- 1. Basic Startup (this file): Quick database for immediate use
+-- 2. Full Features: Run `python db/migrations/migrate_database.py migrate`
+--    - Autonomous agent learning and memory
+--    - User management and authentication
+--    - RAG document storage and knowledge bases
+--    - Advanced workflow execution tracking
+--
+-- This init-db.sql provides the MINIMUM needed to start the system.
+-- The migration system provides the COMPLETE feature set.

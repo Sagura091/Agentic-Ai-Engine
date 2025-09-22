@@ -1730,6 +1730,7 @@ def get_enhanced_system_orchestrator() -> EnhancedUnifiedSystemOrchestrator:
     global _enhanced_system_orchestrator
     if _enhanced_system_orchestrator is None:
         _enhanced_system_orchestrator = EnhancedUnifiedSystemOrchestrator()
+        # Note: Initialization will be handled by the seamless integration system
     return _enhanced_system_orchestrator
 
 

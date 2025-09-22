@@ -117,9 +117,15 @@ async def init_database():
     """Initialize database and create tables if needed."""
     try:
         # Import models to ensure they are registered with Base
-        from app.models.agent import Agent, Conversation, Message, TaskExecution
+        from app.models.agent import Agent, TaskExecution
         from app.models.workflow import Workflow, WorkflowExecution, WorkflowStepExecution, WorkflowTemplate
         from app.models.tool import Tool, AgentTool, ToolExecution, ToolCategory, ToolTemplate
+
+        # Import new authentication and user management models
+        from app.models.auth import (
+            UserDB, UserSessionDB, ProjectDB, ProjectMemberDB,
+            ConversationDB, MessageDB, NotificationDB
+        )
 
         engine = get_engine()
 

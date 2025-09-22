@@ -1,6 +1,12 @@
 {
 	"compilerOptions": {
 		"paths": {
+			"$lib": [
+				"../src/lib"
+			],
+			"$lib/*": [
+				"../src/lib/*"
+			],
 			"$components": [
 				"../src/lib/components"
 			],
@@ -13,12 +19,6 @@
 			"$stores/*": [
 				"../src/lib/stores/*"
 			],
-			"$services": [
-				"../src/lib/services"
-			],
-			"$services/*": [
-				"../src/lib/services/*"
-			],
 			"$utils": [
 				"../src/lib/utils"
 			],
@@ -30,12 +30,6 @@
 			],
 			"$types/*": [
 				"../src/lib/types/*"
-			],
-			"$lib": [
-				"../src/lib"
-			],
-			"$lib/*": [
-				"../src/lib/*"
 			],
 			"$app/types": [
 				"./types/index.d.ts"

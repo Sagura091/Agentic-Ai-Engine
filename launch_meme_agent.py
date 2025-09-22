@@ -97,7 +97,7 @@ class MemeAgentLauncher:
                 model_id="llama3.2:latest",   # Use available model
                 temperature=0.8               # Creative temperature for memes
             )
-            llm = await self.llm_manager.create_llm_instance(llm_config)
+            llm = await self.llm_manager.get_llm(llm_config)
             
             # Configure the meme agent
             meme_config = MemeAgentConfig(
@@ -123,19 +123,13 @@ class MemeAgentLauncher:
                 unified_memory=self.memory_system,
                 unified_rag=self.rag_system
             )
-
+            
             print("  ✅ Autonomous Meme Agent created successfully!")
-
-            # Initialize meme tools asynchronously
-            print("🔧 Initializing meme tools...")
-            await self.agent.initialize_tools()
-            print("  ✅ Meme tools initialized successfully!")
-
             print(f"  📁 Memes will be saved to: {meme_config.storage_directory}/")
             print(f"  🎯 Target subreddits: {', '.join(meme_config.target_subreddits[:5])}...")
             print(f"  ⏰ Collection interval: {meme_config.collection_interval_hours} hours")
             print(f"  🎨 Generation interval: {meme_config.generation_interval_hours} hours")
-
+            
             return True
             
         except Exception as e:

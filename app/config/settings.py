@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     HOST: str = Field(default="0.0.0.0", description="Server host")
     PORT: int = Field(default=8888, description="Server port")
     WORKERS: int = Field(default=1, description="Number of worker processes")
+    BASE_URL: str = Field(default="http://localhost:8888", description="Base URL for callbacks")
 
     # Agent settings
     MAX_AGENTS: int = Field(default=100, description="Maximum number of agents")
@@ -40,18 +41,31 @@ class Settings(BaseSettings):
     SECRET_KEY: str = Field(default="your-secret-key-change-this", description="Secret key for JWT tokens")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, description="Access token expiration in minutes")
     ALGORITHM: str = Field(default="HS256", description="JWT algorithm")
-    
+
+    # SSO/Keycloak settings (disabled by default)
+    SSO_ENABLED: bool = Field(default=False, description="Enable SSO authentication")
+    KEYCLOAK_ENABLED: bool = Field(default=False, description="Enable Keycloak SSO integration")
+    KEYCLOAK_SERVER_URL: Optional[str] = Field(default=None, description="Keycloak server URL")
+    KEYCLOAK_REALM: Optional[str] = Field(default=None, description="Keycloak realm name")
+    KEYCLOAK_CLIENT_ID: Optional[str] = Field(default=None, description="Keycloak client ID")
+    KEYCLOAK_CLIENT_SECRET: Optional[str] = Field(default=None, description="Keycloak client secret")
+    KEYCLOAK_REDIRECT_URI: Optional[str] = Field(default=None, description="OAuth2 redirect URI")
+    KEYCLOAK_AUTO_CREATE_USERS: bool = Field(default=True, description="Auto-create users from SSO")
+    KEYCLOAK_DEFAULT_USER_GROUP: str = Field(default="user", description="Default group for SSO users")
+
     # CORS settings
     CORS_ORIGINS: List[str] = Field(
         default=["http://localhost:3000", "http://localhost:8080", "http://localhost:5173", "http://localhost:8001", "*"],
         description="Allowed CORS origins"
     )
 
-    # Logging settings
-    LOG_LEVEL: str = Field(default="INFO", description="Logging level")
+    # Logging settings - Optimized for clean console output
+    LOG_LEVEL: str = Field(default="WARNING", description="Console logging level (WARNING/ERROR only)")
+    LOG_FILE_LEVEL: str = Field(default="INFO", description="File logging level (detailed)")
     LOG_TO_FILE: bool = Field(default=True, description="Enable file logging")
     LOG_TO_CONSOLE: bool = Field(default=True, description="Enable console logging")
-    LOG_JSON_FORMAT: bool = Field(default=True, description="Use JSON log format")
+    LOG_JSON_FORMAT: bool = Field(default=True, description="Use JSON log format for files")
+    LOG_CONSOLE_FORMAT: str = Field(default="simple", description="Console format: simple, json, or structured")
     LOG_RETENTION_DAYS: int = Field(default=30, description="Log retention period in days")
     LOG_MAX_FILE_SIZE_MB: int = Field(default=100, description="Maximum log file size in MB")
     LOG_MAX_FILES: int = Field(default=10, description="Maximum number of log files to keep")
@@ -243,9 +257,9 @@ class Settings(BaseSettings):
     )
     METRICS_PORT: int = Field(default=9090, description="Metrics server port")
     
-    # Logging settings
-    LOG_LEVEL: str = Field(default="INFO", description="Logging level")
-    LOG_FORMAT: str = Field(default="json", description="Log format (json, text)")
+    # Logging settings (duplicate - using settings above)
+    # LOG_LEVEL: str = Field(default="WARNING", description="Console logging level")
+    # LOG_FORMAT: str = Field(default="simple", description="Console log format")
     
     # File storage settings
     DATA_DIR: str = Field(default="./data", description="Data directory path")

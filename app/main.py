@@ -42,24 +42,43 @@ from app.backend_logging.middleware import LoggingMiddleware as BackendLoggingMi
 from app.backend_logging.models import LogConfiguration, LogLevel, LogCategory
 
 
-# Configure structured logging
-structlog.configure(
-    processors=[
-        structlog.stdlib.filter_by_level,
-        structlog.stdlib.add_logger_name,
-        structlog.stdlib.add_log_level,
-        structlog.stdlib.PositionalArgumentsFormatter(),
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
-        structlog.processors.UnicodeDecoder(),
-        structlog.processors.JSONRenderer(),
-    ],
-    context_class=dict,
-    logger_factory=structlog.stdlib.LoggerFactory(),
-    wrapper_class=structlog.stdlib.BoundLogger,
-    cache_logger_on_first_use=True,
-)
+# Configure clean, production-ready logging
+def setup_clean_logging():
+    """Setup clean logging with minimal console output and detailed file logging."""
+
+    # Set root logger to WARNING to reduce spam
+    logging.getLogger().setLevel(logging.WARNING)
+
+    # Set specific loggers to appropriate levels
+    logging.getLogger("uvicorn").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.access").setLevel(logging.ERROR)
+    logging.getLogger("fastapi").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("chromadb").setLevel(logging.ERROR)
+
+    # Configure structlog for clean output
+    structlog.configure(
+        processors=[
+            structlog.stdlib.filter_by_level,
+            structlog.stdlib.add_logger_name,
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.PositionalArgumentsFormatter(),
+            structlog.processors.TimeStamper(fmt="%H:%M:%S"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.UnicodeDecoder(),
+            # Clean console output - only essential info
+            structlog.dev.ConsoleRenderer(colors=True, pad_event=25) if sys.stdout.isatty() else structlog.processors.JSONRenderer(),
+        ],
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
+
+# Setup clean logging
+setup_clean_logging()
 
 logger = structlog.get_logger(__name__)
 
@@ -94,12 +113,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     settings = get_settings()
 
-    # Initialize backend logging system first
+    # Initialize backend logging system with minimal console spam
     backend_logger = configure_logger(LogConfiguration(
-        log_level=LogLevel.INFO if settings.ENVIRONMENT == "production" else LogLevel.DEBUG,
-        enable_console_output=True,
-        enable_file_output=True,
-        enable_json_format=True,
+        log_level=LogLevel.ERROR,  # Only errors to console
+        enable_console_output=False,  # Disable console output to reduce spam
+        enable_file_output=True,      # Keep detailed file logging
+        enable_json_format=True,      # JSON format for file logs
         enable_async_logging=True,
         enable_performance_logging=True,
         enable_agent_metrics=True,
@@ -110,30 +129,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         max_log_files=10
     ))
 
-    # Startup
-    logger.info("Starting Revolutionary Agentic AI Microservice", version=app.version)
-    backend_logger.info(
-        "Backend logging system initialized and FastAPI application starting",
-        category=LogCategory.SYSTEM_HEALTH,
-        component="FastAPI",
-        data={"version": app.version, "environment": settings.ENVIRONMENT}
-    )
+    # Clean startup message
+    print(f"🚀 Starting Agentic AI Microservice v{app.version}")
+    logger.info("System initializing...", version=app.version)
 
     try:
         # Initialize seamless integration system (replaces orchestrator)
-        backend_logger.info(
-            "Initializing seamless integration system",
-            category=LogCategory.ORCHESTRATION,
-            component="SeamlessIntegration"
-        )
+        print("⚙️  Initializing core systems...")
         await seamless_integration.initialize_complete_system()
-
-        # Initialize supporting services
-        backend_logger.info(
-            "Initializing supporting services",
-            category=LogCategory.SYSTEM_HEALTH,
-            component="ServiceInitialization"
-        )
 
         # Initialize system orchestrator
         from app.core.unified_system_orchestrator import get_system_orchestrator
@@ -152,18 +155,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         from app.core.node_bootstrap import initialize_node_system
         await initialize_node_system()
 
-        logger.info("All services initialized successfully with seamless integration")
-        logger.info("System capabilities: Unlimited agents, Dynamic tools, True agentic AI")
-
-        backend_logger.info(
-            "All services initialized successfully - System ready",
-            category=LogCategory.SYSTEM_HEALTH,
-            component="FastAPI",
-            data={
-                "capabilities": ["unlimited_agents", "dynamic_tools", "true_agentic_ai"],
-                "services": ["seamless_integration", "system_orchestrator", "websocket_manager", "monitoring_service"]
-            }
-        )
+        print("✅ All services initialized successfully")
+        print("🎯 System ready: Unlimited agents, Dynamic tools, True agentic AI")
+        logger.info("System startup complete")
 
         yield
 
@@ -476,21 +470,21 @@ def main() -> None:
     """
     settings = get_settings()
     
-    # Configure logging
+    # Configure clean console logging - only warnings and errors
     logging.basicConfig(
-        level=logging.INFO if not settings.DEBUG else logging.DEBUG,
-        format="%(message)s",
+        level=logging.WARNING,  # Only show warnings and errors on console
+        format="%(levelname)s: %(message)s",  # Simple format
         stream=sys.stdout,
     )
     
-    # Run the application with Socket.IO support
+    # Run the application with Socket.IO support and clean logging
     uvicorn.run(
         "app.main:socketio_app",
         host=settings.HOST,
         port=settings.PORT,
         reload=settings.DEBUG,
-        log_level="warning" if not settings.DEBUG else "info",
-        access_log=False,
+        log_level="warning",  # Only warnings and errors from uvicorn
+        access_log=False,  # Disable access logs for cleaner output
         loop="uvloop" if sys.platform != "win32" else "asyncio",
     )
 

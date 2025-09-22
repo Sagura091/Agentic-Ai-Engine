@@ -5,7 +5,8 @@ This package contains database models, schemas, and database configuration.
 """
 
 # Import all models to ensure they are registered with SQLAlchemy
-from .agent import Agent, Conversation, Message, TaskExecution
+from .agent import Agent, TaskExecution
+from .auth import ConversationDB as Conversation, MessageDB as Message
 from .workflow import (
     Workflow, WorkflowExecution, WorkflowStepExecution, WorkflowTemplate,
     NodeDefinition, WorkflowNode, WorkflowConnection, NodeExecutionState
@@ -14,25 +15,25 @@ from .tool import Tool, AgentTool, ToolExecution, ToolCategory, ToolTemplate
 from .user import User, UserCreate, UserUpdate, UserInDB, Token, TokenData
 from .autonomous import (
     AutonomousAgentState, AutonomousGoalDB, AutonomousDecisionDB,
-    AgentMemoryDB, LearningExperienceDB, PerformanceMetricDB
+    AgentMemoryDB, LearningExperienceDB
+    # REMOVED: PerformanceMetricDB (system metrics, not learning-related)
 )
 from .document import (
     DocumentDB, DocumentChunkDB, DocumentMetadata, DocumentChunkMetadata,
     DocumentCreateRequest, DocumentUploadResponse, DocumentSearchResult
 )
-# New enhanced models
-from .model_management import (
-    ModelRegistry, ModelUsageLog, ModelDownloadHistory, ModelPerformanceMetrics
-)
+# OPTIMIZED: Only essential models imported
 from .knowledge_base import (
-    KnowledgeBase, KnowledgeBaseAccess, KnowledgeBaseUsageLog, KnowledgeBaseTemplate
+    KnowledgeBase, KnowledgeBaseAccess
+    # REMOVED: KnowledgeBaseUsageLog, KnowledgeBaseTemplate (unnecessary complexity)
 )
+from .auth import UserDB
 from .enhanced_user import (
-    UserDB, UserSession, Role, UserRoleAssignment, UserAuditLog
+    UserSession
+    # REMOVED: Role, UserRoleAssignment, UserAuditLog (roles in users.user_group, audit not needed)
 )
-from .api_management import (
-    APIKey, APIKeyUsageLog, RateLimitLog, APIQuotaUsage, APIEndpointMetrics
-)
+# REMOVED: All model_management imports (handled by external APIs)
+# API management models removed - replaced with user-owned API key system
 from .database.base import Base
 
 __all__ = [
@@ -72,20 +73,18 @@ __all__ = [
     "Token",
     "TokenData",
 
-    # Enhanced user models
+    # Enhanced user models (OPTIMIZED)
     "UserDB",
     "UserSession",
-    "Role",
-    "UserRoleAssignment",
-    "UserAuditLog",
+    # REMOVED: "Role", "UserRoleAssignment", "UserAuditLog" (roles in users.user_group)
 
-    # Autonomous agent models
+    # Autonomous agent models (PRESERVED - Essential for Learning)
     "AutonomousAgentState",
     "AutonomousGoalDB",
     "AutonomousDecisionDB",
     "AgentMemoryDB",
     "LearningExperienceDB",
-    "PerformanceMetricDB",
+    # REMOVED: "PerformanceMetricDB" (system metrics, not learning)
 
     # Document models
     "DocumentDB",
@@ -96,22 +95,13 @@ __all__ = [
     "DocumentUploadResponse",
     "DocumentSearchResult",
 
-    # Model management models
-    "ModelRegistry",
-    "ModelUsageLog",
-    "ModelDownloadHistory",
-    "ModelPerformanceMetrics",
-
-    # Knowledge base models
+    # Knowledge base models (OPTIMIZED)
     "KnowledgeBase",
     "KnowledgeBaseAccess",
-    "KnowledgeBaseUsageLog",
-    "KnowledgeBaseTemplate",
+    # REMOVED: "KnowledgeBaseUsageLog", "KnowledgeBaseTemplate" (unnecessary complexity)
 
-    # API management models
-    "APIKey",
-    "APIKeyUsageLog",
-    "RateLimitLog",
-    "APIQuotaUsage",
-    "APIEndpointMetrics"
+    # REMOVED: All model management models (handled by external APIs)
+    # REMOVED: "ModelRegistry", "ModelUsageLog", "ModelDownloadHistory", "ModelPerformanceMetrics"
+
+    # API management models removed - replaced with user-owned API key system in auth.py
 ]

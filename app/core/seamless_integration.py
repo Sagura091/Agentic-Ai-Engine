@@ -72,13 +72,19 @@ class SeamlessIntegrationManager:
             raise
     
     async def _initialize_unified_orchestrator(self) -> None:
-        """Initialize the unified system orchestrator."""
+        """Initialize the enhanced unified system orchestrator."""
         try:
-            self.unified_orchestrator = await get_system_orchestrator()
+            from app.core.unified_system_orchestrator import get_enhanced_system_orchestrator
+            self.unified_orchestrator = get_enhanced_system_orchestrator()
+
+            # Initialize the enhanced orchestrator if not already initialized
+            if not self.unified_orchestrator.is_initialized:
+                await self.unified_orchestrator.initialize()
+
             self.integration_status["unified_orchestrator"] = "initialized"
-            logger.info("Unified system orchestrator initialized")
+            logger.info("Enhanced unified system orchestrator initialized")
         except Exception as e:
-            logger.error("Unified system orchestrator initialization failed", error=str(e))
+            logger.error("Enhanced unified system orchestrator initialization failed", error=str(e))
             raise
     
     async def _verify_integrations(self) -> None:

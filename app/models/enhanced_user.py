@@ -18,75 +18,7 @@ from sqlalchemy.sql import func
 from app.models.database.base import Base
 
 
-class UserDB(Base):
-    """Enhanced user model with full authentication support."""
-
-    __tablename__ = "users"
-    __table_args__ = {'extend_existing': True}
-    
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    
-    # Basic information
-    username = Column(String(255), nullable=False, unique=True, index=True)
-    email = Column(String(255), nullable=False, unique=True, index=True)
-    full_name = Column(String(255))
-    
-    # Authentication
-    hashed_password = Column(String(255), nullable=False)
-    password_salt = Column(String(255))
-    password_reset_token = Column(String(255), unique=True)
-    password_reset_expires = Column(DateTime(timezone=True))
-    
-    # Account status
-    is_active = Column(Boolean, default=True, index=True)
-    is_verified = Column(Boolean, default=False, index=True)
-    is_superuser = Column(Boolean, default=False, index=True)
-    
-    # Email verification
-    email_verification_token = Column(String(255), unique=True)
-    email_verified_at = Column(DateTime(timezone=True))
-    
-    # Profile information
-    avatar_url = Column(String(500))
-    bio = Column(Text)
-    timezone = Column(String(50), default='UTC')
-    language = Column(String(10), default='en')
-    
-    # Activity tracking
-    last_login = Column(DateTime(timezone=True))
-    last_activity = Column(DateTime(timezone=True))
-    login_count = Column(Integer, default=0)
-    failed_login_attempts = Column(Integer, default=0)
-    locked_until = Column(DateTime(timezone=True))
-    
-    # Preferences and settings
-    preferences = Column(JSON, default=dict)
-    notification_settings = Column(JSON, default=dict)
-    privacy_settings = Column(JSON, default=dict)
-    
-    # Subscription and limits
-    subscription_tier = Column(String(50), default='free')  # free, pro, enterprise
-    api_quota_daily = Column(Integer, default=1000)
-    api_quota_monthly = Column(Integer, default=10000)
-    storage_limit_mb = Column(Float, default=100.0)
-    
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    deleted_at = Column(DateTime(timezone=True))  # Soft delete
-    
-    # Metadata
-    user_metadata = Column(JSON, default=dict)
-    
-    # Relationships
-    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
-    api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
-    role_assignments = relationship("UserRoleAssignment", back_populates="user", foreign_keys="UserRoleAssignment.user_id", cascade="all, delete-orphan")
-    audit_logs = relationship("UserAuditLog", back_populates="user", cascade="all, delete-orphan")
-    
-    def __repr__(self):
-        return f"<UserDB(id={self.id}, username='{self.username}', email='{self.email}')>"
+# UserDB class removed - now imported from app.models.auth to avoid conflicts
 
 
 class UserSession(Base):

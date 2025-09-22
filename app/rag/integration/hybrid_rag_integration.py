@@ -263,26 +263,32 @@ _hybrid_rag_integration: Optional[HybridRAGIntegration] = None
 async def get_hybrid_rag_integration() -> Optional[HybridRAGIntegration]:
     """Get the global hybrid RAG integration instance."""
     global _hybrid_rag_integration
-    
+
     if _hybrid_rag_integration is None:
         try:
             # Get the RAG system and tool repository
             from ...core.unified_system_orchestrator import get_enhanced_system_orchestrator
             from ...tools.unified_tool_repository import get_unified_tool_repository
-            
+
+            # Get the RAG system and tool repository
             orchestrator = get_enhanced_system_orchestrator()
             tool_repository = get_unified_tool_repository()
-            
+
             if orchestrator and orchestrator.unified_rag and tool_repository:
                 _hybrid_rag_integration = HybridRAGIntegration(
                     rag_system=orchestrator.unified_rag,
                     tool_repository=tool_repository
                 )
                 await _hybrid_rag_integration.initialize()
-            
+                logger.info("✅ Hybrid RAG Integration initialized successfully")
+            else:
+                logger.warning("⚠️ RAG integration dependencies not available - skipping initialization")
+
         except Exception as e:
             logger.error(f"Failed to create hybrid RAG integration: {e}")
-    
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+
     return _hybrid_rag_integration
 
 

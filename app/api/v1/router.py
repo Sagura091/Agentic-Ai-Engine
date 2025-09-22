@@ -28,13 +28,61 @@ from app.api.v1.endpoints import (
     rag_upload,
     database_management,
     nodes,
-    session_documents
+    session_documents,
+    auth,
+    # projects,  # REMOVED: Project management not implemented in optimized schema
+    conversations,
+    # notifications,  # REMOVED: Notifications not implemented in optimized schema
+    user_api_keys,
+    sso
 )
 
 # Create the main API router
 api_router = APIRouter()
 
 # Include endpoint routers
+
+# Authentication API (Core user management)
+api_router.include_router(
+    auth.router,
+    prefix="/auth",
+    tags=["authentication"],
+)
+
+# REMOVED: Project Management API (not implemented in optimized schema)
+# api_router.include_router(
+#     projects.router,
+#     prefix="/projects",
+#     tags=["project-management"],
+# )
+
+# Conversation Management API (Chat history)
+api_router.include_router(
+    conversations.router,
+    prefix="/conversations",
+    tags=["conversation-management"],
+)
+
+# REMOVED: Notification System API (not implemented in optimized schema)
+# api_router.include_router(
+#     notifications.router,
+#     prefix="/notifications",
+#     tags=["notification-system"],
+# )
+
+# User API Keys Management (External provider API keys)
+api_router.include_router(
+    user_api_keys.router,
+    prefix="/api-keys",
+    tags=["user-api-keys"],
+)
+
+# Single Sign-On (SSO) Authentication (Conditional - only if enabled)
+api_router.include_router(
+    sso.router,
+    tags=["single-sign-on"],
+)
+
 api_router.include_router(
     health.router,
     prefix="/health",

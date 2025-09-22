@@ -15,7 +15,14 @@ from pydantic import BaseModel, Field
 
 from app.core.auth import get_current_user
 from app.models.user import User
-from app.models.database.migrations.run_all_migrations import MasterMigrationRunner
+import sys
+from pathlib import Path
+
+# Add db/migrations to path for migration imports
+migrations_path = Path(__file__).parent.parent.parent.parent.parent / "db" / "migrations"
+sys.path.insert(0, str(migrations_path))
+
+from run_all_migrations import MasterMigrationRunner
 from app.services.knowledge_base_migration_service import knowledge_base_migration_service
 
 logger = structlog.get_logger(__name__)
