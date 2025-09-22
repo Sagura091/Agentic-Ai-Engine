@@ -22,6 +22,13 @@ from .password_security_tool import password_security_tool
 from .notification_alert_tool import notification_alert_tool
 from .qr_barcode_tool import qr_barcode_tool
 from .weather_environmental_tool import weather_environmental_tool
+from .screenshot_analysis_tool import screenshot_analysis_tool
+from .browser_automation_tool import browser_automation_tool
+from .computer_use_agent_tool import computer_use_agent_tool
+from .revolutionary_document_intelligence_tool import RevolutionaryDocumentIntelligenceTool
+
+# Create instance of the revolutionary document intelligence tool
+revolutionary_document_intelligence_tool = RevolutionaryDocumentIntelligenceTool()
 
 __all__ = [
     "file_system_tool",
@@ -31,7 +38,11 @@ __all__ = [
     "password_security_tool",
     "notification_alert_tool",
     "qr_barcode_tool",
-    "weather_environmental_tool"
+    "weather_environmental_tool",
+    "screenshot_analysis_tool",
+    "browser_automation_tool",
+    "computer_use_agent_tool",
+    "revolutionary_document_intelligence_tool"
 ]
 
 # Tool registry for easy access
@@ -43,7 +54,11 @@ PRODUCTION_TOOLS = {
     "password_security": password_security_tool,
     "notification_alert": notification_alert_tool,
     "qr_barcode": qr_barcode_tool,
-    "weather_environmental": weather_environmental_tool
+    "weather_environmental": weather_environmental_tool,
+    "screenshot_analysis": screenshot_analysis_tool,
+    "browser_automation": browser_automation_tool,
+    "computer_use_agent": computer_use_agent_tool,
+    "revolutionary_document_intelligence": revolutionary_document_intelligence_tool
 }
 
 def get_production_tool(tool_name: str):

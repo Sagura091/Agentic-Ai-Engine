@@ -37,7 +37,7 @@ logger = structlog.get_logger(__name__)
 
 
 class ToolCategory(str, Enum):
-    """Categories of tools in the repository - SIMPLIFIED."""
+    """Categories of tools in the repository - ENHANCED WITH AUTOMATION."""
     RAG_ENABLED = "rag_enabled"       # Tools that use RAG system
     COMPUTATION = "computation"       # Calculator, math tools
     COMMUNICATION = "communication"   # Agent communication tools
@@ -47,6 +47,7 @@ class ToolCategory(str, Enum):
     DATA = "data"                     # Database operations, data management
     ANALYSIS = "analysis"             # Text processing, NLP, analytics
     SECURITY = "security"             # Password, security, authentication
+    AUTOMATION = "automation"         # Browser automation, desktop automation, visual analysis
 
 
 class ToolAccessLevel(str, Enum):

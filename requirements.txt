@@ -69,3 +69,68 @@ sentry-sdk[fastapi]>=1.38.0
 
 # Performance
 orjson>=3.9.10
+
+# 🚀 REVOLUTIONARY AUTOMATION TOOLS DEPENDENCIES
+# Screenshot Analysis & Computer Vision
+opencv-python>=4.8.0
+opencv-contrib-python>=4.8.0
+opencv-python-headless>=4.8.0
+Pillow>=10.0.0
+scikit-image>=0.21.0
+
+# OCR Engines for Screenshot Analysis
+pytesseract>=0.3.10
+easyocr>=1.7.0
+paddleocr>=3.2.0
+
+# Browser Automation with Visual Intelligence
+playwright>=1.40.0
+pyautogui>=0.9.54
+
+# Desktop Automation & Computer Use
+pygetwindow>=0.0.9
+pyscreeze>=1.0.1
+pytweening>=1.2.0
+mouseinfo>=0.1.3
+pymsgbox>=2.0.1
+pyperclip>=1.10.0
+
+# Computer Vision & Image Processing
+shapely>=2.0.0
+pyclipper>=1.3.0
+python-bidi>=0.6.6
+
+# Multi-modal LLM Support
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Additional Automation Dependencies
+ninja>=1.11.0
+cython>=3.0.0
+
+# Note: tesseract-ocr requires system installation
+# Windows: Download from https://github.com/UB-Mannheim/tesseract/wiki
+# Linux: sudo apt-get install tesseract-ocr
+# macOS: brew install tesseract
+
+# 🔥 REVOLUTIONARY DOCUMENT INTELLIGENCE TOOL DEPENDENCIES
+# Document Processing Libraries
+python-docx>=0.8.11
+openpyxl>=3.1.0
+python-pptx>=0.6.21
+PyPDF2>=3.0.0
+reportlab>=4.0.0
+
+# PDF Generation and Processing
+pypdf>=3.17.0
+pdfplumber>=0.9.0
+
+# Template Engine (already included but ensuring version)
+jinja2>=3.1.0
+
+# Document Format Detection
+python-magic>=0.4.27
+
+# Additional Document Processing
+xlsxwriter>=3.1.0
+python-docx2txt>=0.8

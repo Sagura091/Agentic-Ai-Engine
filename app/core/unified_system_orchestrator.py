@@ -431,6 +431,95 @@ class UnifiedSystemOrchestrator:
             except Exception as e:
                 logger.warning(f"Failed to register weather & environmental tool: {e}")
 
+            # 🚀 REVOLUTIONARY AUTOMATION TOOLS - NEW CATEGORY
+            try:
+                from app.tools.production.screenshot_analysis_tool import screenshot_analysis_tool
+
+                metadata = ToolMetadata(
+                    tool_id="screenshot_analysis",
+                    name="🚀 Revolutionary Screenshot Analysis Tool",
+                    description="Revolutionary screenshot analysis with multi-modal LLM integration - OCR, UI element detection, visual reasoning, context analysis, and automation suggestions using Ollama llama4:scout + API providers",
+                    category=ToolCategory.AUTOMATION,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=False,
+                    use_cases=[
+                        "screenshot_analysis", "visual_understanding", "ui_detection",
+                        "automation_planning", "visual_reasoning", "ocr_analysis",
+                        "desktop_automation", "browser_automation", "testing_automation"
+                    ]
+                )
+                await self.tool_repository.register_tool(screenshot_analysis_tool, metadata)
+                logger.info("🚀 Registered REVOLUTIONARY Screenshot Analysis Tool")
+            except Exception as e:
+                logger.warning(f"Failed to register screenshot analysis tool: {e}")
+
+            try:
+                from app.tools.production.browser_automation_tool import browser_automation_tool
+
+                metadata = ToolMetadata(
+                    tool_id="browser_automation",
+                    name="🚀 Revolutionary Browser Automation Tool",
+                    description="Revolutionary browser automation with visual intelligence - Navigate websites, click elements using visual description, type into forms, scroll pages, extract data, and perform complex web workflows using computer vision + LLM reasoning",
+                    category=ToolCategory.AUTOMATION,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=False,
+                    use_cases=[
+                        "web_automation", "browser_control", "visual_web_interaction",
+                        "form_filling", "data_extraction", "web_scraping",
+                        "ui_testing", "workflow_automation", "web_navigation"
+                    ]
+                )
+                await self.tool_repository.register_tool(browser_automation_tool, metadata)
+                logger.info("🚀 Registered REVOLUTIONARY Browser Automation Tool")
+            except Exception as e:
+                logger.warning(f"Failed to register browser automation tool: {e}")
+
+            try:
+                from app.tools.production.computer_use_agent_tool import computer_use_agent_tool
+
+                metadata = ToolMetadata(
+                    tool_id="computer_use_agent",
+                    name="🚀 Revolutionary Computer Use Agent Tool",
+                    description="Revolutionary computer use agent with visual intelligence and security - Full desktop automation, application control, visual element interaction, system commands, and cross-platform desktop workflows with sandboxed execution",
+                    category=ToolCategory.AUTOMATION,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=False,
+                    use_cases=[
+                        "desktop_automation", "application_control", "visual_desktop_interaction",
+                        "system_administration", "file_operations", "cross_platform_automation",
+                        "ui_testing", "workflow_automation", "system_commands"
+                    ]
+                )
+                await self.tool_repository.register_tool(computer_use_agent_tool, metadata)
+                logger.info("🚀 Registered REVOLUTIONARY Computer Use Agent Tool")
+            except Exception as e:
+                logger.warning(f"Failed to register computer use agent tool: {e}")
+
+            try:
+                from app.tools.production.revolutionary_document_intelligence_tool import RevolutionaryDocumentIntelligenceTool
+
+                # Create instance
+                document_intelligence_tool = RevolutionaryDocumentIntelligenceTool()
+
+                metadata = ToolMetadata(
+                    tool_id="revolutionary_document_intelligence",
+                    name="🔥 Revolutionary Document Intelligence Tool",
+                    description="The most advanced AI-powered document processing tool - Multi-format analysis (PDF, Word, Excel, PowerPoint), intelligent content modification, template-based generation, format conversion, form filling, batch processing, and secure download links with background processing",
+                    category=ToolCategory.AUTOMATION,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=True,
+                    use_cases=[
+                        "document_analysis", "document_modification", "document_generation",
+                        "format_conversion", "template_creation", "form_filling",
+                        "batch_processing", "content_extraction", "document_intelligence",
+                        "pdf_processing", "word_processing", "excel_processing", "powerpoint_processing"
+                    ]
+                )
+                await self.tool_repository.register_tool(document_intelligence_tool, metadata)
+                logger.info("🔥 Registered REVOLUTIONARY Document Intelligence Tool")
+            except Exception as e:
+                logger.warning(f"Failed to register revolutionary document intelligence tool: {e}")
+
             # Import and register business intelligence tool
             try:
                 from app.tools.business_intelligence_tool import BusinessIntelligenceTool

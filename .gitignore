@@ -210,7 +210,49 @@ simple_*
 *_simple_*
 *_simple.*
 
-# Generated meme files
+# ===================================
+# IMAGE & MEDIA FILES
+# ===================================
+# Common image formats
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.tif
+*.webp
+*.svg
+*.ico
+*.psd
+*.ai
+*.eps
+*.raw
+*.cr2
+*.nef
+*.orf
+*.sr2
+
+# Video formats
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.mkv
+*.m4v
+
+# Audio formats
+*.mp3
+*.wav
+*.flac
+*.aac
+*.ogg
+*.wma
+*.m4a
+
+# Generated meme files (keeping existing specific patterns)
 generated_*.png
 google_meme_*.png
 

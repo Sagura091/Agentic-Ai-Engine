@@ -27,7 +27,8 @@ from app.api.v1.endpoints import (
     embedding_models,
     rag_upload,
     database_management,
-    nodes
+    nodes,
+    session_documents
 )
 
 # Create the main API router
@@ -180,6 +181,12 @@ api_router.include_router(
 api_router.include_router(
     database_management.router,
     tags=["database-management"],
+)
+
+# Session Documents API (Revolutionary session-based document processing)
+api_router.include_router(
+    session_documents.router,
+    tags=["session-documents"],
 )
 
 
