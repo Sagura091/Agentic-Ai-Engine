@@ -17,7 +17,7 @@
 		email: '',
 		password: '',
 		confirmPassword: '',
-		full_name: ''
+		name: ''  // Changed from full_name to name to match backend
 	};
 
 	let showPassword = false;
@@ -34,30 +34,43 @@
 	$: isRegFormValid = registrationData.username && registrationData.email && registrationData.password && passwordsMatch;
 
 	onMount(async () => {
+		console.log('🎬 Login page: onMount started');
 		mounted = true;
 		// Clear any existing errors
 		authStore.clearError();
 
 		// Redirect if already authenticated
 		if ($authStore.isAuthenticated) {
+			console.log('🔄 Login page: User already authenticated, redirecting to dashboard');
 			goto('/dashboard');
 			return;
 		}
 
 		// Check if this is first-time setup
-		console.log('Checking first-time setup...');
+		console.log('🔍 Login page: Checking first-time setup...');
 		try {
+			console.log('🔄 Login page: Calling authStore.checkFirstTimeSetup()');
 			isFirstTimeSetup = await authStore.checkFirstTimeSetup();
-			console.log('First-time setup result:', isFirstTimeSetup);
+			console.log('✅ Login page: First-time setup result:', isFirstTimeSetup);
+
 			if (isFirstTimeSetup) {
 				showRegistrationForm = true;
-				console.log('Showing registration form for first-time setup');
+				console.log('📝 Login page: Setting showRegistrationForm = true');
+				console.log('🎯 Login page: Showing registration form for first-time setup');
 			} else {
-				console.log('Showing login form - users exist');
+				showRegistrationForm = false;
+				console.log('📝 Login page: Setting showRegistrationForm = false');
+				console.log('🎯 Login page: Showing login form - users exist');
 			}
+
+			console.log('📊 Login page: Final state - showRegistrationForm:', showRegistrationForm);
 		} catch (error) {
-			console.error('Error checking first-time setup:', error);
+			console.error('❌ Login page: Error checking first-time setup:', error);
+			showRegistrationForm = false;
+			console.log('📝 Login page: Set showRegistrationForm = false due to error');
 		}
+
+		console.log('🏁 Login page: onMount completed');
 	});
 
 	async function handleLogin() {
@@ -96,7 +109,7 @@
 				username: registrationData.username,
 				email: registrationData.email,
 				password: registrationData.password,
-				full_name: registrationData.full_name || undefined
+				name: registrationData.name || undefined  // Changed from full_name to name
 			});
 		} catch (error) {
 			console.error('Registration failed:', error);
@@ -230,7 +243,7 @@
 						</div>
 						<input
 							type="text"
-							bind:value={registrationData.full_name}
+							bind:value={registrationData.name}
 							placeholder="Full Name (Optional)"
 							class="form-input pl-12 group-focus-within:scale-105 transition-transform duration-300"
 						/>

@@ -173,7 +173,7 @@ async def register_user(
         return token_response
 
     except ValueError as e:
-        get_logger().warning(
+        get_logger().warn(
             f"User registration failed: {str(e)}",
             LogCategory.SECURITY_EVENTS,
             "AuthAPI",
@@ -241,7 +241,7 @@ async def login_user(
         return token_response
 
     except ValueError as e:
-        get_logger().warning(
+        get_logger().warn(
             f"Login failed: {str(e)}",
             LogCategory.SECURITY_EVENTS,
             "AuthAPI",
@@ -296,7 +296,7 @@ async def refresh_access_token(
         return token_response
 
     except ValueError as e:
-        get_logger().warning(
+        get_logger().warn(
             f"Token refresh failed: {str(e)}",
             LogCategory.SECURITY_EVENTS,
             "AuthAPI",

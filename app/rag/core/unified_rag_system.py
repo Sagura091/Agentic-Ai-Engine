@@ -200,6 +200,7 @@ class UnifiedRAGSystem:
         }
 
         self.is_initialized = False
+        self._config_lock = asyncio.Lock()  # For thread-safe config updates
         logger.info("Unified RAG System initialized")
     
     async def initialize(self) -> None:
@@ -654,5 +655,168 @@ class UnifiedRAGSystem:
         except Exception as e:
             logger.error(f"Failed to get stats for agent {agent_id}: {str(e)}")
             return {"error": str(e)}
+
+    # ============================================================================
+    # 🚀 REVOLUTIONARY DYNAMIC RECONFIGURATION SYSTEM
+    # ============================================================================
+
+    async def update_configuration(self, new_config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        🚀 Revolutionary method to update RAG system configuration in real-time
+        without requiring server restart.
+
+        Args:
+            new_config: Dictionary of configuration updates
+
+        Returns:
+            Dictionary with update results and any warnings
+        """
+        async with self._config_lock:
+            try:
+                logger.info("🔄 Starting dynamic RAG configuration update...")
+
+                # Track what was updated
+                updates_applied = []
+                warnings = []
+
+                # Create new config with updates
+                current_config_dict = self.config.dict()
+                current_config_dict.update(new_config)
+
+                # Validate new configuration
+                try:
+                    new_rag_config = UnifiedRAGConfig(**current_config_dict)
+                except Exception as e:
+                    logger.error(f"❌ Invalid configuration: {str(e)}")
+                    return {
+                        "success": False,
+                        "error": f"Invalid configuration: {str(e)}",
+                        "updates_applied": [],
+                        "warnings": []
+                    }
+
+                # Check if embedding model changed
+                if new_rag_config.embedding_model != self.config.embedding_model:
+                    await self._update_embedding_model(new_rag_config.embedding_model)
+                    updates_applied.append(f"embedding_model: {self.config.embedding_model} → {new_rag_config.embedding_model}")
+
+                # Check if chunk settings changed
+                if (new_rag_config.chunk_size != self.config.chunk_size or
+                    new_rag_config.chunk_overlap != self.config.chunk_overlap):
+                    updates_applied.append(f"chunk_size: {self.config.chunk_size} → {new_rag_config.chunk_size}")
+                    updates_applied.append(f"chunk_overlap: {self.config.chunk_overlap} → {new_rag_config.chunk_overlap}")
+                    warnings.append("Chunk size changes will apply to new documents only. Existing documents retain their original chunking.")
+
+                # Check if retrieval settings changed
+                if new_rag_config.top_k != self.config.top_k:
+                    updates_applied.append(f"top_k: {self.config.top_k} → {new_rag_config.top_k}")
+
+                if new_rag_config.batch_size != self.config.batch_size:
+                    updates_applied.append(f"batch_size: {self.config.batch_size} → {new_rag_config.batch_size}")
+
+                # Check if isolation settings changed
+                if new_rag_config.strict_isolation != self.config.strict_isolation:
+                    updates_applied.append(f"strict_isolation: {self.config.strict_isolation} → {new_rag_config.strict_isolation}")
+                    if not new_rag_config.strict_isolation:
+                        warnings.append("Disabling strict isolation may allow agents to access each other's data.")
+
+                # Check if memory settings changed
+                if new_rag_config.short_term_ttl_hours != self.config.short_term_ttl_hours:
+                    updates_applied.append(f"short_term_ttl_hours: {self.config.short_term_ttl_hours} → {new_rag_config.short_term_ttl_hours}")
+
+                if new_rag_config.long_term_max_items != self.config.long_term_max_items:
+                    updates_applied.append(f"long_term_max_items: {self.config.long_term_max_items} → {new_rag_config.long_term_max_items}")
+
+                # Apply the new configuration
+                self.config = new_rag_config
+
+                logger.info(f"✅ RAG configuration updated successfully. Applied {len(updates_applied)} changes.")
+
+                return {
+                    "success": True,
+                    "message": f"RAG configuration updated successfully with {len(updates_applied)} changes",
+                    "updates_applied": updates_applied,
+                    "warnings": warnings,
+                    "timestamp": datetime.now().isoformat()
+                }
+
+            except Exception as e:
+                logger.error(f"❌ Failed to update RAG configuration: {str(e)}")
+                return {
+                    "success": False,
+                    "error": f"Failed to update configuration: {str(e)}",
+                    "updates_applied": [],
+                    "warnings": []
+                }
+
+    async def _update_embedding_model(self, new_model: str) -> None:
+        """Update the embedding model dynamically."""
+        try:
+            logger.info(f"🔄 Updating embedding model to: {new_model}")
+
+            # Create new embedding function
+            if new_model.startswith("openai/"):
+                # OpenAI embedding model
+                model_name = new_model.replace("openai/", "")
+                self.embedding_function = embedding_functions.OpenAIEmbeddingFunction(
+                    model_name=model_name
+                )
+            elif new_model.startswith("cohere/"):
+                # Cohere embedding model
+                model_name = new_model.replace("cohere/", "")
+                self.embedding_function = embedding_functions.CohereEmbeddingFunction(
+                    model_name=model_name
+                )
+            else:
+                # Default to sentence transformers
+                self.embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
+                    model_name=new_model
+                )
+
+            logger.info(f"✅ Embedding model updated to: {new_model}")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to update embedding model: {str(e)}")
+            raise
+
+    async def get_current_configuration(self) -> Dict[str, Any]:
+        """Get the current RAG system configuration."""
+        return {
+            "config": self.config.dict(),
+            "stats": self.stats,
+            "is_initialized": self.is_initialized,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    async def reload_system(self) -> Dict[str, Any]:
+        """
+        🚀 Revolutionary method to completely reload the RAG system
+        with current configuration (useful for major changes).
+        """
+        try:
+            logger.info("🔄 Reloading RAG system...")
+
+            # Store current config
+            current_config = self.config
+
+            # Reinitialize the system
+            self.is_initialized = False
+            await self.initialize()
+
+            logger.info("✅ RAG system reloaded successfully")
+
+            return {
+                "success": True,
+                "message": "RAG system reloaded successfully",
+                "config": current_config.dict(),
+                "timestamp": datetime.now().isoformat()
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Failed to reload RAG system: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Failed to reload system: {str(e)}"
+            }
 
 

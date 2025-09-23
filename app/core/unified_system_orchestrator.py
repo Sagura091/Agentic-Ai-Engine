@@ -176,6 +176,63 @@ class UnifiedSystemOrchestrator:
             await self.unified_rag.initialize()
             self.status.components_status["unified_rag"] = True
 
+            # 🚀 Initialize Revolutionary Dynamic RAG Configuration Manager
+            logger.info("   🔧 Initializing Revolutionary Dynamic RAG Configuration Manager...")
+            from app.rag.core.dynamic_config_manager import initialize_rag_config_manager, rag_config_manager
+            await initialize_rag_config_manager(self.unified_rag)
+            logger.info("   ✅ RAG Configuration Manager initialized - Real-time updates enabled!")
+
+            # 🚀 Initialize Revolutionary Global Configuration Manager
+            logger.info("   🌐 Initializing Revolutionary Global Configuration Manager...")
+            from app.core.global_config_manager import global_config_manager, initialize_global_config_manager
+            from app.core.config_sections.rag_section_manager import RAGSectionManager
+            from app.core.config_sections.llm_section_manager import LLMSectionManager
+            from app.core.config_sections.memory_section_manager import MemorySectionManager
+            from app.core.config_observers.rag_observer import RAGConfigurationObserver
+            from app.core.config_observers.llm_observer import LLMConfigurationObserver
+            from app.core.config_observers.memory_observer import MemoryConfigurationObserver
+
+            # Initialize the global configuration manager
+            await initialize_global_config_manager()
+
+            # Register RAG section manager
+            rag_section_manager = RAGSectionManager()
+            rag_section_manager.set_rag_system(self.unified_rag)
+            rag_section_manager.set_rag_config_manager(rag_config_manager)
+            global_config_manager.register_section_manager(rag_section_manager)
+
+            # Register RAG configuration observer
+            rag_observer = RAGConfigurationObserver(self.unified_rag, rag_config_manager)
+            global_config_manager.register_observer(rag_observer)
+
+            # 🚀 Register LLM Provider Section Manager
+            logger.info("   🤖 Registering LLM Provider Section Manager...")
+            llm_section_manager = LLMSectionManager()
+            # LLM service and manager will be set when they're initialized
+            global_config_manager.register_section_manager(llm_section_manager)
+
+            # Register LLM configuration observer
+            llm_observer = LLMConfigurationObserver()
+            # LLM service and manager will be set when they're initialized
+            global_config_manager.register_observer(llm_observer)
+
+            # 🚀 Register Memory System Section Manager
+            logger.info("   🧠 Registering Memory System Section Manager...")
+            memory_section_manager = MemorySectionManager()
+            memory_section_manager.set_unified_rag_system(self.unified_rag)
+            # Unified memory system will be set when it's initialized
+            global_config_manager.register_section_manager(memory_section_manager)
+
+            # Register Memory configuration observer
+            memory_observer = MemoryConfigurationObserver()
+            memory_observer.set_unified_rag_system(self.unified_rag)
+            # Unified memory system will be set when it's initialized
+            global_config_manager.register_observer(memory_observer)
+
+            logger.info("   ✅ Global Configuration Manager initialized - Revolutionary real-time configuration management enabled!")
+            logger.info("   ✅ LLM Provider Configuration Manager registered - Real-time provider switching enabled!")
+            logger.info("   ✅ Memory System Configuration Manager registered - Real-time memory management enabled!")
+
             # 2. Initialize THE CollectionBasedKBManager (THE knowledge base system)
             logger.info("   📚 Initializing THE CollectionBasedKBManager...")
             self.kb_manager = CollectionBasedKBManager(self.unified_rag)
@@ -202,6 +259,22 @@ class UnifiedSystemOrchestrator:
             self.memory_system = UnifiedMemorySystem(self.unified_rag)
             await self.memory_system.initialize()
             self.status.components_status["memory_system"] = True
+
+            # 🚀 Register memory system with configuration managers
+            logger.info("   🔧 Registering memory system with configuration managers...")
+            from app.core.global_config_manager import global_config_manager
+
+            # Find and update memory section manager
+            for section_manager in global_config_manager._section_managers.values():
+                if hasattr(section_manager, 'set_unified_memory_system'):
+                    section_manager.set_unified_memory_system(self.memory_system)
+                    logger.info("   ✅ Memory system registered with memory section manager")
+
+            # Find and update memory observer
+            for observer in global_config_manager._observers.get("memory_system", []):
+                if hasattr(observer, 'set_unified_memory_system'):
+                    observer.set_unified_memory_system(self.memory_system)
+                    logger.info("   ✅ Memory system registered with memory observer")
 
             # 2. Initialize THE UnifiedToolRepository (THE tool system)
             logger.info("   🔧 Initializing THE UnifiedToolRepository...")
@@ -1030,6 +1103,32 @@ class AgentBuilderSystemIntegration:
             self.llm_manager = get_enhanced_llm_manager()
             if not self.llm_manager.is_initialized():
                 await self.llm_manager.initialize()
+
+            # 🚀 Register LLM manager with configuration managers
+            logger.info("   🔧 Registering LLM manager with configuration managers...")
+            from app.core.global_config_manager import global_config_manager
+            from app.services.llm_service import get_llm_service, initialize_llm_service
+
+            # Initialize LLM service
+            llm_service = await initialize_llm_service()
+
+            # Find and update LLM section manager
+            for section_manager in global_config_manager._section_managers.values():
+                if hasattr(section_manager, 'set_llm_manager'):
+                    section_manager.set_llm_manager(self.llm_manager)
+                    logger.info("   ✅ LLM manager registered with LLM section manager")
+                if hasattr(section_manager, 'set_llm_service'):
+                    section_manager.set_llm_service(llm_service)
+                    logger.info("   ✅ LLM service registered with LLM section manager")
+
+            # Find and update LLM observer
+            for observer in global_config_manager._observers.get("llm_providers", []):
+                if hasattr(observer, 'set_llm_manager'):
+                    observer.set_llm_manager(self.llm_manager)
+                    logger.info("   ✅ LLM manager registered with LLM observer")
+                if hasattr(observer, 'set_llm_service'):
+                    observer.set_llm_service(llm_service)
+                    logger.info("   ✅ LLM service registered with LLM observer")
 
             # Initialize agent factory
             self.agent_factory = AgentBuilderFactory(self.llm_manager)

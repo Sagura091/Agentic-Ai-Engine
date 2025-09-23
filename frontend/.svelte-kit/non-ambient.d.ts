@@ -27,17 +27,24 @@ export {};
 
 declare module "$app/types" {
 	export interface AppTypes {
-		RouteId(): "/" | "/dashboard" | "/login" | "/test";
+		RouteId(): "/" | "/admin" | "/admin/enhanced-settings" | "/admin/settings" | "/agents" | "/dashboard" | "/debug" | "/login" | "/profile" | "/test" | "/workflows";
 		RouteParams(): {
 			
 		};
 		LayoutParams(): {
 			"/": Record<string, never>;
+			"/admin": Record<string, never>;
+			"/admin/enhanced-settings": Record<string, never>;
+			"/admin/settings": Record<string, never>;
+			"/agents": Record<string, never>;
 			"/dashboard": Record<string, never>;
+			"/debug": Record<string, never>;
 			"/login": Record<string, never>;
-			"/test": Record<string, never>
+			"/profile": Record<string, never>;
+			"/test": Record<string, never>;
+			"/workflows": Record<string, never>
 		};
-		Pathname(): "/" | "/dashboard" | "/dashboard/" | "/login" | "/login/" | "/test" | "/test/";
+		Pathname(): "/" | "/admin" | "/admin/" | "/admin/enhanced-settings" | "/admin/enhanced-settings/" | "/admin/settings" | "/admin/settings/" | "/agents" | "/agents/" | "/dashboard" | "/dashboard/" | "/debug" | "/debug/" | "/login" | "/login/" | "/profile" | "/profile/" | "/test" | "/test/" | "/workflows" | "/workflows/";
 		ResolvedPathname(): `${"" | `/${string}`}${ReturnType<AppTypes['Pathname']>}`;
 		Asset(): "/favicon.png" | string & {};
 	}

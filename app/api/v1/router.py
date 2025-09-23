@@ -33,8 +33,12 @@ from app.api.v1.endpoints import (
     # projects,  # REMOVED: Project management not implemented in optimized schema
     conversations,
     # notifications,  # REMOVED: Notifications not implemented in optimized schema
-    user_api_keys,
-    sso
+    user_api_keys,  # OPTIMIZED: Simple API key management in users.api_keys JSON field
+    # sso  # REMOVED: SSO not implemented in optimized schema
+    user_settings,
+    user_profile,
+    admin_settings,
+    enhanced_admin_settings,
 )
 
 # Create the main API router
@@ -77,11 +81,11 @@ api_router.include_router(
     tags=["user-api-keys"],
 )
 
-# Single Sign-On (SSO) Authentication (Conditional - only if enabled)
-api_router.include_router(
-    sso.router,
-    tags=["single-sign-on"],
-)
+# Single Sign-On (SSO) Authentication (REMOVED - not implemented in optimized schema)
+# api_router.include_router(
+#     sso.router,
+#     tags=["single-sign-on"],
+# )
 
 api_router.include_router(
     health.router,
@@ -811,3 +815,28 @@ async def get_active_workflows() -> Dict[str, Any]:
     except Exception as e:
         logger.error("Failed to get active workflows", error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to get active workflows: {str(e)}")
+
+
+# User Settings API (User preferences and configuration)
+api_router.include_router(
+    user_settings.router,
+    tags=["user-settings"],
+)
+
+# User Profile API (User identity and public information)
+api_router.include_router(
+    user_profile.router,
+    tags=["user-profile"],
+)
+
+# Admin Settings API (System administration)
+api_router.include_router(
+    admin_settings.router,
+    tags=["admin-settings"],
+)
+
+# Enhanced Admin Settings API (Revolutionary admin panel)
+api_router.include_router(
+    enhanced_admin_settings.router,
+    tags=["enhanced-admin-settings"],
+)

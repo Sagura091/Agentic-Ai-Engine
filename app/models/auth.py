@@ -1,18 +1,30 @@
 """
-Authentication and User Management Models.
+OPTIMIZED Authentication and User Management Models
 
-This module provides SQLAlchemy models for user authentication,
-session management, and user profiles with proper database integration.
+This module contains the essential database models for the optimized Agentic AI platform.
+Only includes models that match the simplified database schema.
+
+PRESERVED:
+- UserDB: Essential user authentication
+- ConversationDB: Chat history management  
+- MessageDB: Message storage
+- Pydantic models for API requests/responses
+
+REMOVED:
+- ProjectDB, ProjectMemberDB: Project management not implemented
+- NotificationDB: Notifications not implemented
+- UserAPIKeyDB, UserAgentDB, UserWorkflowDB: Complex ownership tracking removed
+- KeycloakConfigDB: SSO not implemented in optimized schema
 """
 
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
+from datetime import datetime
+from typing import Optional, Dict, Any
 from uuid import uuid4
 
-from sqlalchemy import Column, String, Boolean, DateTime, JSON, Integer, Float, Text, ForeignKey
+from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey, JSON, Integer
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from pydantic import BaseModel, Field, EmailStr
 from pydantic.types import UUID4
 
@@ -20,7 +32,7 @@ from app.models.database.base import Base
 
 
 class UserDB(Base):
-    """Enhanced user model with full authentication support."""
+    """OPTIMIZED user model matching simplified database schema."""
 
     __tablename__ = "users"
     __table_args__ = {'extend_existing': True}
@@ -28,75 +40,37 @@ class UserDB(Base):
     # Primary key
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     
-    # Basic information
+    # Basic information (ESSENTIAL ONLY)
     username = Column(String(255), nullable=False, unique=True, index=True)
     email = Column(String(255), nullable=False, unique=True, index=True)
-    full_name = Column(String(255))
+    name = Column(String(255), nullable=True)  # Display name/full name
     
-    # Authentication
+    # Authentication (ESSENTIAL ONLY)
     hashed_password = Column(String(255), nullable=False)
-    password_salt = Column(String(255))
-    password_reset_token = Column(String(255), unique=True)
-    password_reset_expires = Column(DateTime(timezone=True))
-    
-    # Account status
+    password_salt = Column(String(255), nullable=True)  # For password hashing
+
+    # Account status (ESSENTIAL ONLY)
     is_active = Column(Boolean, default=True, nullable=False)
-    is_verified = Column(Boolean, default=False, nullable=False)
 
-    # Enhanced User Groups (simplified 3-tier system)
-    user_group = Column(String(20), default='user', nullable=False, index=True)  # user, moderator, admin
+    # User Groups (integrated roles - simplified 3-tier system)
+    user_group = Column(String(50), default='user', nullable=False)  # user, moderator, admin
 
-    # Login tracking
-    last_login = Column(DateTime(timezone=True))
-    login_count = Column(Integer, default=0)
-    failed_login_attempts = Column(Integer, default=0)
-    locked_until = Column(DateTime(timezone=True))
-    last_password_change = Column(DateTime(timezone=True))
+    # Login tracking and security
+    failed_login_attempts = Column(Integer, default=0, nullable=False)
+    locked_until = Column(DateTime(timezone=True), nullable=True)
+    last_login = Column(DateTime(timezone=True), nullable=True)
+    login_count = Column(Integer, default=0, nullable=False)
 
-    # Multi-factor authentication
-    mfa_enabled = Column(Boolean, default=False)
-    mfa_secret = Column(String(255))  # TOTP secret
-    backup_codes = Column(JSON, default=list)  # Recovery codes
+    # API Keys Storage (ESSENTIAL for external providers)
+    api_keys = Column(JSON, default=dict)  # {"openai": "sk-...", "anthropic": "sk-...", "google": "...", "microsoft": "..."}
 
-    # SSO Integration
-    keycloak_user_id = Column(String(255), unique=True, index=True)  # Keycloak user ID
-    sso_provider = Column(String(50))  # keycloak, google, github, etc.
-    sso_enabled = Column(Boolean, default=False)
-
-    # Email verification
-    email_verification_token = Column(String(255))
-    email_verification_expires = Column(DateTime(timezone=True))
-
-    # Profile information
-    avatar_url = Column(String(500))
-    bio = Column(Text)
-    timezone = Column(String(50), default='UTC')
-    language = Column(String(10), default='en')
-
-    # Preferences and settings
-    preferences = Column(JSON, default=dict)
-    notification_settings = Column(JSON, default=dict)
-    privacy_settings = Column(JSON, default=dict)
-    
-    # Timestamps
+    # Timestamps (matching optimized database schema)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    deleted_at = Column(DateTime(timezone=True))  # Soft delete
     
-    # Metadata
-    user_metadata = Column(JSON, default=dict)
-    
-    # Relationships
-    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
-    api_keys = relationship("UserAPIKeyDB", back_populates="user", cascade="all, delete-orphan")
-    owned_agents = relationship("UserAgentDB", back_populates="user", cascade="all, delete-orphan")
-    owned_workflows = relationship("UserWorkflowDB", back_populates="user", cascade="all, delete-orphan")
-    projects = relationship("ProjectDB", back_populates="owner", cascade="all, delete-orphan")
+    # Relationships (OPTIMIZED - only essential tables)
     conversations = relationship("ConversationDB", back_populates="user", cascade="all, delete-orphan")
-    notifications = relationship("NotificationDB", back_populates="user", cascade="all, delete-orphan")
-    project_memberships = relationship("ProjectMemberDB", back_populates="user", foreign_keys="ProjectMemberDB.user_id", cascade="all, delete-orphan")
-    role_assignments = relationship("UserRoleAssignment", back_populates="user", foreign_keys="UserRoleAssignment.user_id", cascade="all, delete-orphan")
-    audit_logs = relationship("UserAuditLog", back_populates="user", cascade="all, delete-orphan")
+    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<UserDB(id={self.id}, username='{self.username}', email='{self.email}', group='{self.user_group}')>"
@@ -111,97 +85,40 @@ class UserDB(Base):
         """Check if user is moderator or admin."""
         return self.user_group in ['moderator', 'admin']
 
-    @property
-    def is_superuser(self) -> bool:
-        """Compatibility property for existing code."""
-        return self.is_admin
-
     def has_permission(self, permission: str) -> bool:
-        """Check if user has specific permission based on group."""
+        """Check if user has specific permission based on user group."""
         permissions = {
-            'user': ['read_own', 'write_own', 'create_agents', 'create_workflows', 'create_projects'],
-            'moderator': ['read_own', 'write_own', 'create_agents', 'create_workflows', 'create_projects',
-                         'moderate_content', 'manage_users', 'view_all_projects'],
+            'user': ['read', 'create_conversation', 'create_message'],
+            'moderator': ['read', 'write', 'moderate', 'create_conversation', 'create_message', 'manage_users'],
             'admin': ['*']  # All permissions
         }
-
         user_permissions = permissions.get(self.user_group, [])
         return '*' in user_permissions or permission in user_permissions
 
+    def get_api_key(self, provider: str) -> Optional[str]:
+        """Get API key for a specific provider."""
+        if not self.api_keys:
+            return None
+        return self.api_keys.get(provider)
 
-# UserSessionDB removed - using UserSession from enhanced_user.py to avoid table conflicts
+    def set_api_key(self, provider: str, api_key: str) -> None:
+        """Set API key for a specific provider."""
+        if not self.api_keys:
+            self.api_keys = {}
+        self.api_keys[provider] = api_key
 
+    def remove_api_key(self, provider: str) -> bool:
+        """Remove API key for a specific provider. Returns True if key existed."""
+        if not self.api_keys or provider not in self.api_keys:
+            return False
+        del self.api_keys[provider]
+        return True
 
-class ProjectDB(Base):
-    """Project/Workspace model for organizing user work."""
-
-    __tablename__ = "projects"
-    __table_args__ = {'extend_existing': True}
-    
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    
-    # Foreign key to owner
-    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    
-    # Project information
-    name = Column(String(255), nullable=False)
-    description = Column(Text)
-    color = Column(String(7), default='#3B82F6')  # Hex color
-    icon = Column(String(50), default='folder')
-    
-    # Project settings
-    is_public = Column(Boolean, default=False)
-    is_archived = Column(Boolean, default=False)
-    settings = Column(JSON, default=dict)
-    
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    deleted_at = Column(DateTime(timezone=True))  # Soft delete
-    
-    # Relationships
-    owner = relationship("UserDB", back_populates="projects")
-    members = relationship("ProjectMemberDB", back_populates="project", cascade="all, delete-orphan")
-    conversations = relationship("ConversationDB", back_populates="project")
-
-    def __repr__(self):
-        return f"<Project(id={self.id}, name={self.name}, owner_id={self.owner_id})>"
-
-
-class ProjectMemberDB(Base):
-    """Project membership model for collaboration."""
-
-    __tablename__ = "project_members"
-    __table_args__ = {'extend_existing': True}
-    
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    
-    # Foreign keys
-    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    
-    # Membership information
-    role = Column(String(50), default='member')  # owner, admin, member, viewer
-    permissions = Column(JSON, default=dict)
-    
-    # Status
-    is_active = Column(Boolean, default=True)
-    invited_by = Column(UUID(as_uuid=True), ForeignKey("users.id"))
-    joined_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    
-    # Relationships
-    project = relationship("ProjectDB", back_populates="members")
-    user = relationship("UserDB", foreign_keys=[user_id])
-    inviter = relationship("UserDB", foreign_keys=[invited_by])
-
-    def __repr__(self):
-        return f"<ProjectMember(project_id={self.project_id}, user_id={self.user_id}, role={self.role})>"
+    def get_available_providers(self) -> list:
+        """Get list of providers with stored API keys."""
+        if not self.api_keys:
+            return []
+        return list(self.api_keys.keys())
 
 
 class ConversationDB(Base):
@@ -214,29 +131,21 @@ class ConversationDB(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     
     # Foreign keys
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
-    
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False, index=True)
+    agent_id = Column(UUID(as_uuid=True), ForeignKey('agents.id'), nullable=True, index=True)  # Optional agent
+
     # Conversation information
-    title = Column(String(255), nullable=False)
-    description = Column(Text)
-    agent_id = Column(UUID(as_uuid=True), ForeignKey("agents.id"), nullable=True, index=True)  # Associated agent
-    
-    # Conversation settings
-    is_archived = Column(Boolean, default=False)
-    is_pinned = Column(Boolean, default=False)
-    tags = Column(JSON, default=list)
-    conversation_metadata = Column(JSON, default=dict)
+    title = Column(String(255))
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    last_message_at = Column(DateTime(timezone=True))
-    deleted_at = Column(DateTime(timezone=True))  # Soft delete
+    
+    # Metadata
+    conversation_metadata = Column(JSON, default=dict)
     
     # Relationships
     user = relationship("UserDB", back_populates="conversations")
-    project = relationship("ProjectDB", back_populates="conversations")
     agent = relationship("Agent", back_populates="conversations")
     messages = relationship("MessageDB", back_populates="conversation", cascade="all, delete-orphan")
 
@@ -254,82 +163,35 @@ class MessageDB(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     
     # Foreign key
-    conversation_id = Column(UUID(as_uuid=True), ForeignKey("conversations.id"), nullable=False)
+    conversation_id = Column(UUID(as_uuid=True), ForeignKey('conversations.id'), nullable=False, index=True)
     
     # Message information
     role = Column(String(50), nullable=False)  # user, assistant, system
     content = Column(Text, nullable=False)
-    content_type = Column(String(50), default='text')  # text, markdown, html, json
-    
-    # Message metadata
-    agent_id = Column(String(255))  # Which agent sent this message
-    tool_calls = Column(JSON, default=list)
-    attachments = Column(JSON, default=list)
-    message_metadata = Column(JSON, default=dict)
-    
-    # Message status
-    is_edited = Column(Boolean, default=False)
-    is_deleted = Column(Boolean, default=False)
-    parent_message_id = Column(UUID(as_uuid=True), ForeignKey("messages.id"))
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Metadata
+    message_metadata = Column(JSON, default=dict)
     
     # Relationships
     conversation = relationship("ConversationDB", back_populates="messages")
-    parent_message = relationship("MessageDB", remote_side=[id])
 
     def __repr__(self):
         return f"<Message(id={self.id}, role={self.role}, conversation_id={self.conversation_id})>"
 
 
-class NotificationDB(Base):
-    """Notification model for user alerts."""
+# ============================================================================
+# PYDANTIC MODELS FOR API REQUESTS/RESPONSES
+# ============================================================================
 
-    __tablename__ = "notifications"
-    __table_args__ = {'extend_existing': True}
-    
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    
-    # Foreign key
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    
-    # Notification information
-    title = Column(String(255), nullable=False)
-    message = Column(Text, nullable=False)
-    type = Column(String(50), nullable=False)  # info, success, warning, error
-    category = Column(String(50), default='general')  # agent, system, project, etc.
-    
-    # Notification data
-    data = Column(JSON, default=dict)
-    action_url = Column(String(500))
-    
-    # Status
-    is_read = Column(Boolean, default=False)
-    is_dismissed = Column(Boolean, default=False)
-    read_at = Column(DateTime(timezone=True))
-    
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    expires_at = Column(DateTime(timezone=True))
-    
-    # Relationships
-    user = relationship("UserDB", back_populates="notifications")
-
-    def __repr__(self):
-        return f"<Notification(id={self.id}, title={self.title}, user_id={self.user_id})>"
-
-
-# Pydantic models for API requests/responses
 class UserCreate(BaseModel):
-    """User creation request model."""
+    """OPTIMIZED user creation request model."""
     username: str = Field(..., min_length=3, max_length=50, description="Username")
     email: EmailStr = Field(..., description="Email address")
+    name: str = Field(..., min_length=1, max_length=255, description="Full name or display name")
     password: str = Field(..., min_length=8, description="Password")
-    full_name: Optional[str] = Field(None, max_length=255, description="Full name")
 
 
 class UserLogin(BaseModel):
@@ -340,20 +202,16 @@ class UserLogin(BaseModel):
 
 
 class UserResponse(BaseModel):
-    """User response model."""
-    id: str
+    """OPTIMIZED user response model."""
+    id: UUID4  # Changed from str to UUID4 to match database UUID type
     username: str
     email: str
-    full_name: Optional[str]
+    name: Optional[str] = None  # Display name/full name
     is_active: bool
-    is_verified: bool
-    avatar_url: Optional[str]
-    bio: Optional[str]
-    timezone: str
-    language: str
-    subscription_tier: str
+    user_group: str
+    api_keys: Optional[Dict[str, str]] = None  # Provider -> API key mapping
     created_at: datetime
-    last_login: Optional[datetime]
+    updated_at: datetime
 
     class Config:
         from_attributes = True
@@ -368,373 +226,17 @@ class TokenResponse(BaseModel):
     user: UserResponse
 
 
-class ProjectCreate(BaseModel):
-    """Project creation request model."""
-    name: str = Field(..., min_length=1, max_length=255, description="Project name")
-    description: Optional[str] = Field(None, description="Project description")
-    color: Optional[str] = Field("#3B82F6", description="Project color (hex)")
-    icon: Optional[str] = Field("folder", description="Project icon")
-    is_public: bool = Field(default=False, description="Is project public")
-
-
-class ProjectResponse(BaseModel):
-    """Project response model."""
-    id: str
-    name: str
-    description: Optional[str]
-    color: str
-    icon: str
-    is_public: bool
-    is_archived: bool
-    owner_id: str
-    created_at: datetime
-    updated_at: datetime
-    member_count: Optional[int] = 0
-
-    class Config:
-        from_attributes = True
-
-
-# ============================================================================
-# NEW ENHANCED MODELS FOR USER API KEYS, AGENT/WORKFLOW OWNERSHIP, AND SSO
-# ============================================================================
-
-class UserAPIKeyDB(Base):
-    """User API keys for external providers (OpenAI, Anthropic, Google, Microsoft)."""
-
-    __tablename__ = "user_api_keys"
-
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-
-    # Foreign key
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
-
-    # API key information
-    provider = Column(String(50), nullable=False, index=True)  # openai, anthropic, google, microsoft
-    key_name = Column(String(100), nullable=False)  # User-friendly name
-    encrypted_api_key = Column(Text, nullable=False)  # Encrypted API key
-    key_hash = Column(String(64), nullable=False, index=True)  # Hash for validation
-
-    # Key configuration
-    is_active = Column(Boolean, default=True, nullable=False)
-    is_default = Column(Boolean, default=False)  # Default key for this provider
-
-    # Usage tracking (not for billing, just monitoring)
-    last_used = Column(DateTime(timezone=True))
-    usage_count = Column(Integer, default=0)
-
-    # Key metadata
-    key_metadata = Column(JSON, default=dict)  # Provider-specific settings
-
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    expires_at = Column(DateTime(timezone=True))  # Optional expiration
-
-    # Relationships
-    user = relationship("UserDB", back_populates="api_keys")
-
-    def __repr__(self):
-        return f"<UserAPIKeyDB(id={self.id}, user_id={self.user_id}, provider='{self.provider}', name='{self.key_name}')>"
-
-
-class UserAgentDB(Base):
-    """User-owned agents tracking."""
-
-    __tablename__ = "user_agents"
-
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-
-    # Foreign key
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
-
-    # Agent information
-    agent_id = Column(String(255), nullable=False, index=True)  # Reference to actual agent
-    agent_name = Column(String(255), nullable=False)
-    agent_type = Column(String(50), nullable=False)  # basic, react, rag, autonomous, etc.
-
-    # Agent configuration
-    agent_config = Column(JSON, default=dict)
-    is_public = Column(Boolean, default=False)  # Can other users see/use this agent
-    is_template = Column(Boolean, default=False)  # Can be used as template
-
-    # Status
-    is_active = Column(Boolean, default=True)
-    is_favorite = Column(Boolean, default=False)
-
-    # Usage statistics
-    usage_count = Column(Integer, default=0)
-    last_used = Column(DateTime(timezone=True))
-
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    # Metadata
-    agent_metadata = Column(JSON, default=dict)
-
-    # Relationships
-    user = relationship("UserDB", back_populates="owned_agents")
-
-    def __repr__(self):
-        return f"<UserAgentDB(id={self.id}, user_id={self.user_id}, agent_name='{self.agent_name}', type='{self.agent_type}')>"
-
-
-class UserWorkflowDB(Base):
-    """User-owned workflows tracking."""
-
-    __tablename__ = "user_workflows"
-
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-
-    # Foreign key
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
-
-    # Workflow information
-    workflow_id = Column(String(255), nullable=False, index=True)  # Reference to actual workflow
-    workflow_name = Column(String(255), nullable=False)
-    workflow_type = Column(String(50), nullable=False)  # hierarchical, multi_agent, visual, etc.
-
-    # Workflow configuration
-    workflow_config = Column(JSON, default=dict)
-    is_public = Column(Boolean, default=False)  # Can other users see/use this workflow
-    is_template = Column(Boolean, default=False)  # Can be used as template
-
-    # Status
-    is_active = Column(Boolean, default=True)
-    is_favorite = Column(Boolean, default=False)
-
-    # Usage statistics
-    execution_count = Column(Integer, default=0)
-    last_executed = Column(DateTime(timezone=True))
-
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    # Metadata
-    workflow_metadata = Column(JSON, default=dict)
-
-    # Relationships
-    user = relationship("UserDB", back_populates="owned_workflows")
-
-    def __repr__(self):
-        return f"<UserWorkflowDB(id={self.id}, user_id={self.user_id}, workflow_name='{self.workflow_name}', type='{self.workflow_type}')>"
-
-
-class KeycloakConfigDB(Base):
-    """Keycloak SSO configuration."""
-
-    __tablename__ = "keycloak_config"
-
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-
-    # Keycloak configuration
-    realm = Column(String(255), nullable=False)
-    server_url = Column(String(500), nullable=False)
-    client_id = Column(String(255), nullable=False)
-    client_secret = Column(String(500))  # Encrypted
-
-    # Configuration settings
-    is_active = Column(Boolean, default=True)
-    auto_create_users = Column(Boolean, default=True)
-    default_user_group = Column(String(20), default='user')
-
-    # Role mapping
-    role_mappings = Column(JSON, default=dict)  # Map Keycloak roles to local groups
-
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    def __repr__(self):
-        return f"<KeycloakConfigDB(id={self.id}, realm='{self.realm}', client_id='{self.client_id}')>"
-
-
-# ============================================================================
-# PYDANTIC MODELS FOR NEW FEATURES
-# ============================================================================
-
-class UserAPIKeyCreate(BaseModel):
-    """User API key creation model."""
-    provider: str = Field(..., description="Provider name (openai, anthropic, google, microsoft)")
-    key_name: str = Field(..., description="User-friendly name for the key")
-    api_key: str = Field(..., description="The actual API key")
-    is_default: bool = Field(default=False, description="Set as default key for this provider")
-    key_metadata: Optional[dict] = Field(default=None, description="Provider-specific settings")
-
-
-class UserAPIKeyResponse(BaseModel):
-    """User API key response model."""
-    id: str
-    provider: str
-    key_name: str
-    is_active: bool
-    is_default: bool
-    last_used: Optional[datetime]
-    usage_count: int
-    created_at: datetime
-    expires_at: Optional[datetime]
-    key_metadata: dict
-
-    class Config:
-        from_attributes = True
-
-
-class UserAPIKeyUpdate(BaseModel):
-    """User API key update model."""
-    key_name: Optional[str] = Field(default=None, description="Updated key name")
-    is_active: Optional[bool] = Field(default=None, description="Active status")
-    is_default: Optional[bool] = Field(default=None, description="Set as default for provider")
-    expires_at: Optional[datetime] = Field(default=None, description="Expiration date")
-    key_metadata: Optional[dict] = Field(default=None, description="Provider-specific settings")
-
-
-class UserAgentCreate(BaseModel):
-    """User agent creation model."""
-    agent_id: str = Field(..., description="Reference to actual agent")
-    agent_name: str = Field(..., description="Agent name")
-    agent_type: str = Field(..., description="Agent type")
-    agent_config: Optional[dict] = Field(default=None, description="Agent configuration")
-    is_public: bool = Field(default=False, description="Make agent public")
-    is_template: bool = Field(default=False, description="Allow as template")
-
-
-class UserAgentResponse(BaseModel):
-    """User agent response model."""
-    id: str
-    agent_id: str
-    agent_name: str
-    agent_type: str
-    is_public: bool
-    is_template: bool
-    is_active: bool
-    is_favorite: bool
-    usage_count: int
-    last_used: Optional[datetime]
-    created_at: datetime
-    agent_metadata: dict
-
-    class Config:
-        from_attributes = True
-
-
-class UserWorkflowCreate(BaseModel):
-    """User workflow creation model."""
-    workflow_id: str = Field(..., description="Reference to actual workflow")
-    workflow_name: str = Field(..., description="Workflow name")
-    workflow_type: str = Field(..., description="Workflow type")
-    workflow_config: Optional[dict] = Field(default=None, description="Workflow configuration")
-    is_public: bool = Field(default=False, description="Make workflow public")
-    is_template: bool = Field(default=False, description="Allow as template")
-
-
-class UserWorkflowResponse(BaseModel):
-    """User workflow response model."""
-    id: str
-    workflow_id: str
-    workflow_name: str
-    workflow_type: str
-    is_public: bool
-    is_template: bool
-    is_active: bool
-    is_favorite: bool
-    execution_count: int
-    last_executed: Optional[datetime]
-    created_at: datetime
-    workflow_metadata: dict
-
-    class Config:
-        from_attributes = True
-
-
-class KeycloakConfigCreate(BaseModel):
-    """Keycloak configuration creation model."""
-    realm: str = Field(..., description="Keycloak realm")
-    server_url: str = Field(..., description="Keycloak server URL")
-    client_id: str = Field(..., description="Client ID")
-    client_secret: str = Field(..., description="Client secret")
-    auto_create_users: bool = Field(default=True, description="Auto-create users from Keycloak")
-    default_user_group: str = Field(default='user', description="Default group for new users")
-    role_mappings: Optional[dict] = Field(default=None, description="Role mappings")
-
-
-class KeycloakConfigResponse(BaseModel):
-    """Keycloak configuration response model."""
-    id: str
-    realm: str
-    server_url: str
-    client_id: str
-    is_active: bool
-    auto_create_users: bool
-    default_user_group: str
-    role_mappings: dict
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class KeycloakConfigCreate(BaseModel):
-    """Keycloak configuration creation model."""
-    realm: str = Field(..., description="Keycloak realm name")
-    server_url: str = Field(..., description="Keycloak server URL")
-    client_id: str = Field(..., description="OAuth2 client ID")
-    client_secret: str = Field(..., description="OAuth2 client secret")
-    auto_create_users: bool = Field(default=True, description="Auto-create users from SSO")
-    default_user_group: str = Field(default="user", description="Default group for SSO users")
-    role_mappings: Optional[dict] = Field(default=None, description="Role mappings")
-
-
-class KeycloakConfigUpdate(BaseModel):
-    """Keycloak configuration update model."""
-    realm: Optional[str] = Field(default=None, description="Keycloak realm name")
-    server_url: Optional[str] = Field(default=None, description="Keycloak server URL")
-    client_id: Optional[str] = Field(default=None, description="OAuth2 client ID")
-    client_secret: Optional[str] = Field(default=None, description="OAuth2 client secret")
-    is_active: Optional[bool] = Field(default=None, description="Configuration active status")
-    auto_create_users: Optional[bool] = Field(default=None, description="Auto-create users from SSO")
-    default_user_group: Optional[str] = Field(default=None, description="Default group for SSO users")
-    role_mappings: Optional[dict] = Field(default=None, description="Role mappings")
-
-
-class KeycloakConfigResponse(BaseModel):
-    """Keycloak configuration response model."""
-    id: str
-    realm: str
-    server_url: str
-    client_id: str
-    is_active: bool
-    auto_create_users: bool
-    default_user_group: str
-    role_mappings: dict
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-# Conversation Pydantic models
 class ConversationCreate(BaseModel):
     """Model for creating a new conversation."""
-
     title: Optional[str] = None
     conversation_metadata: Optional[Dict[str, Any]] = None
 
 
 class ConversationResponse(BaseModel):
     """Response model for conversation data."""
-
     id: UUID4
     user_id: UUID4
     title: Optional[str]
-    conversation_metadata: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
 
@@ -744,39 +246,41 @@ class ConversationResponse(BaseModel):
 
 class MessageCreate(BaseModel):
     """Model for creating a new message."""
-
     role: str
     content: str
-    conversation_metadata: Optional[Dict[str, Any]] = None
+    message_metadata: Optional[Dict[str, Any]] = None
 
 
 class MessageResponse(BaseModel):
     """Response model for message data."""
-
     id: UUID4
     conversation_id: UUID4
     role: str
     content: str
-    conversation_metadata: Optional[Dict[str, Any]] = None
     created_at: datetime
-    updated_at: datetime
 
     class Config:
         from_attributes = True
 
 
-# Notification Pydantic models
-class NotificationResponse(BaseModel):
-    """Response model for notification data."""
+# ============================================================================
+# API KEY MANAGEMENT MODELS
+# ============================================================================
 
-    id: UUID4
-    user_id: UUID4
-    title: str
-    message: str
-    notification_type: str
-    is_read: bool = False
-    created_at: datetime
-    updated_at: datetime
+class APIKeyUpdate(BaseModel):
+    """Model for updating user API keys."""
+    provider: str = Field(..., description="Provider name (openai, anthropic, google, microsoft, etc.)")
+    api_key: str = Field(..., description="The API key")
+
+
+class APIKeyDelete(BaseModel):
+    """Model for deleting user API keys."""
+    provider: str = Field(..., description="Provider name to remove")
+
+
+class APIKeysResponse(BaseModel):
+    """Response model for user API keys (without exposing actual keys)."""
+    providers: list = Field(..., description="List of providers with stored keys")
 
     class Config:
         from_attributes = True

@@ -1,5 +1,9 @@
 {
 	"/": [],
+	"/admin/enhanced-settings": [],
+	"/admin/settings": [],
 	"/dashboard": [],
-	"/login": []
+	"/debug": [],
+	"/login": [],
+	"/profile": []
 }

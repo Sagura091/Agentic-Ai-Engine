@@ -39,7 +39,8 @@ from app.models.knowledge_base import (
 )
 from app.models.auth import UserDB
 from app.models.enhanced_user import (
-    UserSession, Role, UserRoleAssignment, UserAuditLog
+    UserSession
+    # REMOVED: Role, UserRoleAssignment, UserAuditLog (roles in users.user_group, audit not needed)
 )
 # API management models removed - replaced with user-owned API key system
 

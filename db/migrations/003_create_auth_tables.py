@@ -18,7 +18,8 @@ from sqlalchemy import text
 from app.config.settings import get_settings
 from app.models.database.base import Base
 from app.models.auth import (
-    UserDB, ConversationDB, MessageDB, UserAPIKeyDB, UserAgentDB, UserWorkflowDB
+    UserDB, ConversationDB, MessageDB
+    # REMOVED: UserAPIKeyDB, UserAgentDB, UserWorkflowDB - these models don't exist
     # REMOVED: ProjectDB, ProjectMemberDB, NotificationDB, KeycloakConfigDB
     # Reason: Project management and notifications not implemented, SSO complexity removed
 )
@@ -46,72 +47,10 @@ async def create_auth_tables():
             # Create tables in the correct order (respecting foreign keys)
             await conn.run_sync(Base.metadata.create_all)
             
-            # Create indexes for better performance
-            await conn.execute(text("""
-                -- User table indexes
-                CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
-                CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-                CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
-                CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
-                
-                -- User sessions indexes
-                CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
-                CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(session_token);
-                CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON user_sessions(expires_at);
-                CREATE INDEX IF NOT EXISTS idx_user_sessions_active ON user_sessions(is_active);
-                
-                -- Projects indexes
-                CREATE INDEX IF NOT EXISTS idx_projects_owner_id ON projects(owner_id);
-                CREATE INDEX IF NOT EXISTS idx_projects_is_public ON projects(is_public);
-                CREATE INDEX IF NOT EXISTS idx_projects_is_archived ON projects(is_archived);
-                CREATE INDEX IF NOT EXISTS idx_projects_created_at ON projects(created_at);
-                CREATE INDEX IF NOT EXISTS idx_projects_name ON projects(name);
-                
-                -- Project members indexes
-                CREATE INDEX IF NOT EXISTS idx_project_members_project_id ON project_members(project_id);
-                CREATE INDEX IF NOT EXISTS idx_project_members_user_id ON project_members(user_id);
-                CREATE INDEX IF NOT EXISTS idx_project_members_role ON project_members(role);
-                CREATE INDEX IF NOT EXISTS idx_project_members_active ON project_members(is_active);
-                
-                -- Conversations indexes
-                CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
-                CREATE INDEX IF NOT EXISTS idx_conversations_project_id ON conversations(project_id);
-                CREATE INDEX IF NOT EXISTS idx_conversations_agent_id ON conversations(agent_id);
-                CREATE INDEX IF NOT EXISTS idx_conversations_created_at ON conversations(created_at);
-                CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations(updated_at);
-                CREATE INDEX IF NOT EXISTS idx_conversations_is_pinned ON conversations(is_pinned);
-                CREATE INDEX IF NOT EXISTS idx_conversations_is_archived ON conversations(is_archived);
-                
-                -- Messages indexes
-                CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
-                CREATE INDEX IF NOT EXISTS idx_messages_role ON messages(role);
-                CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
-                
-                -- Notifications indexes
-                CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
-                CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
-                CREATE INDEX IF NOT EXISTS idx_notifications_priority ON notifications(priority);
-                CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
-                CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
-
-                -- User API Keys indexes
-                CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_id ON user_api_keys(user_id);
-                CREATE INDEX IF NOT EXISTS idx_user_api_keys_provider ON user_api_keys(provider);
-                CREATE INDEX IF NOT EXISTS idx_user_api_keys_is_active ON user_api_keys(is_active);
-                CREATE INDEX IF NOT EXISTS idx_user_api_keys_is_default ON user_api_keys(is_default);
-                CREATE INDEX IF NOT EXISTS idx_user_api_keys_key_hash ON user_api_keys(key_hash);
-
-                -- User Agents indexes
-                CREATE INDEX IF NOT EXISTS idx_user_agents_user_id ON user_agents(user_id);
-                CREATE INDEX IF NOT EXISTS idx_user_agents_agent_id ON user_agents(agent_id);
-                CREATE INDEX IF NOT EXISTS idx_user_agents_agent_type ON user_agents(agent_type);
-                CREATE INDEX IF NOT EXISTS idx_user_agents_is_active ON user_agents(is_active);
-
-                -- User Workflows indexes
-                CREATE INDEX IF NOT EXISTS idx_user_workflows_user_id ON user_workflows(user_id);
-                CREATE INDEX IF NOT EXISTS idx_user_workflows_workflow_id ON user_workflows(workflow_id);
-                CREATE INDEX IF NOT EXISTS idx_user_workflows_is_active ON user_workflows(is_active);
-            """))
+            # Create essential indexes individually (SQLAlchemy already creates most indexes from model definitions)
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id)"))
             
             logger.info("Database indexes created successfully")
             

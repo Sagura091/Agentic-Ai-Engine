@@ -52,10 +52,13 @@ class AuthService:
                     select(func.count(UserDB.id))
                 )
                 user_count = result.scalar()
+                logger.info("First-time setup check", user_count=user_count)
                 return user_count == 0
             except Exception as e:
                 logger.error("Error checking first-time setup status", error=str(e))
-                return False
+                # If users table doesn't exist or there's a DB error, it's likely first-time setup
+                logger.info("Assuming first-time setup due to database error")
+                return True
 
     async def register_user(self, user_data: UserCreate) -> Tuple[UserResponse, TokenResponse]:
         """
@@ -95,24 +98,11 @@ class AuthService:
                 user = UserDB(
                     username=user_data.username,
                     email=user_data.email,
-                    full_name=user_data.full_name,
+                    name=user_data.name,  # Add the name field
                     hashed_password=hashed_password,
-                    password_salt=password_salt,
+                    password_salt=password_salt,  # Add the password salt
                     is_active=True,
-                    is_verified=is_first_user,  # First user is auto-verified
-                    is_admin=is_first_user,     # First user becomes admin
-                    user_group="admin" if is_first_user else "user",  # First user gets admin group
-                    notification_settings={
-                        "email_notifications": True,
-                        "push_notifications": True,
-                        "agent_updates": True,
-                        "system_alerts": True
-                    },
-                    preferences={
-                        "theme": "light",
-                        "language": "en",
-                        "timezone": "UTC"
-                    }
+                    user_group='admin' if is_first_user else 'user'  # First user becomes admin
                 )
                 
                 session.add(user)
@@ -130,10 +120,24 @@ class AuthService:
                 else:
                     logger.info("User registered successfully", user_id=str(user.id), username=user.username)
                 
+                # Refresh user object to ensure all attributes are loaded
+                await session.refresh(user)
+
                 # Create authentication tokens
                 tokens = await self._create_user_session(session, user)
-                user_response = UserResponse.from_orm(user)
-                
+                # Create UserResponse manually to avoid async attribute issues
+                user_response = UserResponse(
+                    id=user.id,
+                    username=user.username,
+                    email=user.email,
+                    name=user.name,
+                    is_active=user.is_active,
+                    user_group=user.user_group,
+                    api_keys=user.api_keys,
+                    created_at=user.created_at,
+                    updated_at=user.updated_at
+                )
+
                 return user_response, tokens
                 
             except Exception as e:
@@ -324,7 +328,19 @@ class AuthService:
                 user_session.last_activity = datetime.now(timezone.utc)
                 await session.commit()
                 
-                return UserResponse.from_orm(user_session.user)
+                # Create UserResponse manually to avoid async attribute issues
+                user = user_session.user
+                return UserResponse(
+                    id=user.id,
+                    username=user.username,
+                    email=user.email,
+                    name=user.name,
+                    is_active=user.is_active,
+                    user_group=user.user_group,
+                    api_keys=user.api_keys,
+                    created_at=user.created_at,
+                    updated_at=user.updated_at
+                )
                 
         except jwt.ExpiredSignatureError:
             logger.warning("Access token expired")
@@ -386,15 +402,29 @@ class AuthService:
         
         session.add(user_session)
         await session.commit()
-        
+
+        # Refresh user object to ensure all attributes are loaded
+        await session.refresh(user)
+
         # Create JWT tokens
         access_token_expires = timedelta(minutes=self.access_token_expire_minutes)
         access_token = self._create_access_token(
             data={"user_id": str(user.id), "session_id": str(session_id)},
             expires_delta=access_token_expires
         )
-        
-        user_response = UserResponse.from_orm(user)
+
+        # Create UserResponse manually to avoid async attribute issues
+        user_response = UserResponse(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            name=user.name,
+            is_active=user.is_active,
+            user_group=user.user_group,
+            api_keys=user.api_keys,
+            created_at=user.created_at,
+            updated_at=user.updated_at
+        )
         
         return TokenResponse(
             access_token=access_token,

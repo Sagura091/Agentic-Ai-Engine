@@ -65,119 +65,22 @@ class UserSession(Base):
         return f"<UserSession(id={self.id}, user_id={self.user_id}, type='{self.session_type}')>"
 
 
-class Role(Base):
-    """Role definitions for RBAC."""
-
-    __tablename__ = "roles"
-    __table_args__ = {'extend_existing': True}
-    
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    
-    # Role information
-    name = Column(String(100), nullable=False, unique=True, index=True)
-    display_name = Column(String(255))
-    description = Column(Text)
-    
-    # Role hierarchy
-    parent_role_id = Column(UUID(as_uuid=True), ForeignKey('roles.id'))
-    level = Column(Integer, default=0)  # Hierarchy level
-    
-    # Role properties
-    is_system_role = Column(Boolean, default=False)  # System-defined roles
-    is_active = Column(Boolean, default=True, index=True)
-    
-    # Permissions
-    permissions = Column(JSON, default=list)  # List of permission strings
-    
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    
-    # Metadata
-    role_metadata = Column(JSON, default=dict)
-    
-    # Relationships
-    user_assignments = relationship("UserRoleAssignment", back_populates="role", cascade="all, delete-orphan")
-    child_roles = relationship("Role", backref="parent_role", remote_side=[id])
-    
-    def __repr__(self):
-        return f"<Role(id={self.id}, name='{self.name}')>"
+# REMOVED: Role model (roles now integrated into users.user_group field)
+# class Role(Base):
+#     """Role definitions for RBAC."""
+#     __tablename__ = "roles"
+#     # ... (model definition removed for optimized schema)
 
 
-class UserRoleAssignment(Base):
-    """User role assignments."""
-
-    __tablename__ = "user_role_assignments"
-    __table_args__ = (
-        UniqueConstraint('user_id', 'role_id', name='unique_user_role'),
-        {'extend_existing': True}
-    )
-    
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    
-    # Foreign keys
-    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False, index=True)
-    role_id = Column(UUID(as_uuid=True), ForeignKey('roles.id'), nullable=False, index=True)
-    
-    # Assignment details
-    assigned_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
-    assigned_at = Column(DateTime(timezone=True), server_default=func.now())
-    expires_at = Column(DateTime(timezone=True))
-    
-    # Status
-    is_active = Column(Boolean, default=True, index=True)
-    
-    # Context and conditions
-    context = Column(JSON, default=dict)  # Additional context for the assignment
-    conditions = Column(JSON, default=dict)  # Conditional permissions
-    
-    # Relationships
-    user = relationship("UserDB", back_populates="role_assignments", foreign_keys=[user_id])
-    role = relationship("Role", back_populates="user_assignments")
-    assigner = relationship("UserDB", foreign_keys=[assigned_by])
-    
-    def __repr__(self):
-        return f"<UserRoleAssignment(user_id={self.user_id}, role_id={self.role_id})>"
+# REMOVED: UserRoleAssignment model (roles now integrated into users.user_group field)
+# class UserRoleAssignment(Base):
+#     """User role assignments."""
+#     __tablename__ = "user_role_assignments"
+#     # ... (model definition removed for optimized schema)
 
 
-class UserAuditLog(Base):
-    """Audit log for user actions."""
-
-    __tablename__ = "user_audit_logs"
-    __table_args__ = {'extend_existing': True}
-    
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    
-    # Foreign key
-    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False, index=True)
-    
-    # Action details
-    action = Column(String(100), nullable=False, index=True)
-    resource_type = Column(String(100), index=True)
-    resource_id = Column(String(255), index=True)
-    
-    # Context
-    ip_address = Column(String(45))
-    user_agent = Column(Text)
-    session_id = Column(UUID(as_uuid=True), ForeignKey('user_sessions.id'))
-    
-    # Results
-    success = Column(Boolean, nullable=False, index=True)
-    error_message = Column(Text)
-    
-    # Additional data
-    old_values = Column(JSON, default=dict)
-    new_values = Column(JSON, default=dict)
-    audit_metadata = Column(JSON, default=dict)
-    
-    # Timestamp
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    # Relationships
-    user = relationship("UserDB", back_populates="audit_logs")
-    
-    def __repr__(self):
-        return f"<UserAuditLog(user_id={self.user_id}, action='{self.action}', success={self.success})>"
+# REMOVED: UserAuditLog model (audit logging not needed for core functionality)
+# class UserAuditLog(Base):
+#     """Audit log for user actions."""
+#     __tablename__ = "user_audit_logs"
+#     # ... (model definition removed for optimized schema)
