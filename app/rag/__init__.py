@@ -26,8 +26,6 @@ from .core.unified_rag_system import UnifiedRAGSystem, UnifiedRAGConfig, AgentCo
 from .core.collection_based_kb_manager import CollectionBasedKBManager, KnowledgeBaseInfo, AccessLevel
 from .core.agent_isolation_manager import AgentIsolationManager, AgentIsolationProfile, IsolationLevel, ResourceQuota
 # Memory system is now in app.memory, not in RAG core
-# from .core.unified_memory_system import UnifiedMemorySystem, UnifiedMemoryConfig, MemoryEntry, MemoryType, MemoryImportance
-# from .core.agent_memory_collections import AgentMemoryCollections, MemoryCollectionType, MemoryCollectionInfo
 
 # Supporting Components (optional - may not be available)
 try:

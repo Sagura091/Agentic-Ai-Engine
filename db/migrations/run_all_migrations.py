@@ -75,6 +75,11 @@ class MasterMigrationRunner:
                 "name": "knowledge_base_data",
                 "description": "Migrate knowledge base data from JSON to database",
                 "runner": self._run_knowledge_base_migration
+            },
+            {
+                "name": "admin_settings_tables",
+                "description": "Create admin settings management tables",
+                "runner": self._run_admin_settings_migration
             }
         ]
     
@@ -170,11 +175,55 @@ class MasterMigrationRunner:
         try:
             result = await knowledge_base_migration_service.migrate_from_json()
             return result
-            
+
         except Exception as e:
             return {
                 "success": False,
                 "message": f"Knowledge base migration failed: {str(e)}"
+            }
+
+    async def _run_admin_settings_migration(self) -> Dict[str, Any]:
+        """Run admin settings tables migration."""
+        try:
+            logger.info("🔧 Running admin settings tables migration...")
+
+            # Import and run the migration
+            import sys
+            from pathlib import Path
+
+            # Add migrations directory to path
+            migrations_dir = Path(__file__).parent
+            sys.path.insert(0, str(migrations_dir))
+
+            # Import the migration module
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "admin_migration",
+                migrations_dir / "006_add_admin_settings_tables.py"
+            )
+            admin_migration = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(admin_migration)
+
+            # Run the upgrade function
+            admin_migration.upgrade()
+
+            # Insert default settings
+            admin_migration.insert_default_settings()
+
+            logger.info("✅ Admin settings tables migration completed successfully")
+
+            return {
+                "success": True,
+                "message": "Admin settings tables created successfully with default data",
+                "tables_created": ["admin_settings", "admin_setting_history", "system_configuration_cache"],
+                "default_settings_inserted": True
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Admin settings migration failed: {str(e)}")
+            return {
+                "success": False,
+                "message": f"Admin settings migration failed: {str(e)}"
             }
     
     async def get_migration_status(self) -> Dict[str, Any]:

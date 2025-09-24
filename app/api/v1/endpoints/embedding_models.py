@@ -21,14 +21,104 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel, Field
 import structlog
 
-from app.rag.core.embedding_model_manager import (
-    embedding_model_manager,
-    UniversalModelInfo,
-    EmbeddingModelInfo,  # Backward compatibility
-    ModelDownloadProgress,
-    ModelType,
-    ModelSource
-)
+# from app.rag.core.embedding_model_manager import (
+#     embedding_model_manager,
+#     UniversalModelInfo,
+#     EmbeddingModelInfo,  # Backward compatibility
+#     ModelDownloadProgress,
+#     ModelType,
+#     ModelSource
+# )
+
+# Temporary fallback classes until embedding model manager is reimplemented
+from enum import Enum
+from typing import Dict, Any, Optional, List
+
+class ModelType(str, Enum):
+    TEXT_EMBEDDING = "text_embedding"
+    RERANKING = "reranking"
+    VISION = "vision"
+    LLM = "llm"
+
+class ModelSource(str, Enum):
+    HUGGINGFACE = "huggingface"
+    OLLAMA = "ollama"
+    OPENAI = "openai"
+
+class UniversalModelInfo(BaseModel):
+    model_id: str
+    model_type: ModelType
+    source: ModelSource
+    status: str = "not_downloaded"
+    size_mb: Optional[float] = None
+    description: Optional[str] = None
+
+class ModelDownloadProgress(BaseModel):
+    model_id: str
+    progress: float
+    status: str
+    message: str
+
+# Backward compatibility
+EmbeddingModelInfo = UniversalModelInfo
+
+# Temporary fallback embedding model manager
+class FallbackEmbeddingModelManager:
+    def __init__(self):
+        self.available_models = {}
+
+    def get_downloaded_models_by_type(self, model_type):
+        return []
+
+    def get_models_by_type(self, model_type):
+        return []
+
+    def get_downloaded_models(self):
+        return []
+
+    def search_models(self, query, model_type_filter=None):
+        return []
+
+    def add_custom_model(self, model_info):
+        return False
+
+    def get_model_info(self, model_id):
+        return None
+
+    def get_download_progress(self, model_id):
+        return None
+
+    def download_model(self, model_id, force_redownload=False):
+        pass
+
+    async def test_model(self, model_id, test_text):
+        return {"success": False, "error": "Model testing not available"}
+
+    def delete_model(self, model_id):
+        return False
+
+    def get_available_models(self):
+        return []
+
+    def get_global_config(self):
+        return {}
+
+    def update_global_config(self, config):
+        pass
+
+    async def test_openai_connection(self, url, key, model):
+        return False
+
+    async def test_azure_connection(self, url, key, version, model):
+        return False
+
+    async def test_ollama_connection(self, url, key, model):
+        return False
+
+    async def test_default_connection(self, model, test_text):
+        return False
+
+embedding_model_manager = FallbackEmbeddingModelManager()
 from app.core.dependencies import get_current_user
 
 logger = structlog.get_logger(__name__)

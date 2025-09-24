@@ -110,9 +110,15 @@ class BaseConfigurationSectionManager(ConfigurationSectionManager):
             
             logger.info(f"✅ Configuration applied successfully for {self.section_name.value}")
             
+            # Generate success message
+            message = f"Configuration applied successfully for {self.section_name.value}"
+            if warnings:
+                message += f" with {len(warnings)} warnings"
+
             return UpdateResult(
                 success=True,
                 section=self.section_name.value,
+                message=message,
                 changes_applied=config,
                 warnings=warnings,
                 rollback_data=rollback_data
@@ -125,6 +131,7 @@ class BaseConfigurationSectionManager(ConfigurationSectionManager):
             return UpdateResult(
                 success=False,
                 section=self.section_name.value,
+                message=f"Configuration update failed for {self.section_name.value}: {error_msg}",
                 errors=[error_msg]
             )
     

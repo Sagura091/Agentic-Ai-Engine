@@ -148,11 +148,13 @@ class EmbeddingManager:
             # Check if we should use the model manager
             if self.config.use_model_manager:
                 try:
-                    from .embedding_model_manager import embedding_model_manager
+                    # from .embedding_model_manager import embedding_model_manager  # Disabled
+                    pass
 
-                    # Check if model is available in model manager
-                    model_info = embedding_model_manager.get_model_info(self.config.model_name)
-                    if model_info and model_info.is_downloaded:
+                    # Check if model is available in model manager (fallback - no manager)
+                    # model_info = embedding_model_manager.get_model_info(self.config.model_name)  # Disabled
+                    model_info = None
+                    if model_info and hasattr(model_info, 'is_downloaded') and model_info.is_downloaded:
                         # Use local model from model manager
                         if not SENTENCE_TRANSFORMERS_AVAILABLE:
                             logger.warning("sentence_transformers not available, using fallback")

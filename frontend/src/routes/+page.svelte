@@ -2,6 +2,9 @@
 	import { onMount } from 'svelte';
 	import { authStore } from '$lib/stores/auth';
 	import { goto } from '$app/navigation';
+
+	// Accept params prop to avoid Svelte warnings
+	export let params: Record<string, string> = {};
 	
 	onMount(() => {
 		// Redirect based on authentication status

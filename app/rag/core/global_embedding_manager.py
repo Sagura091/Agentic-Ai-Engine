@@ -14,7 +14,7 @@ from datetime import datetime
 import structlog
 from pydantic import BaseModel
 
-from .embedding_model_manager import embedding_model_manager
+# from .embedding_model_manager import embedding_model_manager  # Removed - not needed
 from .embeddings import EmbeddingManager, EmbeddingConfig
 
 logger = structlog.get_logger(__name__)
@@ -39,21 +39,18 @@ class GlobalEmbeddingManager:
                 return
                 
             try:
-                # Get global configuration
-                config = embedding_model_manager.get_global_config()
-                
-                # Create embedding config from global config
+                # Create default embedding config
                 embedding_config = EmbeddingConfig(
-                    model_name=config.get("embedding_model", "all-MiniLM-L6-v2"),
-                    batch_size=config.get("embedding_batch_size", 32),
-                    use_model_manager=True  # Use the embedding model manager
+                    model_name="all-MiniLM-L6-v2",
+                    batch_size=32,
+                    use_model_manager=False  # Use direct model loading
                 )
                 
                 # Initialize embedding manager
                 self.embedding_manager = EmbeddingManager(embedding_config)
                 await self.embedding_manager.initialize()
                 
-                self.current_config = config
+                self.current_config = {}
                 self.is_initialized = True
                 
                 logger.info(
@@ -96,34 +93,10 @@ class GlobalEmbeddingManager:
         """Reload the global embedding configuration."""
         async with self._lock:
             try:
-                # Get updated configuration
-                new_config = embedding_model_manager.get_global_config()
-                
-                # Check if configuration changed
-                if self.current_config and self._config_changed(new_config):
-                    logger.info("Global embedding configuration changed, reloading...")
-                    
-                    # Reinitialize with new configuration
-                    embedding_config = EmbeddingConfig(
-                        model_name=new_config.get("embedding_model", "sentence-transformers/all-MiniLM-L6-v2"),
-                        batch_size=new_config.get("embedding_batch_size", 32),
-                        use_model_manager=True
-                    )
-                    
-                    # Create new embedding manager
-                    new_embedding_manager = EmbeddingManager(embedding_config)
-                    await new_embedding_manager.initialize()
-                    
-                    # Replace old manager
-                    self.embedding_manager = new_embedding_manager
-                    self.current_config = new_config
-                    
-                    logger.info(
-                        "Global embedding configuration reloaded",
-                        engine=new_config.get("embedding_engine", ""),
-                        model=new_config.get("embedding_model", "sentence-transformers/all-MiniLM-L6-v2")
-                    )
-                
+                # Skip configuration updates since we removed the model manager
+                logger.info("Configuration reload skipped - using static configuration")
+                return
+
             except Exception as e:
                 logger.error(f"Failed to reload global embedding configuration: {e}")
                 raise
@@ -194,10 +167,7 @@ class GlobalEmbeddingManager:
     def update_config(self, config: Dict[str, Any]) -> None:
         """Update the global embedding configuration."""
         try:
-            # Update the embedding model manager's global config
-            embedding_model_manager.update_global_config(config)
-
-            # Update current config
+            # Update current config (no model manager to update)
             self.current_config = config.copy()
 
             # Reset initialization to force reload

@@ -188,9 +188,11 @@ class UnifiedSystemOrchestrator:
             from app.core.config_sections.rag_section_manager import RAGSectionManager
             from app.core.config_sections.llm_section_manager import LLMSectionManager
             from app.core.config_sections.memory_section_manager import MemorySectionManager
+            from app.core.config_sections.database_section_manager import DatabaseSectionManager
             from app.core.config_observers.rag_observer import RAGConfigurationObserver
             from app.core.config_observers.llm_observer import LLMConfigurationObserver
             from app.core.config_observers.memory_observer import MemoryConfigurationObserver
+            from app.core.config_observers.database_observer import database_observer
 
             # Initialize the global configuration manager
             await initialize_global_config_manager()
@@ -228,6 +230,15 @@ class UnifiedSystemOrchestrator:
             memory_observer.set_unified_rag_system(self.unified_rag)
             # Unified memory system will be set when it's initialized
             global_config_manager.register_observer(memory_observer)
+
+            # 🚀 Register Database Storage Section Manager
+            logger.info("   🗄️ Registering Database Storage Section Manager...")
+            database_section_manager = DatabaseSectionManager()
+            global_config_manager.register_section_manager(database_section_manager)
+
+            # Register Database configuration observer
+            await database_observer.initialize()
+            global_config_manager.register_observer(database_observer)
 
             logger.info("   ✅ Global Configuration Manager initialized - Revolutionary real-time configuration management enabled!")
             logger.info("   ✅ LLM Provider Configuration Manager registered - Real-time provider switching enabled!")

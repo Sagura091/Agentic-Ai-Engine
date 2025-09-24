@@ -63,6 +63,20 @@ The migrations must be run in this exact order to maintain referential integrity
   - `rag.documents` → references knowledge_base_id
   - `rag.document_chunks` → references `rag.documents.id`
 
+### 6. **006_add_admin_settings_tables.py** - Admin Settings Management ✅
+- **Purpose**: Create comprehensive admin settings management system
+- **Dependencies**: 005_add_document_tables.py
+- **Creates** (NEW - Essential for Admin Configuration):
+  - `admin_settings` → Core settings storage with JSONB values ✅
+  - `admin_setting_history` → Complete audit trail for all setting changes ✅
+  - `system_configuration_cache` → Performance optimization for frequently accessed settings ✅
+- **Features**:
+  - Category-based organization (system_configuration, llm_providers, rag_system)
+  - Full audit trail with change history
+  - Validation rules and type checking
+  - Performance caching layer
+  - Default settings for immediate functionality
+
 ## 🔗 Foreign Key Relationships
 
 ### Core Relationships:
@@ -116,7 +130,7 @@ python db/migrations/002_create_autonomous_tables.py
 ## 📊 OPTIMIZED Database Schema
 
 The streamlined database schema includes:
-- **17 essential tables** (reduced from 30+) with proper relationships ✅
+- **20 essential tables** (includes 3 new admin settings tables) with proper relationships ✅
 - **UUID primary keys** for all entities ✅
 - **JSONB columns** for flexible metadata ✅
 - **Full-text search** capabilities for RAG ✅

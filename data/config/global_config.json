@@ -1,0 +1,14 @@
+{
+  "llm_providers": {
+    "enable_google": true,
+    "enable_openai": false,
+    "enable_anthropic": false,
+    "request_timeout": 60,
+    "enable_rate_limiting": true,
+    "default_temperature": 0.8,
+    "cache_ttl_seconds": 301
+  },
+  "database_storage": {
+    "vector_db_type": "chromadb"
+  }
+}

@@ -18,9 +18,12 @@ import asyncio
 from abc import ABC, abstractmethod
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Callable, Union
 from uuid import uuid4
 import structlog
+import json
+import os
 
 from pydantic import BaseModel, Field
 
@@ -36,12 +39,14 @@ class ConfigurationSection(str, Enum):
     BACKEND_LOGGING = "backend_logging"
     TOOL_CONFIGURATION = "tool_configuration"
     SYSTEM_CONFIGURATION = "system_configuration"
+    DATABASE_STORAGE = "database_storage"
 
 
 class UpdateResult(BaseModel):
     """Result of a configuration update operation."""
     success: bool
     section: str
+    message: str = ""
     changes_applied: Dict[str, Any] = Field(default_factory=dict)
     warnings: List[str] = Field(default_factory=list)
     errors: List[str] = Field(default_factory=list)
@@ -174,19 +179,23 @@ class GlobalConfigurationManager:
         """Initialize the global configuration manager."""
         # Observer registry: section -> list of observers
         self._observers: Dict[ConfigurationSection, List[ConfigurationObserver]] = {}
-        
+
         # Section managers: section -> manager instance
         self._section_managers: Dict[ConfigurationSection, ConfigurationSectionManager] = {}
-        
+
         # Current configuration state
         self._current_config: Dict[ConfigurationSection, Dict[str, Any]] = {}
-        
+
         # Configuration history (keep last 1000 changes)
         self._history: List[ConfigurationHistory] = []
-        
+
         # Thread safety
         self._update_lock = asyncio.Lock()
-        
+
+        # Configuration persistence
+        self._config_file = Path("data/config/global_config.json")
+        self._config_file.parent.mkdir(parents=True, exist_ok=True)
+
         # Statistics
         self._stats = {
             "total_updates": 0,
@@ -196,6 +205,9 @@ class GlobalConfigurationManager:
             "observers_registered": 0,
             "section_managers_registered": 0
         }
+
+        # Load persisted configuration on startup
+        self._load_persisted_config()
         
         self._initialized = False
         logger.info("🚀 Global Configuration Manager initialized")
@@ -247,6 +259,14 @@ class GlobalConfigurationManager:
         self._section_managers[section] = manager
         self._stats["section_managers_registered"] += 1
         logger.info(f"✅ Registered section manager for {section.value}")
+
+        # If we have persisted configuration for this section, sync it to the manager
+        if section in self._current_config and self._current_config[section]:
+            try:
+                manager._current_config.update(self._current_config[section])
+                logger.info(f"✅ Synced persisted configuration to {section.value} manager")
+            except Exception as e:
+                logger.warning(f"Failed to sync persisted config to {section.value}: {str(e)}")
     
     async def update_section(
         self,
@@ -298,6 +318,7 @@ class GlobalConfigurationManager:
                     result = UpdateResult(
                         success=True,
                         section=section.value,
+                        message=f"Configuration updated successfully for {section.value}",
                         changes_applied=changes,
                         update_id=update_id,
                         warnings=["No section manager registered - using direct update"]
@@ -308,12 +329,15 @@ class GlobalConfigurationManager:
                     if section not in self._current_config:
                         self._current_config[section] = {}
                     self._current_config[section].update(changes)
-                    
+
+                    # Persist configuration to disk
+                    await self._persist_config()
+
                     # Notify observers
                     await self._notify_observers(section, changes, previous_config)
-                    
+
                     self._stats["successful_updates"] += 1
-                    logger.info(f"✅ Configuration update successful for section {section.value}", 
+                    logger.info(f"✅ Configuration update successful for section {section.value}",
                                update_id=update_id)
                 else:
                     self._stats["failed_updates"] += 1
@@ -333,6 +357,7 @@ class GlobalConfigurationManager:
                 result = UpdateResult(
                     success=False,
                     section=section.value,
+                    message=f"Configuration update failed for {section.value}: {error_msg}",
                     errors=[error_msg],
                     update_id=update_id
                 )
@@ -395,6 +420,7 @@ class GlobalConfigurationManager:
                     results[section] = UpdateResult(
                         success=False,
                         section=section.value,
+                        message=f"Multi-section update failed for {section.value}: {str(e)}",
                         errors=[f"Multi-section update failed: {str(e)}"]
                     )
 
@@ -445,6 +471,15 @@ class GlobalConfigurationManager:
             history = [h for h in history if h.section == section]
 
         return history[-limit:] if limit else history
+
+    def get_stats(self) -> Dict[str, Any]:
+        """
+        Get current statistics (synchronous version for compatibility).
+
+        Returns:
+            Dictionary with current statistics
+        """
+        return self._stats.copy()
 
     async def get_statistics(self) -> Dict[str, Any]:
         """
@@ -507,6 +542,47 @@ class GlobalConfigurationManager:
         if len(self._history) > 1000:
             self._history = self._history[-1000:]
 
+    def _load_persisted_config(self) -> None:
+        """Load persisted configuration from disk."""
+        try:
+            if self._config_file.exists():
+                with open(self._config_file, 'r', encoding='utf-8') as f:
+                    persisted_data = json.load(f)
+
+                # Convert string keys back to ConfigurationSection enums
+                for section_str, config in persisted_data.items():
+                    try:
+                        section = ConfigurationSection(section_str)
+                        self._current_config[section] = config
+                    except ValueError:
+                        logger.warning(f"Unknown configuration section in persisted data: {section_str}")
+
+                logger.info(f"✅ Loaded persisted configuration from {self._config_file}")
+            else:
+                logger.info("No persisted configuration found, using defaults")
+        except Exception as e:
+            logger.error(f"❌ Failed to load persisted configuration: {str(e)}")
+
+    async def _persist_config(self) -> None:
+        """Persist current configuration to disk."""
+        try:
+            # Convert ConfigurationSection enums to strings for JSON serialization
+            serializable_config = {}
+            for section, config in self._current_config.items():
+                serializable_config[section.value] = config
+
+            # Write to temporary file first, then rename for atomic operation
+            temp_file = self._config_file.with_suffix('.tmp')
+            with open(temp_file, 'w', encoding='utf-8') as f:
+                json.dump(serializable_config, f, indent=2, ensure_ascii=False)
+
+            # Atomic rename
+            temp_file.replace(self._config_file)
+
+            logger.debug(f"✅ Configuration persisted to {self._config_file}")
+        except Exception as e:
+            logger.error(f"❌ Failed to persist configuration: {str(e)}")
+
     async def _rollback_updates(self, successful_updates: List[tuple]) -> None:
         """Rollback a list of successful updates."""
         logger.info(f"🔄 Rolling back {len(successful_updates)} configuration updates")
@@ -533,7 +609,53 @@ global_config_manager = GlobalConfigurationManager()
 async def initialize_global_config_manager() -> None:
     """Initialize the global configuration manager."""
     await global_config_manager.initialize()
+
+    # Register all enhanced settings observers
+    await _register_enhanced_observers()
+
     logger.info("🚀 Global Configuration Manager ready for revolutionary configuration management!")
+
+
+# Section managers are now registered by unified_system_orchestrator with proper dependencies
+# This eliminates duplicate registrations and ensures proper initialization order
+
+
+async def _register_enhanced_observers() -> None:
+    """Register all enhanced settings observers."""
+    try:
+        # Import observers with fallback
+        observers = []
+
+        try:
+            from .config_observers.rag_observer import RAGConfigurationObserver
+            observers.append(RAGConfigurationObserver())
+        except ImportError as e:
+            logger.warning(f"⚠️ Could not import RAGConfigurationObserver: {str(e)}")
+
+        try:
+            from .config_observers.llm_observer import LLMConfigurationObserver
+            observers.append(LLMConfigurationObserver())
+        except ImportError as e:
+            logger.warning(f"⚠️ Could not import LLMConfigurationObserver: {str(e)}")
+
+        try:
+            from .config_observers.memory_observer import MemoryConfigurationObserver
+            observers.append(MemoryConfigurationObserver())
+        except ImportError as e:
+            logger.warning(f"⚠️ Could not import MemoryConfigurationObserver: {str(e)}")
+
+        for observer in observers:
+            # Initialize observer
+            if hasattr(observer, 'initialize'):
+                await observer.initialize()
+
+            # Register with global config manager
+            global_config_manager.register_observer(observer)
+
+        logger.info(f"✅ Registered {len(observers)} enhanced settings observers")
+
+    except Exception as e:
+        logger.error(f"❌ Failed to register enhanced observers: {str(e)}")
 
 
 async def update_configuration_section(
@@ -566,3 +688,51 @@ async def get_configuration_section(section: ConfigurationSection) -> Dict[str, 
         Current configuration dictionary for the section
     """
     return await global_config_manager.get_section_configuration(section)
+
+
+# Note: Section managers are registered by the unified_system_orchestrator with proper dependencies
+# This function only handles observer registration to avoid duplicate registrations
+
+
+def ensure_initialized():
+    """Ensure the global configuration manager is initialized (synchronous)."""
+    try:
+        # Check if already initialized
+        if len(global_config_manager._observers) > 0:
+            return True
+
+        # Try to initialize synchronously
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+            # We're in an async context, can't run synchronously
+            logger.warning("⚠️ Cannot initialize synchronously in async context")
+            return False
+        except RuntimeError:
+            # No running loop, we can initialize synchronously
+            return asyncio.run(initialize_global_config_manager())
+    except Exception as e:
+        logger.error(f"❌ Failed to ensure initialization: {str(e)}")
+        return False
+
+
+# Auto-initialize when module is imported (with better error handling)
+def _safe_initialize():
+    """Safely initialize the global config manager."""
+    try:
+        import asyncio
+
+        # Check if we're in an async context
+        try:
+            loop = asyncio.get_running_loop()
+            # If we're in a running loop, schedule the initialization
+            asyncio.create_task(initialize_global_config_manager())
+            logger.info("🔄 Scheduled global config manager initialization")
+        except RuntimeError:
+            # No running loop, we'll initialize on first use
+            logger.info("🔄 Global config manager will be initialized on first use")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not schedule global config manager initialization: {str(e)}")
+
+# Schedule initialization
+_safe_initialize()

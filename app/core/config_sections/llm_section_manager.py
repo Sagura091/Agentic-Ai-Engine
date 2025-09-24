@@ -60,8 +60,8 @@ class LLMSectionManager(BaseConfigurationSectionManager):
     async def _load_initial_configuration(self) -> None:
         """Load the initial LLM provider configuration."""
         try:
-            # Load from settings or use defaults
-            self._current_config = {
+            # Start with defaults
+            defaults = {
                 # Provider Enablement
                 "enable_ollama": True,
                 "enable_openai": False,
@@ -179,9 +179,22 @@ class LLMSectionManager(BaseConfigurationSectionManager):
                 "enable_audit_logging": True,
                 "mask_sensitive_data": True
             }
-            
-            logger.info("✅ Loaded initial LLM provider configuration")
-                
+
+            # Try to load from global config manager and merge with defaults
+            try:
+                from app.core.global_config_manager import global_config_manager
+                if global_config_manager and hasattr(global_config_manager, '_current_config'):
+                    persisted_config = global_config_manager._current_config.get(self.section_name, {})
+                    if persisted_config:
+                        # Merge persisted config with defaults (persisted values override defaults)
+                        defaults.update(persisted_config)
+                        logger.info("✅ Loaded LLM configuration from persisted data")
+            except Exception as e:
+                logger.warning(f"Could not load persisted config, using defaults: {str(e)}")
+
+            self._current_config = defaults
+            logger.info("✅ LLM provider configuration initialized")
+
         except Exception as e:
             logger.error(f"❌ Failed to load initial LLM configuration: {str(e)}")
             # Use safe defaults
@@ -271,27 +284,14 @@ class LLMSectionManager(BaseConfigurationSectionManager):
         errors = []
         
         try:
-            # Validate at least one provider is enabled
-            providers_enabled = [
-                config.get("enable_ollama", self._current_config.get("enable_ollama", False)),
-                config.get("enable_openai", self._current_config.get("enable_openai", False)),
-                config.get("enable_anthropic", self._current_config.get("enable_anthropic", False)),
-                config.get("enable_google", self._current_config.get("enable_google", False))
-            ]
+            # Note: We allow all providers to be disabled for maximum flexibility
+            # Users can enable/disable providers as needed without restrictions
+            # The system will handle cases where no providers are available gracefully
             
-            if not any(providers_enabled):
-                errors.append("At least one LLM provider must be enabled")
-            
-            # Validate API keys for enabled providers
-            if config.get("enable_openai") and not config.get("openai_api_key", "").strip():
-                errors.append("OpenAI API key is required when OpenAI provider is enabled")
-            
-            if config.get("enable_anthropic") and not config.get("anthropic_api_key", "").strip():
-                errors.append("Anthropic API key is required when Anthropic provider is enabled")
-            
-            if config.get("enable_google") and not config.get("google_api_key", "").strip():
-                errors.append("Google API key is required when Google provider is enabled")
-            
+            # Note: We allow enabling providers without API keys
+            # API keys will be validated when actually making API calls
+            # This allows users to enable providers first, then configure API keys later
+
             # Validate URLs
             url_fields = ["ollama_base_url", "openai_base_url", "anthropic_base_url", "google_base_url"]
             for field in url_fields:
@@ -329,18 +329,24 @@ class LLMSectionManager(BaseConfigurationSectionManager):
         
         return errors
 
-    async def _apply_configuration_changes(self, config: Dict[str, Any]) -> bool:
+    async def _apply_configuration_changes(self, config: Dict[str, Any], previous_config: Dict[str, Any] = None) -> List[str]:
         """Apply LLM provider configuration changes to the system."""
+        warnings = []
+
         try:
             logger.info("🔄 Applying LLM provider configuration changes", changes=list(config.keys()))
 
             # Update LLM service if available
             if self._llm_service:
                 await self._update_llm_service(config)
+            else:
+                warnings.append("LLM service not available - some changes may not take effect immediately")
 
             # Update LLM manager if available
             if self._llm_manager:
                 await self._update_llm_manager(config)
+            else:
+                warnings.append("LLM manager not available - provider enablement changes may not take effect")
 
             # Apply provider-specific changes
             await self._apply_provider_changes(config)
@@ -352,11 +358,11 @@ class LLMSectionManager(BaseConfigurationSectionManager):
             await self._apply_performance_settings(config)
 
             logger.info("✅ LLM provider configuration changes applied successfully")
-            return True
+            return warnings
 
         except Exception as e:
             logger.error(f"❌ Failed to apply LLM configuration changes: {str(e)}")
-            return False
+            raise
 
     async def _update_llm_service(self, config: Dict[str, Any]) -> None:
         """Update the LLM service with new configuration."""
@@ -469,6 +475,106 @@ class LLMSectionManager(BaseConfigurationSectionManager):
         """Apply Google-specific configuration changes."""
         logger.info("🔄 Applying Google configuration changes", changes=list(changes.keys()))
         # Implementation would update Google provider settings
+
+    async def download_ollama_model(self, model_name: str) -> bool:
+        """Download an Ollama model."""
+        try:
+            logger.info("🔄 Downloading Ollama model", model=model_name)
+
+            # Get LLM service
+            if not self._llm_service:
+                from app.services.llm_service import get_llm_service
+                self._llm_service = get_llm_service()
+                if not self._llm_service._is_initialized:
+                    await self._llm_service.initialize()
+
+            # Get Ollama provider
+            ollama_provider = await self._llm_service.get_provider("ollama")
+            if not ollama_provider:
+                logger.error("❌ Ollama provider not available")
+                return False
+
+            # Download the model
+            success = await ollama_provider.pull_model(model_name)
+
+            if success:
+                logger.info("✅ Ollama model downloaded successfully", model=model_name)
+                # Update available models in configuration
+                await self._update_available_models()
+                return True
+            else:
+                logger.error("❌ Failed to download Ollama model", model=model_name)
+                return False
+
+        except Exception as e:
+            logger.error("❌ Error downloading Ollama model", model=model_name, error=str(e))
+            return False
+
+    async def get_available_models(self) -> Dict[str, Any]:
+        """Get available models from all enabled providers."""
+        try:
+            models = {
+                "ollama": [],
+                "openai": [],
+                "anthropic": [],
+                "google": []
+            }
+
+            # Get LLM service
+            if not self._llm_service:
+                from app.services.llm_service import get_llm_service
+                self._llm_service = get_llm_service()
+                if not self._llm_service._is_initialized:
+                    await self._llm_service.initialize()
+
+            # Get models from each enabled provider
+            if self._current_config.get("enable_ollama", False):
+                try:
+                    ollama_models = await self._llm_service.get_models_by_provider("ollama")
+                    models["ollama"] = ollama_models
+                except Exception as e:
+                    logger.warning("Failed to get Ollama models", error=str(e))
+
+            if self._current_config.get("enable_openai", False):
+                try:
+                    openai_models = await self._llm_service.get_models_by_provider("openai")
+                    models["openai"] = openai_models
+                except Exception as e:
+                    logger.warning("Failed to get OpenAI models", error=str(e))
+
+            if self._current_config.get("enable_anthropic", False):
+                try:
+                    anthropic_models = await self._llm_service.get_models_by_provider("anthropic")
+                    models["anthropic"] = anthropic_models
+                except Exception as e:
+                    logger.warning("Failed to get Anthropic models", error=str(e))
+
+            if self._current_config.get("enable_google", False):
+                try:
+                    google_models = await self._llm_service.get_models_by_provider("google")
+                    models["google"] = google_models
+                except Exception as e:
+                    logger.warning("Failed to get Google models", error=str(e))
+
+            return models
+
+        except Exception as e:
+            logger.error("❌ Failed to get available models", error=str(e))
+            return {"ollama": [], "openai": [], "anthropic": [], "google": []}
+
+    async def _update_available_models(self) -> None:
+        """Update the list of available models after changes."""
+        try:
+            models = await self.get_available_models()
+            # Store in configuration for quick access
+            self._current_config["available_models"] = models
+            logger.info("✅ Available models updated",
+                       ollama_count=len(models.get("ollama", [])),
+                       openai_count=len(models.get("openai", [])),
+                       anthropic_count=len(models.get("anthropic", [])),
+                       google_count=len(models.get("google", [])))
+        except Exception as e:
+            logger.error("❌ Failed to update available models", error=str(e))
 
     async def _update_model_availability(self, config: Dict[str, Any]) -> None:
         """Update available models for each provider."""

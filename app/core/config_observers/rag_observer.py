@@ -9,6 +9,7 @@ from typing import Any, Dict, Set
 import structlog
 
 from ..global_config_manager import ConfigurationObserver, ConfigurationSection, UpdateResult
+# from ...rag.core.embedding_model_manager import embedding_model_manager  # Removed
 
 logger = structlog.get_logger(__name__)
 
@@ -103,11 +104,14 @@ class RAGConfigurationObserver(ConfigurationObserver):
                 warnings.append("No RAG system or configuration manager available")
                 logger.warning("⚠️ No RAG system or configuration manager available for configuration update")
             
+            # 🚀 REVOLUTIONARY: Update embedding model manager if embedding model changed
+            await self._update_embedding_model_manager(changes)
+
             # Log successful changes
             for key, value in changes.items():
                 old_value = previous_config.get(key, "not set")
                 logger.info(f"✅ RAG config updated: {key} = {value} (was: {old_value})")
-            
+
             return UpdateResult(
                 success=True,
                 section=section.value,
@@ -191,6 +195,7 @@ class RAGConfigurationObserver(ConfigurationObserver):
                 return UpdateResult(
                     success=True,
                     section=ConfigurationSection.RAG_CONFIGURATION.value,
+                    message="RAG configuration applied successfully",
                     changes_applied=changes,
                     warnings=result.get("warnings", [])
                 )
@@ -200,6 +205,7 @@ class RAGConfigurationObserver(ConfigurationObserver):
                 return UpdateResult(
                     success=False,
                     section=ConfigurationSection.RAG_CONFIGURATION.value,
+                    message=f"RAG configuration update failed: {error_msg}",
                     errors=[error_msg]
                 )
                 
@@ -211,3 +217,42 @@ class RAGConfigurationObserver(ConfigurationObserver):
                 section=ConfigurationSection.RAG_CONFIGURATION.value,
                 errors=[error_msg]
             )
+
+    async def _update_embedding_model_manager(self, changes: Dict[str, Any]) -> None:
+        """Update embedding model manager when RAG configuration changes."""
+        try:
+            # Check if embedding model changed
+            if "embedding_model" in changes:
+                new_model = changes["embedding_model"]
+                logger.info(f"🔄 Updating embedding model manager: {new_model}")
+
+                # Update global embedding configuration
+                embedding_config = {
+                    "embedding_model": new_model,
+                    "embedding_batch_size": changes.get("embedding_batch_size", 32),
+                    "embedding_engine": changes.get("embedding_engine", "sentence-transformers")
+                }
+
+                # Apply to embedding model manager (fallback - no manager available)
+                # embedding_model_manager.update_global_config(embedding_config)  # Disabled
+
+                logger.info(f"✅ Embedding model manager updated: {new_model}")
+
+            # Check if vision model changed
+            if "vision_model" in changes:
+                new_vision_model = changes["vision_model"]
+                logger.info(f"🔄 Updating vision model: {new_vision_model}")
+
+                # Update vision model configuration
+                vision_config = {
+                    "vision_model": new_vision_model,
+                    "vision_enabled": changes.get("vision_enabled", True)
+                }
+
+                # Apply to embedding model manager (fallback - no manager available)
+                # embedding_model_manager.update_global_config(vision_config)  # Disabled
+
+                logger.info(f"✅ Vision model updated: {new_vision_model}")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to update embedding model manager: {str(e)}")

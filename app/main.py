@@ -134,14 +134,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("System initializing...", version=app.version)
 
     try:
-        # Initialize seamless integration system (replaces orchestrator)
+        # Initialize seamless integration system (includes orchestrator)
         print("⚙️  Initializing core systems...")
         await seamless_integration.initialize_complete_system()
-
-        # Initialize system orchestrator
-        from app.core.unified_system_orchestrator import get_system_orchestrator
-        orchestrator = await get_system_orchestrator()
-        await orchestrator.initialize()
 
         await websocket_manager.initialize()
         await monitoring_service.initialize()

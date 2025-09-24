@@ -18,6 +18,7 @@ from typing import Any, Dict, Optional, List
 import structlog
 
 from ..global_config_manager import ConfigurationObserver, ConfigurationSection
+from ..configuration_broadcaster import configuration_broadcaster, BroadcastLevel, NotificationType
 
 logger = structlog.get_logger(__name__)
 
@@ -62,36 +63,72 @@ class LLMConfigurationObserver(ConfigurationObserver):
         self._llm_provider_manager = provider_manager
         logger.info("✅ LLM provider manager registered with LLM observer")
     
-    async def on_configuration_changed(self, section: str, changes: Dict[str, Any]) -> bool:
-        """Handle LLM provider configuration changes in real-time."""
+    async def on_configuration_changed(self, section: str, changes: Dict[str, Any], previous_config: Dict[str, Any]) -> bool:
+        """Handle LLM provider configuration changes in real-time with broadcasting."""
         try:
             if section != ConfigurationSection.LLM_PROVIDERS:
                 return True  # Not our section, ignore
-            
-            logger.info("🔄 Processing LLM configuration changes", 
+
+            logger.info("🔄 Processing LLM configuration changes",
                        section=section, changes=list(changes.keys()))
-            
+
             # Apply provider enablement changes
             await self._apply_provider_enablement_changes(changes)
-            
+
             # Apply credential changes
             await self._apply_credential_changes(changes)
-            
+
             # Apply model configuration changes
             await self._apply_model_changes(changes)
-            
+
             # Apply performance setting changes
             await self._apply_performance_changes(changes)
-            
+
             # Apply advanced feature changes
             await self._apply_advanced_feature_changes(changes)
-            
+
+            # 🚀 REVOLUTIONARY: Broadcast changes to users
+            await self._broadcast_llm_changes(section, changes)
+
             logger.info("✅ LLM configuration changes applied successfully")
             return True
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to apply LLM configuration changes: {str(e)}")
             return False
+
+    async def _broadcast_llm_changes(self, section: str, changes: Dict[str, Any]) -> None:
+        """🚀 Broadcast LLM configuration changes to users."""
+        try:
+            # Determine broadcast level and notification type
+            broadcast_level = BroadcastLevel.PUBLIC  # Default to public for LLM changes
+            notification_type = NotificationType.LLM_UPDATES
+
+            # Check for model availability changes (high priority)
+            if any(key.startswith("available_models") for key in changes.keys()):
+                notification_type = NotificationType.MODEL_UPDATES
+                broadcast_level = BroadcastLevel.PUBLIC
+
+            # Check for credential changes (admin only)
+            elif any("api_key" in key.lower() or "secret" in key.lower() for key in changes.keys()):
+                broadcast_level = BroadcastLevel.ADMIN_ONLY
+                notification_type = NotificationType.SECURITY_UPDATES
+
+            # Broadcast the changes
+            for setting_key, value in changes.items():
+                await configuration_broadcaster.broadcast_configuration_change(
+                    section=section,
+                    setting_key=setting_key,
+                    changes={setting_key: value},
+                    broadcast_level=broadcast_level,
+                    admin_user_id="system",  # Will be updated with actual admin ID
+                    notification_type=notification_type
+                )
+
+            logger.info(f"📢 Broadcasted LLM changes: {list(changes.keys())}")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to broadcast LLM changes: {str(e)}")
     
     async def _apply_provider_enablement_changes(self, changes: Dict[str, Any]) -> None:
         """Apply provider enablement/disablement changes."""

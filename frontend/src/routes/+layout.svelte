@@ -6,6 +6,9 @@
 	import { goto } from '$app/navigation';
 	import AppLayout from '$lib/components/AppLayout.svelte';
 
+	// Accept params prop to avoid Svelte warnings
+	export let params: Record<string, string> = {};
+
 	// Initialize auth store on app load
 	onMount(() => {
 		authStore.initialize();

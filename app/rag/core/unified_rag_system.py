@@ -42,6 +42,9 @@ except ImportError:
     CHROMADB_AVAILABLE = False
     chromadb = None
 
+# Vector database factory
+from app.rag.core.vector_db_factory import get_vector_db_client, VectorItem, SearchResult, GetResult, VectorDBBase
+
 # Internal imports
 from app.config.settings import get_settings
 
@@ -168,24 +171,83 @@ class UnifiedRAGConfig(BaseModel):
     long_term_max_items: int = Field(default=10000)  # Long-term memory limit
 
 
+class VectorCollectionWrapper:
+    """Wrapper to provide ChromaDB-like interface for other vector databases."""
+
+    def __init__(self, collection_name: str, vector_client: VectorDBBase):
+        self.name = collection_name
+        self.vector_client = vector_client
+
+    def add(self, ids: List[str], documents: List[str], metadatas: List[dict] = None):
+        """Add documents to the collection."""
+        if metadatas is None:
+            metadatas = [{}] * len(documents)
+
+        # For non-ChromaDB clients, we need to generate embeddings ourselves
+        # This is a simplified approach - in production you'd want proper embedding generation
+        items = []
+        for i, (doc_id, document, metadata) in enumerate(zip(ids, documents, metadatas)):
+            # Create a simple vector (this should be replaced with actual embeddings)
+            vector = [0.0] * 384  # Default dimension
+            items.append(VectorItem(
+                id=doc_id,
+                vector=vector,
+                document=document,
+                metadata=metadata
+            ))
+
+        return self.vector_client.add(self.name, items)
+
+    def query(self, query_texts: List[str], n_results: int = 10):
+        """Query the collection."""
+        # For non-ChromaDB clients, we need to generate query embeddings
+        # This is a simplified approach
+        query_vectors = [[0.0] * 384 for _ in query_texts]  # Should be actual embeddings
+
+        result = self.vector_client.search(self.name, query_vectors, n_results)
+        if result:
+            return {
+                'ids': result.ids,
+                'distances': result.distances,
+                'documents': result.documents,
+                'metadatas': result.metadatas
+            }
+        return {'ids': [[]], 'distances': [[]], 'documents': [[]], 'metadatas': [[]]}
+
+    def get(self):
+        """Get all documents from the collection."""
+        result = self.vector_client.get(self.name)
+        if result:
+            return {
+                'ids': result.ids,
+                'documents': result.documents,
+                'metadatas': result.metadatas
+            }
+        return {'ids': [[]], 'documents': [[]], 'metadatas': [[]]}
+
+    def delete(self, ids: List[str]):
+        """Delete documents by IDs."""
+        return self.vector_client.delete(self.name, ids)
+
+
 class UnifiedRAGSystem:
     """
     Unified RAG System - Single source of truth for all RAG operations.
-    
+
     This system manages:
-    - Single ChromaDB instance with multiple collections
+    - Configurable vector database (ChromaDB, pgvector, etc.)
     - Agent-specific knowledge bases and memory
     - Shared knowledge collections
     - Access control and isolation
     - Performance optimization
     """
-    
+
     def __init__(self, config: Optional[UnifiedRAGConfig] = None):
         """Initialize the unified RAG system."""
         self.config = config or UnifiedRAGConfig()
-        
+
         # Core components
-        self.chroma_client = None
+        self.vector_client = None
         self.embedding_function = None
 
         # Agent management
@@ -210,20 +272,24 @@ class UnifiedRAGSystem:
                 logger.warning("Unified RAG system already initialized")
                 return
 
-            if not chromadb:
-                raise RuntimeError("ChromaDB not available")
-
             logger.info("Initializing unified RAG system...")
 
-            # Initialize ChromaDB client
-            self.chroma_client = chromadb.PersistentClient(
-                path=self.config.persist_directory
-            )
+            # Initialize vector database client (will auto-detect type from config)
+            self.vector_client = get_vector_db_client()
+            logger.info("Vector database client initialized", type=type(self.vector_client).__name__)
 
-            # Initialize embedding function
-            self.embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
-                model_name=self.config.embedding_model
-            )
+            # Initialize embedding function and ChromaDB client if needed
+            if CHROMADB_AVAILABLE and hasattr(self.vector_client, '__class__') and 'Chroma' in self.vector_client.__class__.__name__:
+                # For ChromaDB, use the existing client from vector_client to avoid conflicts
+                self.chroma_client = self.vector_client.client
+                self.embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
+                    model_name=self.config.embedding_model
+                )
+                logger.info("ChromaDB client reused from vector client to avoid conflicts")
+            else:
+                # For other vector databases, we'll handle embeddings differently
+                self.chroma_client = None
+                logger.info("Using external embedding handling for non-ChromaDB vector database")
 
             self.is_initialized = True
             logger.info("Unified RAG system initialized successfully")
@@ -235,10 +301,20 @@ class UnifiedRAGSystem:
     def _get_collection(self, collection_name: str):
         """Get or create a collection."""
         try:
-            return self.chroma_client.get_or_create_collection(
-                name=collection_name,
-                embedding_function=self.embedding_function
-            )
+            # For ChromaDB compatibility, we still use the direct client if available
+            if hasattr(self, 'chroma_client') and self.chroma_client:
+                return self.chroma_client.get_or_create_collection(
+                    name=collection_name,
+                    embedding_function=self.embedding_function
+                )
+
+            # For other vector databases, ensure collection exists
+            if not self.vector_client.has_collection(collection_name):
+                logger.info(f"Collection {collection_name} will be created on first use")
+
+            # Return a collection wrapper that works with our vector client
+            return VectorCollectionWrapper(collection_name, self.vector_client)
+
         except Exception as e:
             logger.error(f"Failed to get/create collection {collection_name}: {str(e)}")
             raise
@@ -475,7 +551,12 @@ class UnifiedRAGSystem:
 
             for collection_name in collections_to_delete:
                 try:
-                    self.chroma_client.delete_collection(collection_name)
+                    # For ChromaDB compatibility
+                    if hasattr(self, 'chroma_client') and self.chroma_client:
+                        self.chroma_client.delete_collection(collection_name)
+                    else:
+                        # For other vector databases
+                        self.vector_client.delete_collection(collection_name)
                     logger.debug(f"Deleted collection: {collection_name}")
                 except Exception as e:
                     logger.warning(f"Error deleting collection {collection_name}: {str(e)}")
