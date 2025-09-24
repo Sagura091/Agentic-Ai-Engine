@@ -21,16 +21,13 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel, Field
 import structlog
 
-# from app.rag.core.embedding_model_manager import (
-#     embedding_model_manager,
-#     UniversalModelInfo,
-#     EmbeddingModelInfo,  # Backward compatibility
-#     ModelDownloadProgress,
-#     ModelType,
-#     ModelSource
-# )
+from app.rag.core.embedding_model_manager import (
+    embedding_model_manager,
+    ModelInfo,
+    ModelType as CentralizedModelType
+)
 
-# Temporary fallback classes until embedding model manager is reimplemented
+# API compatibility classes
 from enum import Enum
 from typing import Dict, Any, Optional, List
 
@@ -62,41 +59,6 @@ class ModelDownloadProgress(BaseModel):
 # Backward compatibility
 EmbeddingModelInfo = UniversalModelInfo
 
-# Temporary fallback embedding model manager
-class FallbackEmbeddingModelManager:
-    def __init__(self):
-        self.available_models = {}
-
-    def get_downloaded_models_by_type(self, model_type):
-        return []
-
-    def get_models_by_type(self, model_type):
-        return []
-
-    def get_downloaded_models(self):
-        return []
-
-    def search_models(self, query, model_type_filter=None):
-        return []
-
-    def add_custom_model(self, model_info):
-        return False
-
-    def get_model_info(self, model_id):
-        return None
-
-    def get_download_progress(self, model_id):
-        return None
-
-    def download_model(self, model_id, force_redownload=False):
-        pass
-
-    async def test_model(self, model_id, test_text):
-        return {"success": False, "error": "Model testing not available"}
-
-    def delete_model(self, model_id):
-        return False
-
     def get_available_models(self):
         return []
 
@@ -118,7 +80,7 @@ class FallbackEmbeddingModelManager:
     async def test_default_connection(self, model, test_text):
         return False
 
-embedding_model_manager = FallbackEmbeddingModelManager()
+# embedding_model_manager is imported from the centralized model manager
 from app.core.dependencies import get_current_user
 
 logger = structlog.get_logger(__name__)

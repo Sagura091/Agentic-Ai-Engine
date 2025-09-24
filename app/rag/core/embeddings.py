@@ -17,6 +17,9 @@ import structlog
 from pydantic import BaseModel, Field
 import torch
 
+# Import performance enhancements
+from .intelligent_cache import get_cache, EmbeddingCache
+
 # Handle sentence_transformers import gracefully
 try:
     from sentence_transformers import SentenceTransformer
@@ -94,50 +97,70 @@ class EmbeddingResult(BaseModel):
 
 class EmbeddingManager:
     """
-    Advanced embedding manager with support for multiple models and types.
-    
+    🚀 Revolutionary Unified Embedding Manager
+
+    This is THE centralized embedding manager that combines:
+    - Model discovery and storage management
+    - Actual embedding generation
+    - Global configuration management
+    - Multi-model support (dense, sparse, vision)
+    - Centralized model storage at data/models/
+
     Features:
     - Dense and sparse embeddings
     - Vision model integration
     - Batch processing optimization
     - Embedding caching
-    - Multi-model support
+    - Centralized model management
     """
-    
+
     def __init__(self, config: EmbeddingConfig):
-        """Initialize the embedding manager."""
+        """Initialize the unified embedding manager."""
         self.config = config
         self.models: Dict[str, Any] = {}
         self.tokenizers: Dict[str, Any] = {}
         self.embedding_cache: Dict[str, np.ndarray] = {}
-        
+
+        # Initialize intelligent cache
+        self._intelligent_cache: Optional[EmbeddingCache] = None
+
         # Device configuration
         if config.device == "auto":
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         else:
             self.device = config.device
-            
+
         logger.info(
-            "Embedding manager initialized",
+            "🚀 Unified Embedding Manager initialized",
             model=config.model_name,
             type=config.embedding_type.value,
-            device=self.device
+            device=self.device,
+            use_centralized_storage=config.use_model_manager
         )
     
     async def initialize(self) -> None:
         """Initialize embedding models."""
         try:
+            # Initialize intelligent cache
+            self._intelligent_cache = await get_cache(
+                cache_name=f"embeddings_{self.config.model_name}",
+                cache_type="embedding",
+                max_size=50000,
+                max_memory_mb=1024,
+                default_ttl=7200
+            )
+
             await self._load_primary_model()
-            
+
             # Load additional models based on configuration
             if self.config.embedding_type == EmbeddingType.HYBRID:
                 await self._load_sparse_model()
-            
+
             if self.config.vision_model:
                 await self._load_vision_model()
-                
-            logger.info("Embedding models loaded successfully")
-            
+
+            logger.info("Embedding models loaded successfully with intelligent caching")
+
         except Exception as e:
             logger.error(f"Failed to initialize embedding models: {str(e)}")
             raise
@@ -148,13 +171,11 @@ class EmbeddingManager:
             # Check if we should use the model manager
             if self.config.use_model_manager:
                 try:
-                    # from .embedding_model_manager import embedding_model_manager  # Disabled
-                    pass
+                    from .embedding_model_manager import embedding_model_manager
 
-                    # Check if model is available in model manager (fallback - no manager)
-                    # model_info = embedding_model_manager.get_model_info(self.config.model_name)  # Disabled
-                    model_info = None
-                    if model_info and hasattr(model_info, 'is_downloaded') and model_info.is_downloaded:
+                    # Check if model is available in model manager
+                    model_info = embedding_model_manager.get_model_info(self.config.model_name)
+                    if model_info and model_info.is_downloaded:
                         # Use local model from model manager
                         if not SENTENCE_TRANSFORMERS_AVAILABLE:
                             logger.warning("sentence_transformers not available, using fallback")
@@ -168,7 +189,8 @@ class EmbeddingManager:
                         if self.config.dense_dimension is None:
                             self.config.dense_dimension = model.get_sentence_embedding_dimension()
 
-                        logger.info(f"Loaded model from model manager: {self.config.model_name}")
+                        logger.info(f"✅ Loaded model from centralized storage: {self.config.model_name}",
+                                   path=model_info.local_path)
                         return
 
                 except ImportError:
@@ -308,15 +330,52 @@ class EmbeddingManager:
             embedding_type = self.config.embedding_type
         
         try:
-            if embedding_type == EmbeddingType.DENSE:
-                embeddings = await self._generate_dense_embeddings(texts)
-            elif embedding_type == EmbeddingType.SPARSE:
-                embeddings = await self._generate_sparse_embeddings(texts)
-            elif embedding_type == EmbeddingType.HYBRID:
-                embeddings = await self._generate_hybrid_embeddings(texts)
+            # Check intelligent cache first
+            cached_embeddings = []
+            uncached_texts = []
+            uncached_indices = []
+
+            if self._intelligent_cache:
+                for i, text in enumerate(texts):
+                    cached = await self._intelligent_cache.get_embedding(text, self.config.model_name)
+                    if cached is not None:
+                        cached_embeddings.append((i, cached))
+                    else:
+                        uncached_texts.append(text)
+                        uncached_indices.append(i)
             else:
-                raise ValueError(f"Unsupported embedding type: {embedding_type}")
-            
+                uncached_texts = texts
+                uncached_indices = list(range(len(texts)))
+
+            # Generate embeddings for uncached texts
+            if uncached_texts:
+                if embedding_type == EmbeddingType.DENSE:
+                    new_embeddings = await self._generate_dense_embeddings(uncached_texts)
+                elif embedding_type == EmbeddingType.SPARSE:
+                    new_embeddings = await self._generate_sparse_embeddings(uncached_texts)
+                elif embedding_type == EmbeddingType.HYBRID:
+                    new_embeddings = await self._generate_hybrid_embeddings(uncached_texts)
+                else:
+                    raise ValueError(f"Unsupported embedding type: {embedding_type}")
+
+                # Cache new embeddings
+                if self._intelligent_cache:
+                    for text, embedding in zip(uncached_texts, new_embeddings):
+                        await self._intelligent_cache.set_embedding(text, embedding, self.config.model_name)
+            else:
+                new_embeddings = []
+
+            # Combine cached and new embeddings in correct order
+            embeddings = [None] * len(texts)
+
+            # Place cached embeddings
+            for i, embedding in cached_embeddings:
+                embeddings[i] = embedding
+
+            # Place new embeddings
+            for i, embedding in zip(uncached_indices, new_embeddings):
+                embeddings[i] = embedding
+
             processing_time = asyncio.get_event_loop().time() - start_time
             
             return EmbeddingResult(
@@ -338,7 +397,7 @@ class EmbeddingManager:
         except Exception as e:
             logger.error(f"Failed to generate embeddings: {str(e)}")
             raise
-    
+
     async def _generate_dense_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Generate dense embeddings using SentenceTransformer or similar."""
         try:
@@ -349,6 +408,7 @@ class EmbeddingManager:
                 embeddings = []
                 for text in texts:
                     # Create a simple deterministic embedding based on text hash
+                    import hashlib
                     text_hash = hashlib.md5(text.encode()).hexdigest()
                     # Convert hex to numbers and normalize to create embedding
                     embedding = [float(int(text_hash[i:i+2], 16)) / 255.0 for i in range(0, min(len(text_hash), 32), 2)]
@@ -367,11 +427,9 @@ class EmbeddingManager:
                 # Generate simple hash-based embeddings as fallback
                 embeddings = []
                 for text in texts:
-                    # Create a simple deterministic embedding based on text hash
+                    import hashlib
                     text_hash = hashlib.md5(text.encode()).hexdigest()
-                    # Convert hex to numbers and normalize to create embedding
                     embedding = [float(int(text_hash[i:i+2], 16)) / 255.0 for i in range(0, min(len(text_hash), 32), 2)]
-                    # Pad to desired dimension
                     while len(embedding) < self.config.dense_dimension:
                         embedding.append(0.0)
                     embedding = embedding[:self.config.dense_dimension]
@@ -390,10 +448,10 @@ class EmbeddingManager:
                 # Use HuggingFace model
                 tokenizer = self.tokenizers["primary"]
                 embeddings = []
-                
+
                 for i in range(0, len(texts), self.config.batch_size):
                     batch = texts[i:i + self.config.batch_size]
-                    
+
                     # Tokenize
                     inputs = tokenizer(
                         batch,
@@ -402,55 +460,55 @@ class EmbeddingManager:
                         max_length=self.config.max_length,
                         return_tensors="pt"
                     ).to(self.device)
-                    
+
                     # Generate embeddings
                     with torch.no_grad():
                         outputs = model(**inputs)
                         # Use mean pooling
                         batch_embeddings = outputs.last_hidden_state.mean(dim=1)
-                        
+
                         if self.config.normalize:
                             batch_embeddings = torch.nn.functional.normalize(batch_embeddings, p=2, dim=1)
-                        
+
                         embeddings.extend(batch_embeddings.cpu().numpy())
-            
+
             return [embedding.tolist() for embedding in embeddings]
-            
+
         except Exception as e:
             logger.error(f"Failed to generate dense embeddings: {str(e)}")
             raise
-    
+
     async def _generate_sparse_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Generate sparse embeddings using TF-IDF or similar."""
         try:
             vectorizer = self.models["sparse"]
-            
+
             # Fit and transform if not already fitted
             if not hasattr(vectorizer, 'vocabulary_'):
                 sparse_matrix = vectorizer.fit_transform(texts)
             else:
                 sparse_matrix = vectorizer.transform(texts)
-            
+
             # Convert to dense for consistency
             dense_matrix = sparse_matrix.toarray()
-            
+
             return [embedding.tolist() for embedding in dense_matrix]
-            
+
         except Exception as e:
             logger.error(f"Failed to generate sparse embeddings: {str(e)}")
             raise
-    
+
     async def _generate_hybrid_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Generate hybrid embeddings combining dense and sparse."""
         try:
             # Generate both dense and sparse embeddings
             dense_embeddings = await self._generate_dense_embeddings(texts)
             sparse_embeddings = await self._generate_sparse_embeddings(texts)
-            
+
             # Combine embeddings with weighted average
             alpha = self.config.sparse_alpha
             hybrid_embeddings = []
-            
+
             for dense, sparse in zip(dense_embeddings, sparse_embeddings):
                 # Normalize dimensions if different
                 if len(dense) != len(sparse):
@@ -458,231 +516,97 @@ class EmbeddingManager:
                     max_len = max(len(dense), len(sparse))
                     dense = dense + [0.0] * (max_len - len(dense))
                     sparse = sparse + [0.0] * (max_len - len(sparse))
-                
+
                 # Weighted combination
                 hybrid = [
                     (1 - alpha) * d + alpha * s
                     for d, s in zip(dense, sparse)
                 ]
                 hybrid_embeddings.append(hybrid)
-            
+
             return hybrid_embeddings
-            
+
         except Exception as e:
             logger.error(f"Failed to generate hybrid embeddings: {str(e)}")
             raise
-    
-    def get_embedding_cache_key(self, text: str, embedding_type: EmbeddingType) -> str:
-        """Generate cache key for embedding."""
-        content = f"{text}_{embedding_type.value}_{self.config.model_name}"
-        return hashlib.md5(content.encode()).hexdigest()
-    
-    async def clear_cache(self) -> None:
-        """Clear embedding cache."""
-        self.embedding_cache.clear()
-        logger.info("Embedding cache cleared")
-    
-    async def generate_vision_embeddings(
-        self,
-        images: Union[Any, List[Any]],  # PIL Images or image paths
-        texts: Optional[Union[str, List[str]]] = None
-    ) -> EmbeddingResult:
-        """
-        Revolutionary vision embedding generation using CLIP.
 
-        Args:
-            images: Input image(s) to embed (PIL Images or paths)
-            texts: Optional text(s) for multimodal embeddings
 
-        Returns:
-            EmbeddingResult with vision embeddings and metadata
-        """
-        start_time = asyncio.get_event_loop().time()
+# =============================================================================
+# GLOBAL EMBEDDING MANAGER FUNCTIONALITY
+# =============================================================================
 
-        try:
-            # Normalize inputs
-            if not isinstance(images, list):
-                images = [images]
+# Global instance for backward compatibility
+_global_embedding_manager: Optional[EmbeddingManager] = None
+_global_lock = asyncio.Lock()
 
-            if texts and not isinstance(texts, list):
-                texts = [texts]
 
-            # Check if revolutionary CLIP is available
-            if "vision" in self.models and hasattr(self.models["vision"], "embed_image"):
-                clip_model = self.models["vision"]
+async def get_global_embedding_manager() -> EmbeddingManager:
+    """
+    Get the global embedding manager instance.
 
-                # Generate image embeddings using revolutionary CLIP
-                image_embeddings = []
-                for image in images:
-                    # Handle different image input types
-                    if isinstance(image, str):
-                        from PIL import Image
-                        image = Image.open(image)
+    This replaces the old GlobalEmbeddingManager class with a simpler approach.
+    """
+    global _global_embedding_manager
 
-                    embedding = await clip_model.embed_image(image)
-                    image_embeddings.append(embedding)
-
-                # Generate text embeddings if provided
-                text_embeddings = []
-                if texts:
-                    for text in texts:
-                        embedding = await clip_model.embed_text(text)
-                        text_embeddings.append(embedding)
-
-                # Create multimodal embeddings if both images and texts provided
-                multimodal_embeddings = []
-                if texts and len(texts) == len(images):
-                    for i, (image, text) in enumerate(zip(images, texts)):
-                        multimodal_result = await clip_model.embed_multimodal(
-                            text=text,
-                            image=image,
-                            combine_strategy="weighted"
-                        )
-                        multimodal_embeddings.append(multimodal_result.combined_embedding)
-
-                # Determine primary embeddings to return
-                if multimodal_embeddings:
-                    primary_embeddings = multimodal_embeddings
-                    embedding_type = EmbeddingType.VISION
-                elif text_embeddings:
-                    primary_embeddings = text_embeddings
-                    embedding_type = EmbeddingType.VISION
-                else:
-                    primary_embeddings = image_embeddings
-                    embedding_type = EmbeddingType.VISION
-
-                processing_time = asyncio.get_event_loop().time() - start_time
-
-                return EmbeddingResult(
-                    embeddings=primary_embeddings,
-                    dimension=len(primary_embeddings[0]) if primary_embeddings else 0,
-                    model_info={
-                        "model": "revolutionary_clip",
-                        "type": "vision_multimodal",
-                        "image_count": len(images),
-                        "text_count": len(texts) if texts else 0,
-                        "multimodal": bool(multimodal_embeddings)
-                    },
-                    processing_time=processing_time,
-                    embedding_type=embedding_type
-                )
-
-            else:
-                # Fallback to basic vision processing
-                logger.warning("Revolutionary CLIP not available, using basic vision processing")
-
-                # Basic fallback implementation
-                fallback_embeddings = []
-                for _ in images:
-                    # Generate simple fallback embedding
-                    fallback_embedding = [0.0] * 512  # Standard dimension
-                    fallback_embeddings.append(fallback_embedding)
-
-                processing_time = asyncio.get_event_loop().time() - start_time
-
-                return EmbeddingResult(
-                    embeddings=fallback_embeddings,
-                    dimension=512,
-                    model_info={
-                        "model": "fallback_vision",
-                        "type": "basic_vision",
-                        "image_count": len(images)
-                    },
-                    processing_time=processing_time,
-                    embedding_type=EmbeddingType.VISION
-                )
-
-        except Exception as e:
-            logger.error(f"Vision embedding generation failed: {str(e)}")
-            processing_time = asyncio.get_event_loop().time() - start_time
-
-            # Return error result
-            return EmbeddingResult(
-                embeddings=[],
-                dimension=0,
-                model_info={"error": str(e)},
-                processing_time=processing_time,
-                embedding_type=EmbeddingType.VISION
+    async with _global_lock:
+        if _global_embedding_manager is None:
+            # Create default config with centralized model management
+            config = EmbeddingConfig(
+                model_name="all-MiniLM-L6-v2",
+                batch_size=32,
+                use_model_manager=True  # Enable centralized storage
             )
 
-    async def compute_vision_text_similarity(
-        self,
-        image: Any,  # PIL Image or path
-        text: str
-    ) -> Dict[str, Any]:
-        """
-        Compute similarity between image and text using revolutionary CLIP.
+            _global_embedding_manager = EmbeddingManager(config)
+            await _global_embedding_manager.initialize()
 
-        Args:
-            image: Input image (PIL Image or path)
-            text: Input text
+            logger.info("🚀 Global embedding manager initialized")
 
-        Returns:
-            Similarity result with score and metadata
-        """
-        try:
-            # Check if revolutionary CLIP is available
-            if "vision" in self.models and hasattr(self.models["vision"], "compute_similarity"):
-                clip_model = self.models["vision"]
+    return _global_embedding_manager
 
-                # Handle image input
-                if isinstance(image, str):
-                    from PIL import Image
-                    image = Image.open(image)
 
-                # Compute similarity using revolutionary CLIP
-                similarity_result = await clip_model.compute_similarity(text, image)
+async def generate_global_embeddings(
+    texts: Union[str, List[str]],
+    prefix: Optional[str] = None
+) -> List[List[float]]:
+    """Generate embeddings using the global embedding manager."""
+    manager = await get_global_embedding_manager()
+    result = await manager.generate_embeddings(texts)
 
-                return {
-                    "similarity_score": similarity_result.similarity_score,
-                    "confidence": similarity_result.confidence,
-                    "processing_time_ms": similarity_result.processing_time_ms,
-                    "model": "revolutionary_clip",
-                    "cache_hit": similarity_result.cache_hit
-                }
+    # Extract embeddings from result
+    if hasattr(result, 'embeddings'):
+        return result.embeddings
+    elif isinstance(result, list):
+        return result
+    else:
+        raise ValueError(f"Unexpected embedding result type: {type(result)}")
 
-            else:
-                logger.warning("Revolutionary CLIP not available for similarity computation")
-                return {
-                    "similarity_score": 0.0,
-                    "confidence": 0.0,
-                    "processing_time_ms": 0.0,
-                    "model": "unavailable",
-                    "error": "CLIP model not available"
-                }
 
-        except Exception as e:
-            logger.error(f"Vision-text similarity computation failed: {str(e)}")
-            return {
-                "similarity_score": 0.0,
-                "confidence": 0.0,
-                "processing_time_ms": 0.0,
-                "model": "error",
-                "error": str(e)
-            }
+def update_global_embedding_config(config: Dict[str, Any]) -> None:
+    """Update the global embedding configuration."""
+    global _global_embedding_manager
 
-    def get_model_info(self) -> Dict[str, Any]:
-        """Get information about loaded models."""
-        model_info = {
-            "primary_model": self.config.model_name,
-            "embedding_type": self.config.embedding_type.value,
-            "device": self.device,
-            "dimension": self.config.dense_dimension,
-            "loaded_models": list(self.models.keys()),
-            "cache_size": len(self.embedding_cache)
+    # Reset the global manager to force reinitialization with new config
+    _global_embedding_manager = None
+
+    logger.info("🔄 Global embedding configuration updated - will reinitialize on next use")
+
+
+def get_global_embedding_config() -> Optional[Dict[str, Any]]:
+    """Get the current global embedding configuration."""
+    global _global_embedding_manager
+
+    if _global_embedding_manager is not None:
+        return {
+            "model_name": _global_embedding_manager.config.model_name,
+            "batch_size": _global_embedding_manager.config.batch_size,
+            "embedding_type": _global_embedding_manager.config.embedding_type.value,
+            "use_model_manager": _global_embedding_manager.config.use_model_manager
         }
 
-        # Add CLIP model information if available
-        if "vision" in self.models:
-            if hasattr(self.models["vision"], "get_performance_metrics"):
-                clip_metrics = self.models["vision"].get_performance_metrics()
-                model_info["clip_metrics"] = clip_metrics
+    return None
 
-            model_info["vision_capabilities"] = {
-                "revolutionary_clip": CLIP_AVAILABLE and hasattr(self.models["vision"], "embed_image"),
-                "basic_clip": "vision" in self.models,
-                "multimodal_support": True,
-                "similarity_computation": True
-            }
 
-        return model_info
+# Backward compatibility aliases
+GlobalEmbeddingManager = EmbeddingManager
+global_embedding_manager = _global_embedding_manager

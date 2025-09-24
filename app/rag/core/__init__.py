@@ -42,9 +42,10 @@ from .agent_isolation_manager import (
 
 # Supporting components (will be enhanced in later phases)
 try:
-    from .global_embedding_manager import GlobalEmbeddingManager
+    from .embeddings import EmbeddingManager as GlobalEmbeddingManager, get_global_embedding_manager
 except ImportError:
     GlobalEmbeddingManager = None
+    get_global_embedding_manager = None
 
 try:
     from .advanced_caching import AdvancedCacheManager
@@ -76,5 +77,6 @@ __all__ = [
 
     # Supporting Components (optional)
     "GlobalEmbeddingManager",
+    "get_global_embedding_manager",
     "AdvancedCacheManager"
 ]

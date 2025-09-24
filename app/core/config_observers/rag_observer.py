@@ -224,35 +224,53 @@ class RAGConfigurationObserver(ConfigurationObserver):
             # Check if embedding model changed
             if "embedding_model" in changes:
                 new_model = changes["embedding_model"]
-                logger.info(f"🔄 Updating embedding model manager: {new_model}")
+                logger.info(f"🔄 Updating embedding model configuration: {new_model}")
+
+                # Validate model exists in centralized storage
+                try:
+                    from ...rag.core.embedding_model_manager import embedding_model_manager
+
+                    model_info = embedding_model_manager.get_model_info(new_model)
+                    if model_info and model_info.is_downloaded:
+                        logger.info(f"✅ Model validated in centralized storage: {new_model}",
+                                   path=model_info.local_path)
+                    else:
+                        logger.warning(f"⚠️ Model {new_model} not found in centralized storage")
+
+                except ImportError:
+                    logger.warning("⚠️ Model manager not available for validation")
 
                 # Update global embedding configuration
+                from ...rag.core.embeddings import update_global_embedding_config
                 embedding_config = {
-                    "embedding_model": new_model,
-                    "embedding_batch_size": changes.get("embedding_batch_size", 32),
-                    "embedding_engine": changes.get("embedding_engine", "sentence-transformers")
+                    "model_name": new_model,
+                    "batch_size": changes.get("embedding_batch_size", 32),
+                    "use_model_manager": True
                 }
 
-                # Apply to embedding model manager (fallback - no manager available)
-                # embedding_model_manager.update_global_config(embedding_config)  # Disabled
-
-                logger.info(f"✅ Embedding model manager updated: {new_model}")
+                update_global_embedding_config(embedding_config)
+                logger.info(f"✅ Global embedding configuration updated: {new_model}")
 
             # Check if vision model changed
             if "vision_model" in changes:
                 new_vision_model = changes["vision_model"]
-                logger.info(f"🔄 Updating vision model: {new_vision_model}")
+                logger.info(f"🔄 Updating vision model configuration: {new_vision_model}")
 
-                # Update vision model configuration
-                vision_config = {
-                    "vision_model": new_vision_model,
-                    "vision_enabled": changes.get("vision_enabled", True)
-                }
+                # Validate vision model exists in centralized storage
+                try:
+                    from ...rag.core.embedding_model_manager import embedding_model_manager
 
-                # Apply to embedding model manager (fallback - no manager available)
-                # embedding_model_manager.update_global_config(vision_config)  # Disabled
+                    model_info = embedding_model_manager.get_model_info(new_vision_model)
+                    if model_info and model_info.is_downloaded:
+                        logger.info(f"✅ Vision model validated in centralized storage: {new_vision_model}",
+                                   path=model_info.local_path)
+                    else:
+                        logger.warning(f"⚠️ Vision model {new_vision_model} not found in centralized storage")
 
-                logger.info(f"✅ Vision model updated: {new_vision_model}")
+                except ImportError:
+                    logger.warning("⚠️ Model manager not available for vision model validation")
+
+                logger.info(f"✅ Vision model configuration updated: {new_vision_model}")
 
         except Exception as e:
-            logger.error(f"❌ Failed to update embedding model manager: {str(e)}")
+            logger.error(f"❌ Failed to update embedding model configuration: {str(e)}")

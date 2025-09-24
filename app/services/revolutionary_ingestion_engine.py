@@ -43,7 +43,7 @@ from app.config.settings import get_settings
 from app.models.document import DocumentDB, DocumentChunkDB, DocumentMetadata, DocumentChunkMetadata
 from app.models.database.base import get_database_session
 from app.rag.core.vector_db_factory import get_vector_db_client
-from app.rag.core.global_embedding_manager import GlobalEmbeddingManager
+from app.rag.core.embeddings import get_global_embedding_manager
 
 # Import Agent Builder Platform components for intelligent document processing
 from app.agents.factory import AgentType, AgentBuilderFactory, AgentBuilderConfig
@@ -174,9 +174,8 @@ class RevolutionaryIngestionEngine:
             # Step 5: Perform intelligent chunking
             chunks = await self._chunk_document(processed_content, content_type, document_title)
             
-            # Step 6: Generate embeddings
-            embedding_manager = GlobalEmbeddingManager()
-            await embedding_manager.initialize()
+            # Step 6: Generate embeddings using consolidated manager
+            embedding_manager = await get_global_embedding_manager()
             chunk_embeddings = []
 
             for i, chunk in enumerate(chunks):
