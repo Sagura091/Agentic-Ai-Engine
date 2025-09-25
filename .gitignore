@@ -58,9 +58,18 @@ data/models/
 data/embedding_models/
 data/checkpoints/
 data/workflows/
+
+# Database files (but preserve db/ directory structure)
 *.db
 *.sqlite
 *.sqlite3
+# Keep db/ directory and migration files
+!db/
+!db/**/*.sql
+!db/**/*.py
+!db/**/*.md
+# But ignore Python cache in db/
+db/**/__pycache__/
 
 # ===================================
 # LOGS & TEMPORARY FILES

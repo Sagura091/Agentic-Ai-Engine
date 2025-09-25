@@ -310,10 +310,15 @@ class EmbeddingCache(IntelligentCache):
     """Specialized cache for embedding operations."""
     
     def __init__(self, **kwargs):
+        # Extract parameters that we want to set explicitly
+        max_size = kwargs.pop('max_size', 50000)
+        max_memory_mb = kwargs.pop('max_memory_mb', 1024)
+        default_ttl = kwargs.pop('default_ttl', 7200)  # 2 hours
+
         super().__init__(
-            max_size=kwargs.get('max_size', 50000),
-            max_memory_mb=kwargs.get('max_memory_mb', 1024),
-            default_ttl=kwargs.get('default_ttl', 7200),  # 2 hours
+            max_size=max_size,
+            max_memory_mb=max_memory_mb,
+            default_ttl=default_ttl,
             **kwargs
         )
     

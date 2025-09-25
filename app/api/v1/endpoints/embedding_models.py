@@ -59,27 +59,6 @@ class ModelDownloadProgress(BaseModel):
 # Backward compatibility
 EmbeddingModelInfo = UniversalModelInfo
 
-    def get_available_models(self):
-        return []
-
-    def get_global_config(self):
-        return {}
-
-    def update_global_config(self, config):
-        pass
-
-    async def test_openai_connection(self, url, key, model):
-        return False
-
-    async def test_azure_connection(self, url, key, version, model):
-        return False
-
-    async def test_ollama_connection(self, url, key, model):
-        return False
-
-    async def test_default_connection(self, model, test_text):
-        return False
-
 # embedding_model_manager is imported from the centralized model manager
 from app.core.dependencies import get_current_user
 

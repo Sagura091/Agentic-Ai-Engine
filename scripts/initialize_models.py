@@ -23,12 +23,13 @@ import argparse
 from pathlib import Path
 from typing import List, Dict, Any
 import structlog
+import os
 
 # Add the app directory to the Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.rag.core.embedding_model_manager import UniversalModelManager, ModelType
-from app.rag.core.global_embedding_manager import get_global_embedding_manager, set_global_embedding_config
+from app.rag.core.embedding_model_manager import CentralizedModelManager, ModelType
+from app.rag.core.embeddings import get_global_embedding_manager, update_global_embedding_config, get_global_embedding_config
 from app.config.settings import get_settings
 
 logger = structlog.get_logger(__name__)
@@ -71,15 +72,15 @@ class ModelInitializer:
         """Initialize the model management system."""
         try:
             logger.info("🚀 Initializing Agentic AI Model System...")
-            
-            # Initialize universal model manager
-            self.model_manager = UniversalModelManager()
-            
+
+            # Initialize centralized model manager
+            self.model_manager = CentralizedModelManager()
+
             # Initialize global embedding manager
             self.global_embedding_manager = await get_global_embedding_manager()
-            
+
             logger.info("✅ Model management system initialized")
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to initialize model management: {e}")
             raise
@@ -131,39 +132,45 @@ class ModelInitializer:
         try:
             model_id = model_config['model_id']
             model_name = model_config['name']
-            
+
             print(f"\n📦 Setting up {model_name} ({model_id})")
             print("-" * 50)
-            
-            # Check if model exists in catalog
-            model_info = self.model_manager.get_model_info(model_id)
-            if not model_info:
-                print(f"⚠️  Model {model_id} not found in catalog")
-                self.initialization_results[model_id] = {
-                    'status': 'not_found',
-                    'message': 'Model not found in catalog'
-                }
+
+            # Determine model type from config key
+            model_type = None
+            for key, config in self.ESSENTIAL_MODELS.items():
+                if config == model_config:
+                    if key == 'embedding':
+                        model_type = ModelType.EMBEDDING
+                    elif key == 'vision':
+                        model_type = ModelType.VISION
+                    elif key == 'reranking':
+                        model_type = ModelType.RERANKING
+                    break
+
+            if not model_type:
+                print(f"⚠️  Unknown model type for {model_id}")
                 return
-            
+
             # Check if already downloaded
-            if model_info.is_downloaded and not force_download:
-                print(f"✅ Model already downloaded: {model_info.local_path}")
+            local_path = self._get_model_local_path(model_id, model_type)
+            if local_path.exists() and not force_download:
+                print(f"✅ Model already downloaded: {local_path}")
                 self.initialization_results[model_id] = {
                     'status': 'already_downloaded',
-                    'path': model_info.local_path
+                    'path': str(local_path)
                 }
             elif not skip_download:
                 # Download the model
                 print(f"⬇️  Downloading {model_name}...")
-                print(f"   Size: {model_info.size_mb:.1f}MB")
-                
-                success = await self.model_manager.download_model(model_id, force_redownload=force_download)
-                
+
+                success = await self._download_model_direct(model_id, model_type, local_path)
+
                 if success:
                     print(f"✅ Download completed successfully")
                     self.initialization_results[model_id] = {
                         'status': 'downloaded',
-                        'path': model_info.local_path
+                        'path': str(local_path)
                     }
                 else:
                     print(f"❌ Download failed")
@@ -179,17 +186,94 @@ class ModelInitializer:
                     'message': 'Download skipped'
                 }
                 return
-            
+
             # Set as global if configured
             if model_config.get('set_as_global', False):
-                await self._set_as_global_model(model_id, model_info.model_type)
-            
+                await self._set_as_global_model(model_id, model_type)
+
         except Exception as e:
             logger.error(f"Failed to setup model {model_config['model_id']}: {e}")
             self.initialization_results[model_config['model_id']] = {
                 'status': 'error',
                 'message': str(e)
             }
+
+    def _get_model_local_path(self, model_id: str, model_type: ModelType) -> Path:
+        """Get the local path where a model should be stored."""
+        settings = get_settings()
+        models_dir = Path(settings.DATA_DIR) / "models"
+
+        # Create type-specific subdirectories
+        if model_type == ModelType.EMBEDDING:
+            type_dir = models_dir / "embedding"
+        elif model_type == ModelType.VISION:
+            type_dir = models_dir / "vision"
+        elif model_type == ModelType.RERANKING:
+            type_dir = models_dir / "reranking"
+        else:
+            type_dir = models_dir / "other"
+
+        # Convert model_id to safe directory name
+        safe_name = model_id.replace("/", "--").replace(":", "_")
+        return type_dir / safe_name
+
+    async def _download_model_direct(self, model_id: str, model_type: ModelType, local_path: Path) -> bool:
+        """Download a model directly using transformers/sentence-transformers."""
+        try:
+            # Create directory
+            local_path.mkdir(parents=True, exist_ok=True)
+
+            # Set cache directory to our local path
+            os.environ['TRANSFORMERS_CACHE'] = str(local_path.parent)
+            os.environ['HF_HOME'] = str(local_path.parent)
+
+            if model_type == ModelType.EMBEDDING:
+                # Use sentence-transformers for embedding models
+                try:
+                    from sentence_transformers import SentenceTransformer
+                    print(f"   📥 Downloading embedding model...")
+                    model = SentenceTransformer(model_id, cache_folder=str(local_path.parent))
+                    # Save to our specific directory
+                    model.save(str(local_path))
+                    print(f"   💾 Saved to: {local_path}")
+                    return True
+                except ImportError:
+                    print(f"   ⚠️  sentence-transformers not available, using transformers...")
+                    from transformers import AutoModel, AutoTokenizer
+                    model = AutoModel.from_pretrained(model_id, cache_dir=str(local_path.parent))
+                    tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=str(local_path.parent))
+                    model.save_pretrained(str(local_path))
+                    tokenizer.save_pretrained(str(local_path))
+                    return True
+
+            elif model_type == ModelType.VISION:
+                # Use transformers for vision models
+                from transformers import AutoModel, AutoProcessor
+                print(f"   📥 Downloading vision model...")
+                model = AutoModel.from_pretrained(model_id, cache_dir=str(local_path.parent))
+                processor = AutoProcessor.from_pretrained(model_id, cache_dir=str(local_path.parent))
+                model.save_pretrained(str(local_path))
+                processor.save_pretrained(str(local_path))
+                print(f"   💾 Saved to: {local_path}")
+                return True
+
+            elif model_type == ModelType.RERANKING:
+                # Use transformers for reranking models
+                from transformers import AutoModel, AutoTokenizer
+                print(f"   📥 Downloading reranking model...")
+                model = AutoModel.from_pretrained(model_id, cache_dir=str(local_path.parent))
+                tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=str(local_path.parent))
+                model.save_pretrained(str(local_path))
+                tokenizer.save_pretrained(str(local_path))
+                print(f"   💾 Saved to: {local_path}")
+                return True
+
+            return False
+
+        except Exception as e:
+            print(f"   ❌ Download error: {e}")
+            logger.error(f"Failed to download model {model_id}: {e}")
+            return False
     
     async def _set_as_global_model(self, model_id: str, model_type: ModelType):
         """Set a model as global default."""
@@ -198,7 +282,8 @@ class ModelInitializer:
                 await self._set_global_embedding(model_id)
             elif model_type == ModelType.VISION:
                 await self._set_global_vision(model_id)
-            
+            # Note: Reranking models don't typically have global defaults
+
         except Exception as e:
             logger.warning(f"Failed to set {model_id} as global: {e}")
     
@@ -215,8 +300,8 @@ class ModelInitializer:
                 'updated_at': str(asyncio.get_event_loop().time())
             }
             
-            set_global_embedding_config(new_config)
-            await self.global_embedding_manager.reload_configuration()
+            update_global_embedding_config(new_config)
+            # Note: Global manager will reinitialize automatically
             
             print(f"🌍 Set as global embedding model")
             
@@ -236,8 +321,8 @@ class ModelInitializer:
                 'updated_at': str(asyncio.get_event_loop().time())
             })
             
-            set_global_embedding_config(current_config)
-            await self.global_embedding_manager.reload_configuration()
+            update_global_embedding_config(current_config)
+            # Note: Global manager will reinitialize automatically
             
             print(f"👁️  Set as global vision model")
             
@@ -250,7 +335,7 @@ class ModelInitializer:
             print(f"\n🌍 Configuring Global Settings")
             print("-" * 30)
             
-            config = self.global_embedding_manager.get_current_config() or {}
+            config = get_global_embedding_config() or {}
             
             # Ensure essential settings
             if 'embedding_batch_size' not in config:
@@ -260,8 +345,8 @@ class ModelInitializer:
                 config['enable_caching'] = True
             
             # Update configuration
-            set_global_embedding_config(config)
-            await self.global_embedding_manager.reload_configuration()
+            update_global_embedding_config(config)
+            # Note: Global manager will reinitialize automatically
             
             print("✅ Global settings configured")
             

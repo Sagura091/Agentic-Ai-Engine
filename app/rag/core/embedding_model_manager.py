@@ -141,8 +141,10 @@ class CentralizedModelManager:
         try:
             if model_type == ModelType.EMBEDDING:
                 # Check for sentence-transformers files
-                required_files = ["config.json", "pytorch_model.bin"]
-                return all((model_path / file).exists() for file in required_files)
+                # Accept both modern safetensors and legacy pytorch_model.bin formats
+                config_exists = (model_path / "config.json").exists()
+                model_exists = (model_path / "model.safetensors").exists() or (model_path / "pytorch_model.bin").exists()
+                return config_exists and model_exists
             
             elif model_type == ModelType.VISION:
                 # Check for vision model files
