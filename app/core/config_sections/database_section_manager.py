@@ -38,8 +38,8 @@ class DatabaseSectionManager(BaseConfigurationSectionManager):
             "postgres_username": "postgres",
             "postgres_password": "",
             "postgres_ssl_mode": "prefer",
-            "postgres_pool_size": 10,
-            "postgres_max_overflow": 20,
+            "postgres_pool_size": 50,    # INCREASED from 10
+            "postgres_max_overflow": 50,  # INCREASED from 20
             "postgres_pool_timeout": 30,
             "postgres_pool_recycle": 3600,
             "postgres_echo_sql": False,

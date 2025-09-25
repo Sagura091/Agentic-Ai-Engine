@@ -76,14 +76,14 @@ class Settings(BaseSettings):
         description="Paths to exclude from logging"
     )
     
-    # Database settings
+    # Database settings - OPTIMIZED for higher performance
     DATABASE_URL: str = Field(
         default="postgresql://agentic_user:agentic_secure_password_2024@localhost:5432/agentic_ai",
         description="Database connection URL",
         env="AGENTIC_DATABASE_URL"
     )
-    DATABASE_POOL_SIZE: int = Field(default=10, description="Database connection pool size")
-    DATABASE_POOL_MAX_OVERFLOW: int = Field(default=5, description="Database pool max overflow")
+    DATABASE_POOL_SIZE: int = Field(default=50, description="Database connection pool size - INCREASED from 10")
+    DATABASE_POOL_MAX_OVERFLOW: int = Field(default=20, description="Database pool max overflow - INCREASED from 5")
     DATABASE_POOL_TIMEOUT: int = Field(default=30, description="Database pool timeout")
     DATABASE_POOL_RECYCLE: int = Field(default=3600, description="Database pool recycle time")
 
@@ -111,8 +111,8 @@ class Settings(BaseSettings):
     CLUSTER_NAME: str = Field(default="agent_builder_cluster", description="Cluster name for node discovery")
     HEARTBEAT_INTERVAL: int = Field(default=30, description="Node heartbeat interval in seconds")
 
-    # Async Processing Configuration
-    ASYNC_WORKER_COUNT: int = Field(default=4, description="Number of async worker tasks")
+    # Async Processing Configuration - OPTIMIZED for higher throughput
+    ASYNC_WORKER_COUNT: int = Field(default=16, description="Number of async worker tasks - INCREASED from 4")
     ASYNC_TASK_TIMEOUT: int = Field(default=300, description="Async task timeout in seconds")
     ENABLE_ASYNC_PROCESSING: bool = Field(default=True, description="Enable async task processing")
     TASK_RESULT_TTL: int = Field(default=3600, description="Task result cache TTL in seconds")
@@ -128,7 +128,7 @@ class Settings(BaseSettings):
         description="Supported file extensions for document processing"
     )
     ENABLE_PARALLEL_PROCESSING: bool = Field(default=True, description="Enable parallel document processing")
-    DOCUMENT_PROCESSING_WORKERS: int = Field(default=3, description="Number of document processing workers")
+    DOCUMENT_PROCESSING_WORKERS: int = Field(default=8, description="Number of document processing workers - INCREASED from 3")
 
     # Agent Builder UI Configuration
     ENABLE_VISUAL_BUILDER: bool = Field(default=True, description="Enable visual agent builder")
@@ -184,8 +184,8 @@ class Settings(BaseSettings):
         description="Integration mode: 'optional', 'required', 'disabled'"
     )
 
-    # Agent settings - Multi-Provider Support
-    MAX_CONCURRENT_AGENTS: int = Field(default=10, description="Maximum concurrent agents")
+    # Agent settings - Multi-Provider Support - OPTIMIZED for higher concurrency
+    MAX_CONCURRENT_AGENTS: int = Field(default=100, description="Maximum concurrent agents - INCREASED from 10")
     AGENT_TIMEOUT_SECONDS: int = Field(default=300, description="Agent execution timeout")
     DEFAULT_AGENT_MODEL: str = Field(default="llama3.1:8b", description="Default LLM model for agents")
     DEFAULT_AGENT_PROVIDER: str = Field(default="ollama", description="Default LLM provider for agents")
@@ -252,8 +252,8 @@ class Settings(BaseSettings):
         description="Maximum memory for ChromaDB in MB"
     )
     CHROMA_CONNECTION_POOL_SIZE: int = Field(
-        default=20,
-        description="ChromaDB connection pool size"
+        default=50,
+        description="ChromaDB connection pool size - INCREASED from 20"
     )
     METRICS_PORT: int = Field(default=9090, description="Metrics server port")
     
@@ -271,7 +271,7 @@ class Settings(BaseSettings):
     # Performance settings
     MAX_REQUEST_SIZE: int = Field(default=16 * 1024 * 1024, description="Maximum request size in bytes")
     REQUEST_TIMEOUT_SECONDS: int = Field(default=60, description="Request timeout in seconds")
-    WORKER_CONNECTIONS: int = Field(default=1000, description="Worker connections")
+    WORKER_CONNECTIONS: int = Field(default=2000, description="Worker connections - INCREASED from 1000")
     
     # GPU settings
     ENABLE_GPU: bool = Field(default=False, description="Enable GPU acceleration")

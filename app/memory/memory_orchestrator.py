@@ -292,10 +292,10 @@ class MemoryOrchestrator:
         # Initialize active retrieval engine
         self.retrieval_engine = ActiveRetrievalEngine(embedding_function)
         
-        # Operation queue and processing
+        # Operation queue and processing - OPTIMIZED
         self.operation_queue = asyncio.Queue()
         self.is_processing = False
-        self.thread_pool = ThreadPoolExecutor(max_workers=4)
+        self.thread_pool = ThreadPoolExecutor(max_workers=16)  # INCREASED from 4
         
         # Agent memory collections
         self.agent_collections: Dict[str, RevolutionaryMemoryCollection] = {}

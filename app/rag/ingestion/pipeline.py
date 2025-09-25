@@ -45,11 +45,11 @@ logger = structlog.get_logger(__name__)
 
 
 class RevolutionaryIngestionConfig(BaseModel):
-    """Revolutionary configuration for multi-modal document ingestion pipeline."""
+    """Revolutionary configuration for multi-modal document ingestion pipeline - OPTIMIZED."""
 
-    # 🚀 PROCESSING SETTINGS
-    batch_size: int = Field(default=10, ge=1, le=100, description="Batch size for concurrent processing")
-    max_concurrent_jobs: int = Field(default=8, ge=1, le=32, description="Maximum concurrent processing jobs")
+    # 🚀 PROCESSING SETTINGS - OPTIMIZED for higher throughput
+    batch_size: int = Field(default=50, ge=1, le=200, description="Batch size for concurrent processing - INCREASED from 10")
+    max_concurrent_jobs: int = Field(default=16, ge=1, le=64, description="Maximum concurrent processing jobs - INCREASED from 8")
     enable_gpu_acceleration: bool = Field(default=True, description="Enable GPU acceleration for AI models")
 
     # 📝 TEXT PROCESSING

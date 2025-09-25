@@ -83,8 +83,8 @@ class ConnectionPool:
     def __init__(
         self,
         connection_factory,
-        min_connections: int = 2,
-        max_connections: int = 20,
+        min_connections: int = 5,     # INCREASED from 2
+        max_connections: int = 100,   # INCREASED from 20
         max_idle_time: float = 300,
         max_connection_age: float = 3600,
         health_check_interval: float = 60

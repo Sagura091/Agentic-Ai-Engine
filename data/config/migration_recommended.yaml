@@ -15,7 +15,7 @@ agent_types:
     timeout_seconds: 300
 infrastructure:
   cache_ttl_seconds: 300
-  connection_pool_size: 10
+  connection_pool_size: 50     # INCREASED from 10 for better performance
   health_check_interval_seconds: 60
   max_retries: 5
   retry_delays_seconds:

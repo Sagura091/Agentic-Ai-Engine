@@ -127,19 +127,19 @@ tool_defaults:
   autonomous: ["web_search", "calculator", "document_analyzer"]
 
 # =============================================================================
-# PERFORMANCE PARAMETERS
+# PERFORMANCE PARAMETERS - OPTIMIZED FOR HIGHER THROUGHPUT
 # =============================================================================
 performance:
   # Execution limits
   max_execution_time_seconds: 3600  # 1 hour absolute maximum
   max_iterations_hard_limit: 200
   min_iterations: 1
-  
-  # Resource limits
-  max_memory_per_agent_mb: 1024  # 1GB
-  max_concurrent_agents: 50
-  max_tool_calls_per_execution: 100
-  
+
+  # Resource limits - OPTIMIZED
+  max_memory_per_agent_mb: 2048  # 2GB - INCREASED from 1GB for better performance
+  max_concurrent_agents: 200     # INCREASED from 50 for higher concurrency
+  max_tool_calls_per_execution: 150  # INCREASED from 100
+
   # Decision making
   min_decision_confidence: 0.1
   max_decision_confidence: 0.9

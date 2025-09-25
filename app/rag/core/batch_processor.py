@@ -34,14 +34,14 @@ class BatchStats:
 
 @dataclass
 class BatchConfig:
-    """Batch processing configuration."""
-    max_batch_size: int = 100
-    min_batch_size: int = 10
-    max_concurrent_batches: int = 4
+    """Batch processing configuration - OPTIMIZED for higher throughput."""
+    max_batch_size: int = 200        # INCREASED from 100
+    min_batch_size: int = 20         # INCREASED from 10
+    max_concurrent_batches: int = 16 # INCREASED from 4
     timeout_seconds: float = 300
     retry_attempts: int = 3
     adaptive_sizing: bool = True
-    memory_threshold_mb: int = 512
+    memory_threshold_mb: int = 1024  # INCREASED from 512
 
 
 class BatchProcessor(Generic[T, R]):

@@ -63,10 +63,10 @@ class EmbeddingType(str, Enum):
 
 
 class EmbeddingConfig(BaseModel):
-    """Configuration for embedding generation."""
+    """Configuration for embedding generation - OPTIMIZED."""
     model_name: str = Field(default="all-MiniLM-L6-v2")
     embedding_type: EmbeddingType = Field(default=EmbeddingType.DENSE)
-    batch_size: int = Field(default=32, ge=1, le=128)
+    batch_size: int = Field(default=64, ge=1, le=256)  # INCREASED from 32
     max_length: int = Field(default=512, ge=128, le=2048)
     normalize: bool = Field(default=True)
     device: str = Field(default="auto")
