@@ -349,15 +349,26 @@ class PersistentMemorySystem:
         try:
             memories_loaded = 0
 
+            # Convert agent_id to UUID if needed
+            import uuid as uuid_module
+            if isinstance(self.agent_id, str):
+                try:
+                    agent_uuid = uuid_module.UUID(self.agent_id)
+                except ValueError:
+                    agent_uuid = uuid_module.uuid4()
+                    self.agent_id = str(agent_uuid)
+            else:
+                agent_uuid = self.agent_id
+
             async for session in get_database_session():
                 # Get agent state
                 agent_state = await session.execute(
-                    select(AutonomousAgentState).where(AutonomousAgentState.agent_id == self.agent_id)
+                    select(AutonomousAgentState).where(AutonomousAgentState.agent_id == agent_uuid)
                 )
                 agent_state_record = agent_state.scalar_one_or_none()
 
                 if not agent_state_record:
-                    logger.info("No agent state found in database", agent_id=self.agent_id)
+                    logger.info("No agent state found in database", agent_id=str(agent_uuid))
                     return 0
 
                 # Load memories for this agent
@@ -415,26 +426,39 @@ class PersistentMemorySystem:
     async def _ensure_agent_registered(self) -> bool:
         """Ensure the agent is registered in the agents table."""
         try:
+            # Convert agent_id to UUID if it's a string
+            import uuid as uuid_module
+            if isinstance(self.agent_id, str):
+                try:
+                    agent_uuid = uuid_module.UUID(self.agent_id)
+                except ValueError:
+                    # If it's not a valid UUID string, generate a new UUID
+                    agent_uuid = uuid_module.uuid4()
+                    logger.warning("Invalid agent_id format, generated new UUID",
+                                 original_id=self.agent_id,
+                                 new_id=str(agent_uuid))
+                    self.agent_id = str(agent_uuid)
+            else:
+                agent_uuid = self.agent_id
+
             async for session in get_database_session():
                 try:
                     # Check if agent already exists
                     agent_query = await session.execute(
-                        select(Agent).where(Agent.id == self.agent_id)
+                        select(Agent).where(Agent.id == agent_uuid)
                     )
                     existing_agent = agent_query.scalar_one_or_none()
 
                     if not existing_agent:
                         # Register the agent
                         agent_record = Agent(
-                            id=self.agent_id,
-                            name=f"autonomous_agent_{str(self.agent_id)[:8]}",
+                            id=agent_uuid,
+                            name=f"autonomous_agent_{str(agent_uuid)[:8]}",
                             agent_type="autonomous",
-                            description="Autonomous meme collection and generation agent",
-                            capabilities=["meme_collection", "meme_analysis", "meme_generation", "web_research"],
-                            tools=["meme_collection_tool", "meme_analysis_tool", "meme_generation_tool", "web_research_tool"],
-                            system_prompt="You are an autonomous meme collection and generation agent.",
-                            autonomy_level="autonomous",
-                            learning_mode="active",
+                            description="Autonomous agent with persistent memory",
+                            capabilities=["reasoning", "tool_use", "memory", "learning"],
+                            tools=["web_research", "business_intelligence"],
+                            system_prompt="You are an autonomous agent with persistent memory capabilities.",
                             status="active"
                         )
 
@@ -442,7 +466,7 @@ class PersistentMemorySystem:
                         await session.commit()
 
                         logger.info("Agent registered in database",
-                                   agent_id=self.agent_id,
+                                   agent_id=str(agent_uuid),
                                    agent_name=agent_record.name)
 
                     return True
@@ -450,8 +474,8 @@ class PersistentMemorySystem:
                 except Exception as e:
                     await session.rollback()
                     # If it's a unique constraint violation, the agent is already registered
-                    if "UniqueViolationError" in str(e) and "agents_pkey" in str(e):
-                        logger.info("Agent already registered in database", agent_id=self.agent_id)
+                    if "UniqueViolationError" in str(e) or "duplicate key" in str(e).lower():
+                        logger.info("Agent already registered in database", agent_id=str(agent_uuid))
                         return True
                     raise e
 
@@ -468,15 +492,26 @@ class PersistentMemorySystem:
             async for session in get_database_session():
                 try:
                     # First, ensure we have an agent state record
+                    # Convert agent_id to UUID if needed
+                    import uuid as uuid_module
+                    if isinstance(self.agent_id, str):
+                        try:
+                            agent_uuid = uuid_module.UUID(self.agent_id)
+                        except ValueError:
+                            agent_uuid = uuid_module.uuid4()
+                            self.agent_id = str(agent_uuid)
+                    else:
+                        agent_uuid = self.agent_id
+
                     agent_state = await session.execute(
-                        select(AutonomousAgentState).where(AutonomousAgentState.agent_id == self.agent_id)
+                        select(AutonomousAgentState).where(AutonomousAgentState.agent_id == agent_uuid)
                     )
                     agent_state_record = agent_state.scalar_one_or_none()
 
                     if not agent_state_record:
                         # Create agent state record
                         agent_state_record = AutonomousAgentState(
-                            agent_id=self.agent_id,
+                            agent_id=agent_uuid,
                             session_id=memory.session_id or f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
                             custom_state={"initialized": True, "created_by": "persistent_memory_system"}
                         )

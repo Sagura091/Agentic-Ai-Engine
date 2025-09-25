@@ -130,15 +130,23 @@ class AdaptiveLearningSystem:
             self.learning_stats["total_experiences"] += 1
             
             # Analyze patterns in recent data
-            patterns = await self._detect_performance_patterns()
-            
+            patterns_list = await self._detect_performance_patterns()
+
+            # Convert patterns list to dictionary for adaptation suggestions
+            patterns_dict = {
+                "success_rate": performance_data.get("success_rate", 0.8),
+                "average_execution_time": performance_data.get("execution_time", 15),
+                "patterns_count": len(patterns_list),
+                "patterns": [p.dict() if hasattr(p, 'dict') else p.__dict__ for p in patterns_list]
+            }
+
             # Generate learning insights
             insights = await self._generate_learning_insights(
-                performance_data, decision_history, patterns
+                performance_data, decision_history, patterns_list
             )
-            
+
             # Create adaptation suggestions
-            adaptations = await self._suggest_adaptations(insights, patterns)
+            adaptations = await self._suggest_adaptations(insights, patterns_dict)
             
             # Update learning statistics
             self.learning_stats["last_learning_session"] = datetime.utcnow()
@@ -147,18 +155,18 @@ class AdaptiveLearningSystem:
             learning_results = {
                 "status": "learning_completed",
                 "insights": [insight.__dict__ for insight in insights],
-                "adaptations": [adapt.dict() for adapt in adaptations],
-                "patterns_detected": len(patterns),
+                "adaptations": adaptations,
+                "patterns_detected": len(patterns_list),
                 "learning_rate": self.learning_rate,
                 "adaptation_score": self._calculate_adaptation_score(adaptations),
                 "summary": self._create_learning_summary(insights, adaptations)
             }
-            
+
             logger.info(
                 "Learning analysis completed",
                 insights_count=len(insights),
                 adaptations_count=len(adaptations),
-                patterns_count=len(patterns)
+                patterns_count=len(patterns_list)
             )
             
             return learning_results
@@ -519,14 +527,14 @@ class AdaptiveLearningSystem:
                 insight_type="learning_effectiveness",
                 description="Analysis of learning system effectiveness",
                 confidence=0.8,
-                data={
+                actionable_recommendations=suggestions,
+                supporting_evidence={
                     "total_experiences": total_experiences,
                     "patterns_discovered": patterns_discovered,
                     "adaptations_made": adaptations_made,
                     "learning_rate": learning_rate,
                     "effectiveness_score": effectiveness_score
-                },
-                suggestions=suggestions
+                }
             )
 
         except Exception as e:
@@ -539,7 +547,7 @@ class AdaptiveLearningSystem:
             # Get recent learning metrics
             total_experiences = len(self.experience_buffer)
             patterns_discovered = len(self.pattern_database)
-            adaptations_made = len([exp for exp in self.experience_buffer if exp.outcome == "success"])
+            adaptations_made = len([exp for exp in self.experience_buffer if exp.get("outcome") == "success"])
 
             # Calculate learning rate
             if total_experiences > 0:
@@ -562,14 +570,14 @@ class AdaptiveLearningSystem:
                 insight_type="learning_effectiveness",
                 description="Analysis of learning system effectiveness",
                 confidence=0.8,
-                data={
+                actionable_recommendations=suggestions,
+                supporting_evidence={
                     "total_experiences": total_experiences,
                     "patterns_discovered": patterns_discovered,
                     "adaptations_made": adaptations_made,
                     "learning_rate": learning_rate,
                     "effectiveness_score": effectiveness_score
-                },
-                suggestions=suggestions
+                }
             )
 
         except Exception as e:
@@ -605,6 +613,50 @@ class AdaptiveLearningSystem:
         except Exception as e:
             logger.warning("Failed to calculate adaptation score", error=str(e))
             return 0.5  # Default score
+
+    def _create_learning_summary(self, insights: List[Any], adaptations: List[Any]) -> str:
+        """Create a summary of learning insights and adaptations."""
+        try:
+            summary_parts = []
+
+            # Insights summary
+            if insights:
+                insight_types = [getattr(insight, 'insight_type', 'unknown') for insight in insights]
+                insight_summary = f"Generated {len(insights)} insights: {', '.join(set(insight_types))}"
+                summary_parts.append(insight_summary)
+            else:
+                summary_parts.append("No new insights generated")
+
+            # Adaptations summary
+            if adaptations:
+                adaptation_types = []
+                for adaptation in adaptations:
+                    if hasattr(adaptation, 'type'):
+                        adaptation_types.append(adaptation.type)
+                    elif isinstance(adaptation, dict) and 'type' in adaptation:
+                        adaptation_types.append(adaptation['type'])
+                    else:
+                        adaptation_types.append('behavioral')
+
+                adaptation_summary = f"Suggested {len(adaptations)} adaptations: {', '.join(set(adaptation_types))}"
+                summary_parts.append(adaptation_summary)
+            else:
+                summary_parts.append("No adaptations suggested")
+
+            # Overall learning effectiveness
+            effectiveness = self._calculate_adaptation_score(adaptations)
+            if effectiveness > 0.7:
+                summary_parts.append("High learning effectiveness")
+            elif effectiveness > 0.4:
+                summary_parts.append("Moderate learning effectiveness")
+            else:
+                summary_parts.append("Low learning effectiveness")
+
+            return ". ".join(summary_parts) + "."
+
+        except Exception as e:
+            logger.warning("Failed to create learning summary", error=str(e))
+            return f"Learning session completed with {len(insights)} insights and {len(adaptations)} adaptations."
 
     async def run_continuous_learning_cycle(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Run a continuous learning cycle to adapt behavior based on experience."""

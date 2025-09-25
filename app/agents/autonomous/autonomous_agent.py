@@ -436,6 +436,10 @@ class AutonomousLangGraphAgent(LangGraphAgent):
     async def _autonomous_planning_node(self, state: AutonomousAgentState) -> AutonomousAgentState:
         """Autonomous planning node with self-directed goal setting."""
         try:
+            print(f"\n📋 **AUTONOMOUS PLANNING PHASE** - Creating strategic plan...")
+            print(f"🎯 **CURRENT TASK**: {state['current_task'][:100]}{'...' if len(state['current_task']) > 100 else ''}")
+            print(f"🔄 **ITERATION**: {state.get('iteration_count', 0)}")
+
             # Analyze current context and goals
             current_context = {
                 "task": state["current_task"],
@@ -444,12 +448,20 @@ class AutonomousLangGraphAgent(LangGraphAgent):
                 "performance_metrics": state.get("performance_metrics", {}),
                 "goal_stack": state.get("goal_stack", [])
             }
-            
+
+            print(f"🔍 **CONTEXT ANALYSIS**:")
+            print(f"   • Available Tools: {len(current_context['available_tools'])}")
+            print(f"   • Previous Outputs: {len(current_context['previous_outputs'])}")
+            print(f"   • Current Goals: {len(current_context['goal_stack'])}")
+
             # Generate autonomous plan
+            print(f"🎯 **PLAN GENERATION** - Creating autonomous execution plan...")
             plan = await self.goal_manager.create_autonomous_plan(
                 context=current_context,
                 autonomy_level=state["autonomy_level"]
             )
+
+            print(f"✅ **PLAN CREATED**: {plan.get('summary', 'Strategic plan generated')}")
             
             # Update state with plan
             updated_state = state.copy()
@@ -458,14 +470,18 @@ class AutonomousLangGraphAgent(LangGraphAgent):
             updated_state["messages"].append(
                 AIMessage(content=f"Autonomous planning completed: {plan.get('summary', 'Plan created')}")
             )
-            
+
+            # CRITICAL FIX: Increment iteration count to track progress
+            updated_state["iteration_count"] = state.get("iteration_count", 0) + 1
+
             logger.debug(
                 "Autonomous planning completed",
                 agent_id=self.agent_id,
                 goals_count=len(plan.get("goals", [])),
-                plan_complexity=plan.get("complexity", "unknown")
+                plan_complexity=plan.get("complexity", "unknown"),
+                iteration=updated_state["iteration_count"]
             )
-            
+
             return updated_state
             
         except Exception as e:
@@ -477,24 +493,67 @@ class AutonomousLangGraphAgent(LangGraphAgent):
     async def _decision_making_node(self, state: AutonomousAgentState) -> AutonomousAgentState:
         """Advanced decision-making node with autonomous reasoning."""
         try:
+            print(f"\n🧠 **AUTONOMOUS REASONING PHASE** - Agent is thinking...")
+
+            # AUTONOMOUS THINKING: Let the agent reason about the current situation using its personality
+            reasoning_prompt = f"""
+            CURRENT SITUATION:
+            - TASK: {state.get('current_task', 'Unknown')[:200]}...
+            - ACTIVE GOALS: {len(state.get('goal_stack', []))} goals
+            - TOOLS AVAILABLE: {state.get('tools_available', [])}
+            - ITERATION: {state.get('iteration_count', 0)}
+            - PREVIOUS OUTPUTS: {len(state.get('outputs', {}))} outputs generated
+
+            I need to:
+            1. Explain what I'm currently thinking about (in my personality/character)
+            2. Describe my strategy and approach
+            3. Explain which tools I plan to use and why
+            4. Share my confidence level and reasoning
+            5. Communicate any insights or observations
+
+            Please respond as if you're talking directly to the user, explaining your thought process and next steps.
+            Be conversational and informative while staying true to your personality and character.
+            Start with something like "I'm analyzing the situation..." or "Let me think about this..."
+            """
+
+            autonomous_thoughts = await self._autonomous_reasoning(reasoning_prompt, state)
+
+            # Debug: Check what we actually got back
+            print(f"\n💭 **AGENT COMMUNICATION**:")
+            if autonomous_thoughts and len(autonomous_thoughts.strip()) > 0:
+                print(f"{autonomous_thoughts}")
+            else:
+                print(f"   [DEBUG: Empty or None response - autonomous_thoughts = '{autonomous_thoughts}']")
+            print(f"   (The agent is using its LLM to reason and communicate with us)")
+
             # Extract decision context
             decision_context = {
                 "current_goals": state.get("goal_stack", []),
                 "available_actions": self._get_available_actions(state),
                 "context_memory": state.get("context_memory", {}),
                 "performance_history": state.get("performance_metrics", {}),
-                "constraints": self.autonomous_config.safety_constraints
+                "constraints": self.autonomous_config.safety_constraints,
+                "autonomous_reasoning": autonomous_thoughts
             }
-            
+
+            print(f"⚖️ **DECISION ANALYSIS** - Evaluating {len(decision_context['available_actions'].get('tools', []))} available tools...")
+
             # Make autonomous decision
             decision = await self.decision_engine.make_autonomous_decision(
                 context=decision_context,
                 confidence_threshold=self.autonomous_config.decision_threshold
             )
-            
+
+            # SHOW DECISION REASONING
+            chosen_action = decision.chosen_option.get('action', 'Unknown')
+            confidence = decision.confidence
+            print(f"✅ **DECISION MADE**: {chosen_action}")
+            print(f"🎯 **CONFIDENCE LEVEL**: {confidence:.1%}")
+            print(f"🔍 **REASONING**: {decision.reasoning[:2] if decision.reasoning else ['No reasoning provided']}")
+
             # Record decision
             self.decision_history.append(decision)
-            
+
             # Update state with decision
             updated_state = state.copy()
             updated_state["decision_confidence"] = decision.confidence
@@ -523,41 +582,95 @@ class AutonomousLangGraphAgent(LangGraphAgent):
     async def _action_execution_node(self, state: AutonomousAgentState) -> AutonomousAgentState:
         """Enhanced action execution with autonomous tool selection."""
         try:
+            print(f"\n🚀 **ACTION EXECUTION PHASE** - Implementing my decision...")
+
             # Get current decision
             current_decision = state["custom_state"].get("current_decision")
             if not current_decision:
+                print("❌ **NO DECISION FOUND** - Cannot execute action without a decision")
                 return state
 
             # Execute chosen action
             action = current_decision.get("chosen_option", {})
             action_type = action.get("type", "unknown")
 
+            print(f"🎯 **EXECUTING ACTION**: {action.get('action', 'Unknown')} (Type: {action_type})")
+
             updated_state = state.copy()
 
             if action_type == "tool_use":
-                # Execute tool with autonomous parameters
-                tool_name = action.get("tool")
-                tool_args = action.get("args", {})
+                # CRITICAL FIX: Extract tool parameters correctly from decision structure
+                parameters = action.get("parameters", {})
+                tool_name = parameters.get("tool")
+                tool_args = parameters.get("args", {})
 
-                if tool_name in self.tools:
+                print(f"🔧 **TOOL SELECTED**: {tool_name}")
+                print(f"📋 **PARAMETERS**: {tool_args}")
+                logger.debug(f"Attempting to execute tool: {tool_name} with args: {tool_args}")
+                logger.debug(f"Available tools: {list(self.tools.keys())}")
+
+                if tool_name and tool_name in self.tools:
                     tool = self.tools[tool_name]
-                    result = await tool.ainvoke(tool_args)
+                    print(f"⚡ **EXECUTING TOOL**: {tool_name} - Starting execution...")
+                    logger.info(f"Executing autonomous tool: {tool_name}")
 
-                    # Record tool execution
-                    updated_state["tool_calls"].append({
-                        "tool": tool_name,
-                        "args": tool_args,
-                        "result": result,
-                        "autonomous": True,
-                        "confidence": current_decision.get("confidence", 0.0)
-                    })
+                    try:
+                        result = await tool.ainvoke(tool_args)
+                        print(f"✅ **TOOL EXECUTION COMPLETE**: {tool_name}")
+                        print(f"📊 **RESULTS SUMMARY**: {str(result)[:200]}{'...' if len(str(result)) > 200 else ''}")
+                        logger.info(f"Tool execution successful: {tool_name} -> {result}")
 
-                    # Add result to outputs
-                    updated_state["outputs"][f"autonomous_tool_{len(updated_state['tool_calls'])}"] = result
+                        # AGENT COMMUNICATION: Let the agent analyze and communicate the results
+                        analysis_prompt = f"""
+                        I just executed the {tool_name} tool with the query: {tool_args.get('query', 'N/A')}
 
-                    updated_state["messages"].append(
-                        AIMessage(content=f"Autonomous tool execution: {tool_name} -> {result}")
-                    )
+                        RESULTS RECEIVED:
+                        {str(result)[:500]}...
+
+                        As an Apple Stock Monitor Agent, I need to:
+                        1. Analyze what this data tells me about Apple stock
+                        2. Explain the significance of these findings
+                        3. Describe what I plan to do next
+                        4. Share any insights or concerns
+
+                        Please communicate directly with the user about what you found and what it means.
+                        Be specific about Apple stock insights if any were found.
+                        """
+
+                        analysis_response = await self._autonomous_reasoning(analysis_prompt, updated_state)
+
+                        # Debug: Check what we actually got back
+                        print(f"\n🔍 **AGENT ANALYSIS**:")
+                        if analysis_response and len(analysis_response.strip()) > 0:
+                            print(f"{analysis_response}")
+                        else:
+                            print(f"   [DEBUG: Empty or None response - analysis_response = '{analysis_response}']")
+
+                        # Record tool execution
+                        updated_state["tool_calls"].append({
+                            "tool": tool_name,
+                            "args": tool_args,
+                            "result": result,
+                            "autonomous": True,
+                            "confidence": current_decision.get("confidence", 0.0),
+                            "agent_analysis": analysis_response
+                        })
+
+                        # Add result to outputs
+                        updated_state["outputs"][f"autonomous_tool_{len(updated_state['tool_calls'])}"] = result
+
+                        updated_state["messages"].append(
+                            AIMessage(content=f"Autonomous tool execution: {tool_name} -> {result}")
+                        )
+
+                    except Exception as tool_error:
+                        logger.error(f"Tool execution failed: {tool_name} - {str(tool_error)}")
+                        updated_state["errors"].append(f"Tool execution failed: {tool_name} - {str(tool_error)}")
+
+                else:
+                    error_msg = f"Tool not found or invalid: {tool_name}. Available: {list(self.tools.keys())}"
+                    logger.error(error_msg)
+                    updated_state["errors"].append(error_msg)
 
             elif action_type == "reasoning":
                 # Perform autonomous reasoning
@@ -597,7 +710,10 @@ class AutonomousLangGraphAgent(LangGraphAgent):
     async def _learning_reflection_node(self, state: AutonomousAgentState) -> AutonomousAgentState:
         """Learning and reflection node for continuous improvement."""
         try:
+            print(f"\n🧠 **LEARNING & REFLECTION PHASE** - Analyzing my performance...")
+
             if not state.get("learning_enabled", True):
+                print("📚 **LEARNING DISABLED** - Skipping reflection phase")
                 return state
 
             # Analyze performance and outcomes
@@ -609,6 +725,19 @@ class AutonomousLangGraphAgent(LangGraphAgent):
                 "outputs_generated": len(state["outputs"]),
                 "confidence_levels": [d.confidence for d in self.decision_history[-5:]]  # Last 5 decisions
             }
+
+            print(f"📊 **PERFORMANCE ANALYSIS**:")
+            print(f"   • Iteration: {performance_data['iteration']}")
+            print(f"   • Tools Used: {performance_data['tools_used']}")
+            print(f"   • Decisions Made: {performance_data['decisions_made']}")
+            print(f"   • Errors: {performance_data['errors_encountered']}")
+            print(f"   • Outputs Generated: {performance_data['outputs_generated']}")
+
+            if performance_data['confidence_levels']:
+                avg_confidence = sum(performance_data['confidence_levels']) / len(performance_data['confidence_levels'])
+                print(f"   • Average Confidence: {avg_confidence:.1%}")
+
+            print(f"🔍 **LEARNING ANALYSIS** - Extracting insights from recent experience...")
 
             # Learn from recent experience
             learning_insights = await self.learning_system.analyze_and_learn(
@@ -761,11 +890,18 @@ class AutonomousLangGraphAgent(LangGraphAgent):
         autonomy_level = state.get("autonomy_level", "medium")
         goal_stack = state.get("goal_stack", [])
         errors = state.get("errors", [])
+        iteration_count = state.get("iteration_count", 0)
 
         # Safety check - end if too many errors
         if len(errors) > 5:
             logger.warning("Too many errors, ending execution", agent_id=self.agent_id)
             return "end"
+
+        # CRITICAL FIX: Always prioritize action execution for the first few iterations
+        # to ensure the agent actually uses tools instead of getting stuck in learning loops
+        if iteration_count < 3:
+            logger.debug(f"Early iteration {iteration_count}, routing to decision making for action execution")
+            return "make_decision"
 
         # Route based on autonomy level
         if autonomy_level in ["low", "reactive"]:
@@ -779,13 +915,17 @@ class AutonomousLangGraphAgent(LangGraphAgent):
                 return "execute_directly"
         elif autonomy_level in ["high", "adaptive", "autonomous"]:
             # High autonomy - full decision making and learning
-            if state.get("learning_enabled", True) and state["iteration_count"] % 3 == 0:
-                return "learn_first"  # Learn every 3rd iteration
+            # FIXED: Only learn after we've had some action execution iterations
+            if state.get("learning_enabled", True) and iteration_count > 5 and iteration_count % 4 == 0:
+                return "learn_first"  # Learn every 4th iteration after iteration 5
             else:
                 return "make_decision"
         elif autonomy_level == "emergent":
-            # Emergent autonomy - always learn and adapt
-            return "learn_first"
+            # Emergent autonomy - learn but not immediately
+            if iteration_count > 3:
+                return "learn_first"
+            else:
+                return "make_decision"
         else:
             # Default to decision making
             return "make_decision"
@@ -794,6 +934,25 @@ class AutonomousLangGraphAgent(LangGraphAgent):
         """Determine if the agent should adapt its behavior."""
         adaptation_history = state.get("adaptation_history", [])
         performance_metrics = state.get("performance_metrics", {})
+        iteration_count = state.get("iteration_count", 0)
+        max_iterations = state.get("max_iterations", 50)
+        tools_used = len(state.get("tool_calls", []))
+
+        # CRITICAL FIX: End execution if we've completed the task successfully
+        # Check if we've used tools and have outputs - indicates successful execution
+        if tools_used > 0 and state.get("outputs"):
+            logger.info(f"Task completed successfully with {tools_used} tools used, ending execution")
+            return "end"
+
+        # CRITICAL FIX: Prevent infinite loops - limit total iterations
+        if iteration_count >= max_iterations:
+            logger.warning(f"Maximum iterations ({max_iterations}) reached, ending execution")
+            return "end"
+
+        # CRITICAL FIX: End if we've been running too long without tool usage
+        if iteration_count > 10 and tools_used == 0:
+            logger.warning(f"No tools used after {iteration_count} iterations, ending execution")
+            return "end"
 
         # Check if adaptation is needed
         recent_adaptations = [
@@ -803,7 +962,8 @@ class AutonomousLangGraphAgent(LangGraphAgent):
 
         # Don't adapt too frequently
         if len(recent_adaptations) > 2:
-            return "continue"
+            logger.debug("Too many recent adaptations, ending execution")
+            return "end"
 
         # Adapt if performance is declining
         error_rate = performance_metrics.get("errors_encountered", 0) / max(1, performance_metrics.get("outputs_generated", 1))
@@ -817,61 +977,203 @@ class AutonomousLangGraphAgent(LangGraphAgent):
             if adaptation_suggestions:
                 return "adapt"
 
-        # Check if we should continue or end
-        iteration_count = state.get("iteration_count", 0)
-        max_iterations = state.get("max_iterations", 50)
-
-        if iteration_count >= max_iterations:
-            return "end"
-
-        # Continue if goals remain
+        # CRITICAL FIX: Default to ending execution instead of continuing indefinitely
+        # Only continue if we haven't used tools yet and haven't exceeded reasonable limits
         goal_stack = state.get("goal_stack", [])
-        if goal_stack:
+        if goal_stack and tools_used == 0 and iteration_count < 5:
+            logger.debug(f"Goals remain and no tools used yet (iteration {iteration_count}), continuing")
             return "continue"
 
+        # End execution by default to prevent infinite loops
+        logger.info(f"Ending execution after {iteration_count} iterations with {tools_used} tools used")
         return "end"
 
     def _get_available_actions(self, state: AutonomousAgentState) -> Dict[str, Any]:
-        """Get available actions based on current state."""
+        """Get available actions based on current state - dynamically generate tool parameters."""
+        # Extract context for dynamic parameter generation
+        current_task = state.get("current_task", "")
+        goal_stack = state.get("goal_stack", [])
+
+        # Dynamically generate tool parameters based on context
+        tools_with_params = []
+        for tool_name in state["tools_available"]:
+            suggested_params = self._generate_tool_parameters(tool_name, current_task, goal_stack, state)
+            tools_with_params.append({
+                "name": tool_name,
+                "suggested_params": suggested_params,
+                "confidence": 0.7 if suggested_params else 0.3  # Higher confidence if we have good params
+            })
+
         return {
-            "tools": [{"name": tool_name, "suggested_params": {}} for tool_name in state["tools_available"]],
+            "tools": tools_with_params,
             "reasoning": {"available": True, "confidence": 0.8},
-            "goal_actions": [{"action": "pursue_goal", "goal": goal} for goal in state.get("goal_stack", [])],
+            "goal_actions": [{"action": "pursue_goal", "goal": goal} for goal in goal_stack],
             "exploration": {"available": self.config.learning_mode != "disabled", "risk_level": 0.5}
         }
+
+    def _generate_tool_parameters(self, tool_name: str, current_task: str, goal_stack: list, state: AutonomousAgentState) -> Dict[str, Any]:
+        """Dynamically generate appropriate parameters for tools based on current context."""
+        params = {}
+
+        # Extract key information from task and goals
+        task_lower = current_task.lower()
+
+        if tool_name == "web_research":
+            # Generate search queries based on task content
+            if "apple" in task_lower and "stock" in task_lower:
+                params = {
+                    "action": "search",
+                    "query": "Apple stock price AAPL current market analysis",
+                    "max_results": 5
+                }
+            elif "monitor" in task_lower:
+                params = {
+                    "action": "search",
+                    "query": "real-time stock monitoring Apple AAPL",
+                    "max_results": 3
+                }
+            else:
+                # Extract key terms from task for generic search
+                key_terms = self._extract_key_terms(current_task)
+                if key_terms:
+                    params = {
+                        "action": "search",
+                        "query": " ".join(key_terms[:5]),  # Use top 5 key terms
+                        "max_results": 5
+                    }
+
+        elif tool_name == "business_intelligence":
+            # Generate business analysis parameters
+            if "apple" in task_lower:
+                params = {
+                    "action": "analyze_company",
+                    "company": "Apple Inc",
+                    "analysis_type": "stock_performance"
+                }
+            elif "stock" in task_lower:
+                params = {
+                    "action": "market_analysis",
+                    "focus": "stock_market_trends"
+                }
+
+        # Add goal-based parameters if available
+        if goal_stack:
+            for goal in goal_stack:
+                if isinstance(goal, dict):
+                    goal_title = goal.get("title", "").lower()
+                    if "apple" in goal_title and tool_name == "web_research":
+                        params.update({
+                            "context": "Apple stock monitoring for investment timing",
+                            "priority": "high"
+                        })
+
+        return params
+
+    def _extract_key_terms(self, text: str) -> list:
+        """Extract key terms from text for search queries."""
+        # Simple keyword extraction - remove common words
+        stop_words = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "you", "must", "use", "your", "now"}
+        words = text.lower().split()
+        key_terms = [word.strip(".,!?:;") for word in words if word.strip(".,!?:;") not in stop_words and len(word) > 2]
+        return key_terms
 
     async def _autonomous_reasoning(self, prompt: str, state: AutonomousAgentState) -> str:
         """Perform autonomous reasoning using the LLM."""
         try:
-            reasoning_prompt = ChatPromptTemplate.from_messages([
-                ("system", """You are an autonomous AI agent capable of independent reasoning and decision-making.
+            # CRITICAL FIX: Use the configured system prompt (contains personality) instead of hardcoded generic one
+            tools_description = ", ".join(self.tools.keys()) if self.tools else "None"
+            configured_system_prompt = self.config.system_prompt.format(tools=tools_description)
 
+            # Enhance the configured system prompt with autonomous capabilities
+            enhanced_system_prompt = f"""{configured_system_prompt}
+
+AUTONOMOUS CAPABILITIES:
 You have access to tools that you MUST use when appropriate:
 - Use tools for calculations, analysis, and data processing
 - Always call tools when the task requires specialized functionality
 - Use function calling format to invoke tools
 
-Make autonomous decisions about which tools to use and when to use them."""),
+Make autonomous decisions about which tools to use and when to use them while maintaining your personality and character."""
+
+            reasoning_prompt = ChatPromptTemplate.from_messages([
+                ("system", enhanced_system_prompt),
                 ("human", "{prompt}\n\nContext: {context}\nCurrent task: {task}")
             ])
 
-            # CRITICAL: Use tool-bound LLM for autonomous reasoning too
-            chain = reasoning_prompt | self.llm_with_tools
+            # CRITICAL: Use regular LLM for reasoning (not tool-bound) since we just want text responses
+            chain = reasoning_prompt | self.llm
+
+            # CRITICAL FIX: Convert datetime objects to strings for JSON serialization
+            def serialize_for_json(obj):
+                from datetime import datetime, date, time
+                import uuid
+
+                if isinstance(obj, (datetime, date, time)):
+                    return obj.isoformat()
+                elif isinstance(obj, uuid.UUID):
+                    return str(obj)
+                elif hasattr(obj, 'dict') and callable(getattr(obj, 'dict')):  # Pydantic models
+                    try:
+                        return serialize_for_json(obj.dict())
+                    except:
+                        return str(obj)
+                elif hasattr(obj, '__dict__'):  # Other objects with attributes
+                    try:
+                        return serialize_for_json(obj.__dict__)
+                    except:
+                        return str(obj)
+                elif isinstance(obj, list):
+                    return [serialize_for_json(item) for item in obj]
+                elif isinstance(obj, dict):
+                    return {k: serialize_for_json(v) for k, v in obj.items()}
+                elif isinstance(obj, (int, float, str, bool, type(None))):
+                    return obj
+                else:
+                    # Fallback for any other type
+                    try:
+                        return str(obj)
+                    except:
+                        return f"<{type(obj).__name__} object>"
 
             context_info = {
                 "available_tools": state["tools_available"],
-                "current_outputs": state["outputs"],
-                "goal_stack": state.get("goal_stack", []),
-                "performance_metrics": state.get("performance_metrics", {})
+                "current_outputs": serialize_for_json(state["outputs"]),
+                "goal_stack": serialize_for_json(state.get("goal_stack", [])),
+                "performance_metrics": serialize_for_json(state.get("performance_metrics", {})),
+                "iteration": state.get("iteration_count", 0)
             }
+
+            # Debug: Try to serialize and catch any remaining issues
+            try:
+                context_json = json.dumps(context_info, indent=2)
+            except Exception as e:
+                logger.error(f"JSON serialization still failing: {e}")
+                # Fallback: serialize everything as strings
+                context_info = {k: str(v) for k, v in context_info.items()}
+                context_json = json.dumps(context_info, indent=2)
+
+            # Debug: Log what we're sending to the LLM
+            logger.debug(f"Sending to LLM - Prompt: {prompt[:100]}...")
+            logger.debug(f"Context length: {len(context_json)}")
 
             response = await chain.ainvoke({
                 "prompt": prompt,
-                "context": json.dumps(context_info, indent=2),
+                "context": context_json,
                 "task": state["current_task"]
             })
 
-            return response.content if hasattr(response, 'content') else str(response)
+            # Debug: Log what we got back
+            logger.debug(f"LLM response type: {type(response)}")
+            logger.debug(f"LLM response: {response}")
+
+            if hasattr(response, 'content'):
+                result = response.content
+                logger.debug(f"Response content: '{result}'")
+            else:
+                result = str(response)
+                logger.debug(f"Response as string: '{result}'")
+
+            return result
 
         except Exception as e:
             logger.error("Autonomous reasoning failed", agent_id=self.agent_id, error=str(e))

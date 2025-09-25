@@ -315,8 +315,25 @@ class AgentBuilderFactory:
         """Assign PersistentMemorySystem (advanced memory) to an agent."""
         # For autonomous agents, they already have PersistentMemorySystem
         if isinstance(agent, AutonomousLangGraphAgent):
-            logger.info("Autonomous agent already has advanced memory system",
-                       agent_id=agent.agent_id)
+            # Ensure the autonomous agent's memory system is properly initialized
+            if hasattr(agent, 'memory_system') and agent.memory_system:
+                # Wait for the autonomous components to initialize (they run async)
+                import asyncio
+                await asyncio.sleep(0.1)  # Give time for async initialization
+
+                # Verify memory system is initialized
+                if not agent.memory_system.is_initialized:
+                    logger.info("Initializing autonomous agent's memory system",
+                               agent_id=agent.agent_id)
+                    await agent.memory_system.initialize()
+
+                agent.memory_type = "advanced"
+                logger.info("Autonomous agent memory system verified and ready",
+                           agent_id=agent.agent_id,
+                           episodic_count=len(agent.memory_system.episodic_memory),
+                           semantic_count=len(agent.memory_system.semantic_memory))
+            else:
+                logger.warning("Autonomous agent missing memory system", agent_id=agent.agent_id)
             return
 
         # For regular agents, create and assign PersistentMemorySystem

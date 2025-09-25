@@ -162,7 +162,7 @@ class AutonomousDecisionEngine:
             
             # Record decision for learning
             self.decision_history.append(decision)
-            await self._update_decision_patterns(decision)
+            self._update_decision_patterns(decision)
             
             logger.info(
                 "Autonomous decision made",
@@ -366,3 +366,122 @@ class AutonomousDecisionEngine:
             return 0.6  # Moderate learning value for reasoning
         else:
             return 0.3  # Low learning value for routine actions
+
+    def _select_best_option(self, evaluated_options: List[Tuple[DecisionOption, Dict[str, float]]]) -> Tuple[DecisionOption, Dict[str, float]]:
+        """Select the best option from evaluated options."""
+        if not evaluated_options:
+            # Create a default no-action option
+            default_option = DecisionOption(
+                action="no_action",
+                type="safety",
+                parameters={},
+                confidence_estimate=0.1,
+                expected_outcome={"status": "no_action_taken"}
+            )
+            default_evaluation = {"weighted_score": 0.1}
+            return default_option, default_evaluation
+
+        # Sort by weighted score (highest first)
+        sorted_options = sorted(evaluated_options, key=lambda x: x[1].get("weighted_score", 0.0), reverse=True)
+
+        # Return the best option
+        best_option, best_evaluation = sorted_options[0]
+
+        logger.debug(f"Selected best option: {best_option.action} with score {best_evaluation.get('weighted_score', 0.0)}")
+        return best_option, best_evaluation
+
+    def _calculate_decision_confidence(self, evaluation: Dict[str, float], context: Dict[str, Any]) -> float:
+        """Calculate overall confidence in the decision."""
+        base_confidence = evaluation.get("weighted_score", 0.5)
+
+        # Adjust confidence based on context factors
+        context_factors = {
+            "goal_clarity": len(context.get("current_goals", [])) > 0,
+            "resource_availability": len(context.get("available_resources", {})) > 0,
+            "historical_success": len(self.decision_history) > 0
+        }
+
+        # Boost confidence if context is favorable
+        confidence_boost = sum(0.1 for factor in context_factors.values() if factor)
+        adjusted_confidence = min(1.0, base_confidence + confidence_boost)
+
+        return adjusted_confidence
+
+    async def _generate_reasoning_chain(
+        self,
+        option: DecisionOption,
+        evaluation: Dict[str, float],
+        context: Dict[str, Any],
+        criteria: List[DecisionCriteria]
+    ) -> List[str]:
+        """Generate reasoning chain for the decision."""
+        reasoning = []
+
+        # Add context analysis
+        reasoning.append(f"Analyzed {len(context.get('current_goals', []))} current goals")
+        reasoning.append(f"Evaluated {len(criteria)} decision criteria")
+
+        # Add option analysis
+        reasoning.append(f"Selected action: {option.action} (type: {option.type})")
+        reasoning.append(f"Confidence estimate: {option.confidence_estimate:.2f}")
+        reasoning.append(f"Weighted evaluation score: {evaluation.get('weighted_score', 0.0):.2f}")
+
+        # Add specific reasoning based on option type
+        if option.type == "tool_use":
+            tool_name = option.parameters.get("tool", "unknown")
+            reasoning.append(f"Tool usage decision: {tool_name}")
+            reasoning.append("Expected to advance current goals through tool execution")
+        elif option.type == "exploration":
+            reasoning.append("Exploration decision to gather new information")
+            reasoning.append("High learning value for future decision making")
+        elif option.type == "reasoning":
+            reasoning.append("Reasoning-focused decision to analyze current situation")
+            reasoning.append("Will improve understanding before taking action")
+
+        return reasoning
+
+    def _update_decision_patterns(self, decision: AutonomousDecision) -> None:
+        """Update decision patterns based on the made decision."""
+        try:
+            # Extract pattern key from decision
+            pattern_key = f"{decision.chosen_option.get('type', 'unknown')}_{decision.chosen_option.get('action', 'unknown')}"
+
+            # Initialize pattern if not exists
+            if pattern_key not in self.decision_patterns:
+                self.decision_patterns[pattern_key] = {
+                    "usage_count": 0,
+                    "success_count": 0,
+                    "total_confidence": 0.0,
+                    "last_used": None
+                }
+
+            # Update pattern statistics
+            pattern = self.decision_patterns[pattern_key]
+            pattern["usage_count"] += 1
+            pattern["total_confidence"] += decision.confidence
+            pattern["last_used"] = datetime.utcnow().isoformat()
+
+            # Update tool-specific patterns if it's a tool use decision
+            if decision.chosen_option.get("type") == "tool_use":
+                tool_name = decision.chosen_option.get("parameters", {}).get("tool", "")
+                if tool_name:
+                    tool_pattern_key = f"tool_{tool_name}"
+                    if tool_pattern_key not in self.decision_patterns:
+                        self.decision_patterns[tool_pattern_key] = {
+                            "usage_count": 0,
+                            "success_count": 0,
+                            "average_confidence": 0.0
+                        }
+
+                    tool_pattern = self.decision_patterns[tool_pattern_key]
+                    tool_pattern["usage_count"] += 1
+                    tool_pattern["average_confidence"] = (
+                        (tool_pattern["average_confidence"] * (tool_pattern["usage_count"] - 1) + decision.confidence)
+                        / tool_pattern["usage_count"]
+                    )
+
+            logger.debug(f"Updated decision patterns for {pattern_key}", usage_count=pattern["usage_count"])
+
+        except Exception as e:
+            logger.warning(f"Failed to update decision patterns: {str(e)}")
+            # Don't raise exception to avoid breaking the decision flow

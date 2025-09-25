@@ -210,11 +210,133 @@ class AutonomousPersistenceService:
                                   limit: int = 100) -> List[LearningData]:
         """Get learning history for an agent."""
         learning_data = self.learning_cache.get(agent_id, [])
-        
+
         if experience_type:
             learning_data = [l for l in learning_data if l.experience_type == experience_type]
-        
+
         return sorted(learning_data, key=lambda l: l.timestamp, reverse=True)[:limit]
+
+    async def load_agent_memories(self, agent_id: str) -> List[Dict[str, Any]]:
+        """Load agent memories from persistence storage."""
+        try:
+            from app.models.database.base import get_database_session
+            from app.models.autonomous import AutonomousAgentState, AgentMemoryDB
+            from sqlalchemy import select
+
+            memories = []
+
+            # Convert agent_id to UUID if needed
+            import uuid as uuid_module
+            if isinstance(agent_id, str):
+                try:
+                    agent_uuid = uuid_module.UUID(agent_id)
+                except ValueError:
+                    logger.warning(f"Invalid agent_id format: {agent_id}")
+                    return []
+            else:
+                agent_uuid = agent_id
+
+            async for session in get_database_session():
+                # Get agent state
+                agent_state = await session.execute(
+                    select(AutonomousAgentState).where(AutonomousAgentState.agent_id == agent_uuid)
+                )
+                agent_state_record = agent_state.scalar_one_or_none()
+
+                if not agent_state_record:
+                    logger.debug(f"No agent state found for {agent_uuid}")
+                    return []
+
+                # Load memories for this agent
+                memories_query = await session.execute(
+                    select(AgentMemoryDB)
+                    .where(AgentMemoryDB.agent_state_id == agent_state_record.id)
+                    .order_by(AgentMemoryDB.created_at.desc())
+                    .limit(1000)  # Load last 1000 memories
+                )
+                memory_records = memories_query.scalars().all()
+
+                for memory_record in memory_records:
+                    memory_data = {
+                        "memory_id": memory_record.memory_id,
+                        "content": memory_record.content,
+                        "memory_type": memory_record.memory_type,
+                        "context": memory_record.context or {},
+                        "importance": memory_record.importance,
+                        "emotional_valence": memory_record.emotional_valence,
+                        "tags": memory_record.tags or [],
+                        "created_at": memory_record.created_at,
+                        "last_accessed": memory_record.last_accessed,
+                        "access_count": memory_record.access_count,
+                        "session_id": memory_record.session_id,
+                        "expires_at": memory_record.expires_at
+                    }
+                    memories.append(memory_data)
+
+                logger.info(f"Loaded {len(memories)} memories from database for agent {agent_id}")
+                return memories
+
+        except Exception as e:
+            logger.error(f"Failed to load agent memories for {agent_id}: {str(e)}")
+            return []
+
+    async def load_agent_state(self, agent_id: str) -> Optional[Dict[str, Any]]:
+        """Load agent state from persistence storage."""
+        try:
+            from app.models.database.base import get_database_session
+            from app.models.autonomous import AutonomousAgentState
+            from sqlalchemy import select
+
+            # Convert agent_id to UUID if needed
+            import uuid as uuid_module
+            if isinstance(agent_id, str):
+                try:
+                    agent_uuid = uuid_module.UUID(agent_id)
+                except ValueError:
+                    logger.warning(f"Invalid agent_id format: {agent_id}")
+                    return None
+            else:
+                agent_uuid = agent_id
+
+            async for session in get_database_session():
+                # Get agent state
+                agent_state = await session.execute(
+                    select(AutonomousAgentState).where(AutonomousAgentState.agent_id == agent_uuid)
+                )
+                agent_state_record = agent_state.scalar_one_or_none()
+
+                if not agent_state_record:
+                    logger.debug(f"No agent state found for {agent_uuid}")
+                    return None
+
+                # Convert to dictionary
+                state_data = {
+                    "agent_id": str(agent_state_record.agent_id),
+                    "session_id": agent_state_record.session_id,
+                    "autonomy_level": agent_state_record.autonomy_level,
+                    "decision_confidence": agent_state_record.decision_confidence,
+                    "learning_enabled": agent_state_record.learning_enabled,
+                    "current_task": agent_state_record.current_task,
+                    "tools_available": agent_state_record.tools_available or [],
+                    "outputs": agent_state_record.outputs or {},
+                    "errors": agent_state_record.errors or [],
+                    "iteration_count": agent_state_record.iteration_count,
+                    "max_iterations": agent_state_record.max_iterations,
+                    "custom_state": agent_state_record.custom_state or {},
+                    "goal_stack": agent_state_record.goal_stack or [],
+                    "context_memory": agent_state_record.context_memory or {},
+                    "performance_metrics": agent_state_record.performance_metrics or {},
+                    "self_initiated_tasks": agent_state_record.self_initiated_tasks or [],
+                    "decision_history": agent_state_record.decision_history or [],
+                    "adaptation_data": agent_state_record.adaptation_data or {}
+                }
+
+                logger.info(f"Loaded agent state from database for agent {agent_id}")
+                return state_data
+
+        except Exception as e:
+            logger.error(f"Failed to load agent state for {agent_id}: {str(e)}")
+            return None
     
     # Private methods for data persistence
     async def _load_all_data(self) -> None:

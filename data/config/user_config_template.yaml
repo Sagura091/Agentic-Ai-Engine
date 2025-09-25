@@ -1,0 +1,165 @@
+# User Configuration Template
+# Copy this file to user_config.yaml and customize as needed
+# This file overrides the defaults in agent_defaults.yaml
+
+# =============================================================================
+# EXAMPLE USER OVERRIDES
+# =============================================================================
+
+# Override default LLM provider and model
+# llm_providers:
+#   default_provider: "openai"  # Change from ollama to openai
+#   openai:
+#     default_model: "gpt-4-turbo"
+#     temperature: 0.5
+#     max_tokens: 4096
+#     timeout_seconds: 600
+
+# Override agent type configurations
+# agent_types:
+#   react:
+#     default_temperature: 0.5  # More deterministic
+#     max_iterations: 30        # Fewer iterations
+#     timeout_seconds: 600      # Longer timeout
+#   
+#   autonomous:
+#     default_temperature: 0.8  # More creative
+#     max_iterations: 150       # More iterations for complex tasks
+
+# Override performance limits
+# performance:
+#   max_execution_time_seconds: 1800  # 30 minutes instead of 1 hour
+#   max_iterations_hard_limit: 100    # Lower hard limit
+#   max_memory_per_agent_mb: 512      # Lower memory limit
+#   max_concurrent_agents: 20         # Fewer concurrent agents
+
+# Override security settings
+# security:
+#   requests_per_minute: 30           # More restrictive rate limiting
+#   max_file_size_mb: 50              # Smaller file size limit
+
+# Override infrastructure settings
+# infrastructure:
+#   health_check_interval_seconds: 30 # More frequent health checks
+#   cache_ttl_seconds: 600            # Longer cache TTL
+
+# Custom system prompts
+# system_prompts:
+#   custom_research_template: |
+#     You are a specialized research assistant focused on academic research.
+#     
+#     AVAILABLE TOOLS: {tools}
+#     
+#     Your approach:
+#     1. Conduct systematic literature reviews
+#     2. Verify sources and citations
+#     3. Synthesize findings from multiple sources
+#     4. Provide evidence-based conclusions
+#     
+#     Always maintain academic rigor and cite your sources properly.
+
+# =============================================================================
+# ENVIRONMENT-SPECIFIC OVERRIDES
+# =============================================================================
+
+# Development environment settings
+# development:
+#   logging:
+#     default_level: "DEBUG"
+#     enable_metrics: true
+#   performance:
+#     max_execution_time_seconds: 300  # Shorter timeouts for dev
+#   security:
+#     requests_per_minute: 120         # Higher limits for testing
+
+# Production environment settings  
+# production:
+#   logging:
+#     default_level: "INFO"
+#     enable_metrics: true
+#   performance:
+#     max_execution_time_seconds: 3600 # Full hour for production
+#   security:
+#     requests_per_minute: 60          # Standard rate limiting
+#   infrastructure:
+#     health_check_interval_seconds: 60
+#     connection_pool_size: 20
+
+# =============================================================================
+# CUSTOM TOOL CONFIGURATIONS
+# =============================================================================
+
+# Override default tools for agent types
+# tool_defaults:
+#   react: ["web_search", "calculator", "file_reader"]
+#   research: ["web_search", "document_analyzer", "citation_manager", "fact_checker"]
+#   autonomous: ["web_search", "calculator", "document_analyzer", "task_planner"]
+
+# =============================================================================
+# MEMORY SYSTEM OVERRIDES
+# =============================================================================
+
+# Customize memory system configurations
+# memory_systems:
+#   simple:
+#     max_short_term: 100      # More short-term memory
+#     max_long_term: 2000      # More long-term memory
+#   
+#   advanced:
+#     max_working_memory: 50   # More working memory
+#     max_episodic_memory: 20000  # More episodic memory
+#     learning_rate: 0.2       # Faster learning
+
+# =============================================================================
+# TEMPLATE OVERRIDES
+# =============================================================================
+
+# Override specific agent templates
+# templates:
+#   research_assistant:
+#     llm_config:
+#       temperature: 0.3       # More deterministic for research
+#       max_tokens: 4096       # Longer responses
+#     capabilities:
+#       - "reasoning"
+#       - "tool_use" 
+#       - "memory"
+#       - "planning"
+#       - "analysis"
+#     tools:
+#       - "web_search"
+#       - "document_analyzer"
+#       - "citation_manager"
+#       - "fact_checker"
+#       - "knowledge_graph_builder"
+
+# =============================================================================
+# INTEGRATION SETTINGS
+# =============================================================================
+
+# External service configurations
+# integrations:
+#   redis:
+#     url: "redis://localhost:6379/1"  # Different Redis DB
+#     key_prefix: "my_agents:"
+#   
+#   postgresql:
+#     url: "postgresql://user:pass@localhost/my_agents"
+#     pool_size: 15
+#   
+#   monitoring:
+#     enable_prometheus: true
+#     metrics_port: 9090
+#     enable_grafana_dashboard: true
+
+# =============================================================================
+# CUSTOM VALIDATION RULES
+# =============================================================================
+
+# Add custom validation rules (advanced users)
+# validation:
+#   custom_rules:
+#     - field_path: "custom.my_setting"
+#       rule_type: "range"
+#       constraint: [1, 100]
+#       error_message: "My setting must be between 1 and 100"
