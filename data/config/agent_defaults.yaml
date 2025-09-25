@@ -118,13 +118,13 @@ memory_systems:
 # =============================================================================
 tool_defaults:
   # Default tools for each agent type
-  react: ["web_search", "calculator"]
-  knowledge_search: ["knowledge_search", "document_retrieval"]
-  rag: ["rag_search", "document_analysis", "knowledge_synthesis"]
-  workflow: ["workflow_executor", "task_manager"]
-  multimodal: ["image_analysis", "audio_processing", "multimodal_synthesis"]
-  composite: ["agent_coordinator", "task_distributor", "result_aggregator"]
-  autonomous: ["web_search", "calculator", "document_analyzer"]
+  react: ["web_search", "revolutionary_web_scraper", "calculator"]
+  knowledge_search: ["knowledge_search", "document_retrieval", "revolutionary_web_scraper"]
+  rag: ["rag_search", "document_analysis", "knowledge_synthesis", "revolutionary_web_scraper"]
+  workflow: ["workflow_executor", "task_manager", "revolutionary_web_scraper"]
+  multimodal: ["image_analysis", "audio_processing", "multimodal_synthesis", "revolutionary_web_scraper"]
+  composite: ["agent_coordinator", "task_distributor", "result_aggregator", "revolutionary_web_scraper"]
+  autonomous: ["web_search", "revolutionary_web_scraper", "calculator", "document_analyzer"]
 
 # =============================================================================
 # PERFORMANCE PARAMETERS - OPTIMIZED FOR HIGHER THROUGHPUT

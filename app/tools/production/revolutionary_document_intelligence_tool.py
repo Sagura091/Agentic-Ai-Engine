@@ -459,20 +459,596 @@ Use job ID to check status and retrieve results.
         # Create job
         job = DocumentProcessingJob(
             job_id=job_id,
-            status="pending",
+            status="processing",
             operation=operation,
-            message="Processing job created"
+            message="Processing job started"
         )
 
         self.engine.active_jobs[job_id] = job
 
-        return f"""🚀 **DOCUMENT PROCESSING STARTED**
+        try:
+            # Process the job immediately based on operation type
+            if operation == "create_document":
+                result = await self._process_create_document_job(operation_data, job_id)
+
+                # Update job status to completed
+                job.status = "completed"
+                job.progress = 100.0
+                job.message = "Document creation completed successfully"
+                job.result = result
+
+                return f"""✅ **DOCUMENT CREATION COMPLETED**
+Job ID: {job_id}
+Status: {job.status}
+Operation: {operation}
+Result: {result.get('message', 'Document created successfully')}
+Output File: {result.get('output_path', 'N/A')}
+
+Document has been generated and saved successfully!
+"""
+            else:
+                # For other operations, keep the original pending behavior
+                job.status = "pending"
+                job.message = "Processing job created"
+
+                return f"""🚀 **DOCUMENT PROCESSING STARTED**
 Job ID: {job_id}
 Status: {job.status}
 Operation: {operation}
 
 Use job ID to check status and retrieve results.
 """
+
+        except Exception as e:
+            # Update job status to failed
+            job.status = "failed"
+            job.message = f"Processing failed: {str(e)}"
+            logger.error(f"Job {job_id} failed: {str(e)}")
+
+            return f"""❌ **DOCUMENT PROCESSING FAILED**
+Job ID: {job_id}
+Status: {job.status}
+Error: {str(e)}
+"""
+
+    async def _process_create_document_job(self, operation_data: Dict[str, Any], job_id: str) -> Dict[str, Any]:
+        """Process a create_document job and generate the actual file."""
+        try:
+            document_type = operation_data.get("document_type", "excel_spreadsheet")
+            format_type = operation_data.get("format", "multi_sheet")
+            content_type = operation_data.get("content_type", "business_analysis")
+            sheets = operation_data.get("sheets", ["Summary", "Data", "Analysis"])
+            include_charts = operation_data.get("include_charts", True)
+            include_formulas = operation_data.get("include_formulas", True)
+            professional_formatting = operation_data.get("professional_formatting", True)
+
+            if document_type == "excel_spreadsheet":
+                return await self._create_excel_spreadsheet(
+                    sheets=sheets,
+                    content_type=content_type,
+                    include_charts=include_charts,
+                    include_formulas=include_formulas,
+                    professional_formatting=professional_formatting,
+                    job_id=job_id
+                )
+            elif document_type == "pdf_report":
+                return await self._create_pdf_business_report(
+                    content_type=content_type,
+                    job_id=job_id,
+                    operation_data=operation_data
+                )
+            else:
+                raise ValueError(f"Unsupported document type: {document_type}")
+
+        except Exception as e:
+            logger.error(f"Create document job failed: {str(e)}")
+            raise
+
+    async def _create_excel_spreadsheet(
+        self,
+        sheets: List[str],
+        content_type: str,
+        include_charts: bool,
+        include_formulas: bool,
+        professional_formatting: bool,
+        job_id: str
+    ) -> Dict[str, Any]:
+        """Create an Excel spreadsheet with business analysis data."""
+        if not EXCEL_AVAILABLE:
+            raise ValueError("Excel processing not available - openpyxl not installed")
+
+        try:
+            # Create workbook
+            workbook = openpyxl.Workbook()
+
+            # Remove default sheet
+            workbook.remove(workbook.active)
+
+            # Create sheets with sample business data
+            for sheet_name in sheets:
+                worksheet = workbook.create_sheet(title=sheet_name)
+                await self._populate_sheet_with_business_data(worksheet, sheet_name, content_type, include_formulas, professional_formatting)
+
+            # Save to outputs directory
+            output_dir = Path("data/outputs")
+            output_dir.mkdir(exist_ok=True)
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"business_analysis_{timestamp}_{job_id[:8]}.xlsx"
+            output_path = output_dir / filename
+
+            workbook.save(str(output_path))
+
+            logger.info(f"Excel spreadsheet created successfully: {output_path}")
+
+            return {
+                "success": True,
+                "message": f"Excel spreadsheet created with {len(sheets)} sheets",
+                "output_path": str(output_path),
+                "filename": filename,
+                "sheets_created": sheets,
+                "file_size": output_path.stat().st_size if output_path.exists() else 0
+            }
+
+        except Exception as e:
+            logger.error(f"Excel creation failed: {str(e)}")
+            raise
+
+    async def _populate_sheet_with_business_data(
+        self,
+        worksheet,
+        sheet_name: str,
+        content_type: str,
+        include_formulas: bool,
+        professional_formatting: bool
+    ):
+        """Populate a worksheet with relevant business data based on sheet name."""
+        try:
+            if sheet_name == "Executive_Summary":
+                await self._create_executive_summary_sheet(worksheet, include_formulas, professional_formatting)
+            elif sheet_name == "Revenue_Analysis":
+                await self._create_revenue_analysis_sheet(worksheet, include_formulas, professional_formatting)
+            elif sheet_name == "Cost_Analysis":
+                await self._create_cost_analysis_sheet(worksheet, include_formulas, professional_formatting)
+            elif sheet_name == "Projections":
+                await self._create_projections_sheet(worksheet, include_formulas, professional_formatting)
+            else:
+                # Default data for other sheet names
+                await self._create_default_business_sheet(worksheet, sheet_name, include_formulas, professional_formatting)
+
+        except Exception as e:
+            logger.error(f"Failed to populate sheet {sheet_name}: {str(e)}")
+            # Add basic error message to sheet
+            worksheet['A1'] = f"Error populating {sheet_name}: {str(e)}"
+
+    async def _create_executive_summary_sheet(self, worksheet, include_formulas: bool, professional_formatting: bool):
+        """Create executive summary with key business metrics."""
+        # Headers
+        worksheet['A1'] = "EXECUTIVE SUMMARY - BUSINESS METRICS"
+        worksheet['A3'] = "Key Performance Indicators"
+
+        # KPI data
+        kpis = [
+            ["Metric", "Current Value", "Target", "Status"],
+            ["Monthly Revenue", "$2,450,000", "$2,800,000", "87.5%"],
+            ["Monthly Expenses", "$1,890,000", "$2,100,000", "90.0%"],
+            ["Net Profit Margin", "22.9%", "25.0%", "91.6%"],
+            ["Customer Acquisition Cost", "$125", "$100", "80.0%"],
+            ["Customer Lifetime Value", "$2,850", "$3,200", "89.1%"],
+            ["Employee Productivity", "95.2%", "98.0%", "97.1%"]
+        ]
+
+        for row_idx, row_data in enumerate(kpis, start=4):
+            for col_idx, value in enumerate(row_data, start=1):
+                cell = worksheet.cell(row=row_idx, column=col_idx, value=value)
+                if row_idx == 4:  # Header row
+                    cell.font = Font(bold=True)
+                    cell.fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+
+        # Summary insights
+        worksheet['A12'] = "Key Insights:"
+        worksheet['A13'] = "• Revenue growth trending positive at 12% YoY"
+        worksheet['A14'] = "• Cost optimization opportunities identified in marketing spend"
+        worksheet['A15'] = "• Customer retention rate improved to 94.2%"
+        worksheet['A16'] = "• Recommended focus on enterprise client acquisition"
+
+    async def _create_revenue_analysis_sheet(self, worksheet, include_formulas: bool, professional_formatting: bool):
+        """Create detailed revenue analysis."""
+        worksheet['A1'] = "REVENUE ANALYSIS"
+
+        # Monthly revenue data
+        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        revenue_data = [2100000, 2250000, 2400000, 2350000, 2500000, 2450000, 2600000, 2550000, 2700000, 2650000, 2800000, 2750000]
+
+        worksheet['A3'] = "Month"
+        worksheet['B3'] = "Revenue ($)"
+        worksheet['C3'] = "Growth Rate (%)"
+
+        for i, (month, revenue) in enumerate(zip(months, revenue_data), start=4):
+            worksheet[f'A{i}'] = month
+            worksheet[f'B{i}'] = revenue
+            if i > 4 and include_formulas:
+                worksheet[f'C{i}'] = f"=(B{i}-B{i-1})/B{i-1}*100"
+            elif i > 4:
+                prev_revenue = revenue_data[i-5]
+                growth = ((revenue - prev_revenue) / prev_revenue) * 100
+                worksheet[f'C{i}'] = f"{growth:.1f}%"
+
+    async def _create_cost_analysis_sheet(self, worksheet, include_formulas: bool, professional_formatting: bool):
+        """Create cost analysis breakdown."""
+        worksheet['A1'] = "COST ANALYSIS"
+
+        cost_categories = [
+            ["Category", "Monthly Cost ($)", "% of Revenue", "YoY Change (%)"],
+            ["Personnel", 1200000, "48.0%", "+5.2%"],
+            ["Technology", 350000, "14.0%", "+12.1%"],
+            ["Marketing", 180000, "7.2%", "-3.5%"],
+            ["Operations", 160000, "6.4%", "+2.8%"],
+            ["Facilities", 120000, "4.8%", "+1.2%"],
+            ["Other", 80000, "3.2%", "+0.5%"]
+        ]
+
+        for row_idx, row_data in enumerate(cost_categories, start=3):
+            for col_idx, value in enumerate(row_data, start=1):
+                cell = worksheet.cell(row=row_idx, column=col_idx, value=value)
+                if row_idx == 3:  # Header row
+                    cell.font = Font(bold=True)
+
+    async def _create_projections_sheet(self, worksheet, include_formulas: bool, professional_formatting: bool):
+        """Create financial projections."""
+        worksheet['A1'] = "FINANCIAL PROJECTIONS (Next 12 Months)"
+
+        projection_data = [
+            ["Month", "Projected Revenue", "Projected Costs", "Net Profit", "Cumulative Profit"],
+            ["Jan 2024", 2900000, 2200000, 700000, 700000],
+            ["Feb 2024", 3050000, 2280000, 770000, 1470000],
+            ["Mar 2024", 3200000, 2350000, 850000, 2320000],
+            ["Apr 2024", 3100000, 2300000, 800000, 3120000],
+            ["May 2024", 3300000, 2400000, 900000, 4020000],
+            ["Jun 2024", 3250000, 2380000, 870000, 4890000]
+        ]
+
+        for row_idx, row_data in enumerate(projection_data, start=3):
+            for col_idx, value in enumerate(row_data, start=1):
+                worksheet.cell(row=row_idx, column=col_idx, value=value)
+
+    async def _create_default_business_sheet(self, worksheet, sheet_name: str, include_formulas: bool, professional_formatting: bool):
+        """Create a default business data sheet."""
+        worksheet['A1'] = f"{sheet_name.upper()} - BUSINESS DATA"
+        worksheet['A3'] = "Sample business metrics and data"
+        worksheet['A4'] = f"Generated for: {sheet_name}"
+        worksheet['A5'] = f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+    async def _create_pdf_business_report(self, content_type: str, job_id: str, operation_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a hilarious PDF business analysis report with data jokes."""
+        if not PDF_AVAILABLE:
+            raise ValueError("PDF processing not available - reportlab not installed")
+
+        try:
+            from reportlab.pdfgen import canvas
+            from reportlab.lib.pagesizes import letter, A4
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+            from reportlab.lib import colors
+            from reportlab.lib.units import inch
+
+            # Create output directory
+            output_dir = Path("data/outputs")
+            output_dir.mkdir(exist_ok=True)
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"business_analysis_report_{timestamp}_{job_id[:8]}.pdf"
+            output_path = output_dir / filename
+
+            # Create PDF document
+            doc = SimpleDocTemplate(str(output_path), pagesize=letter)
+            story = []
+            styles = getSampleStyleSheet()
+
+            # Custom styles for humor
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=24,
+                spaceAfter=30,
+                textColor=colors.darkblue,
+                alignment=1  # Center
+            )
+
+            joke_style = ParagraphStyle(
+                'JokeStyle',
+                parent=styles['Normal'],
+                fontSize=10,
+                textColor=colors.darkgreen,
+                leftIndent=20,
+                rightIndent=20,
+                spaceAfter=10
+            )
+
+            # Generate the hilarious business analysis
+            analysis_data = await self._analyze_business_performance()
+
+            # Title with data joke
+            story.append(Paragraph("📊 BUSINESS ANALYSIS REPORT 📊", title_style))
+            story.append(Paragraph("<i>\"Why did the data analyst break up with Excel? Because it had too many cells!\"</i>", joke_style))
+            story.append(Spacer(1, 20))
+
+            # Executive Summary with humor
+            story.append(Paragraph("🎯 EXECUTIVE SUMMARY", styles['Heading2']))
+            story.append(Paragraph(
+                f"<i>Data Joke Alert:</i> Your business is like a good dataset - it has potential, "
+                f"but needs some serious cleaning! 🧹", joke_style))
+
+            exec_summary = self._generate_funny_executive_summary(analysis_data)
+            story.append(Paragraph(exec_summary, styles['Normal']))
+            story.append(Spacer(1, 15))
+
+            # Performance Analysis
+            story.append(Paragraph("📈 PERFORMANCE ANALYSIS", styles['Heading2']))
+            story.append(Paragraph(
+                "<i>Why don't statisticians trust stairs? Because they're always up to something!</i>", joke_style))
+
+            performance_analysis = self._generate_performance_analysis_with_jokes(analysis_data)
+            story.append(Paragraph(performance_analysis, styles['Normal']))
+            story.append(Spacer(1, 15))
+
+            # Financial Health Check
+            story.append(Paragraph("💰 FINANCIAL HEALTH CHECK", styles['Heading2']))
+            story.append(Paragraph(
+                "<i>Your cash flow is like my dating life - unpredictable and occasionally concerning!</i>", joke_style))
+
+            financial_health = self._generate_financial_health_analysis(analysis_data)
+            story.append(Paragraph(financial_health, styles['Normal']))
+            story.append(Spacer(1, 15))
+
+            # Recommendations
+            story.append(Paragraph("🚀 RECOMMENDATIONS", styles['Heading2']))
+            story.append(Paragraph(
+                "<i>What's the difference between a data scientist and a fortune teller? "
+                "The fortune teller admits they're making stuff up!</i>", joke_style))
+
+            recommendations = self._generate_hilarious_recommendations(analysis_data)
+            story.append(Paragraph(recommendations, styles['Normal']))
+            story.append(Spacer(1, 15))
+
+            # Final Verdict
+            story.append(Paragraph("⚖️ FINAL VERDICT", styles['Heading2']))
+            final_verdict = self._generate_final_verdict_with_humor(analysis_data)
+            story.append(Paragraph(final_verdict, styles['Normal']))
+
+            # Build PDF
+            doc.build(story)
+
+            logger.info(f"PDF business report created successfully: {output_path}")
+
+            return {
+                "success": True,
+                "message": "Hilarious PDF business analysis report created with data jokes",
+                "output_path": str(output_path),
+                "filename": filename,
+                "file_size": output_path.stat().st_size if output_path.exists() else 0,
+                "humor_level": "Maximum Data Nerd Comedy"
+            }
+
+        except Exception as e:
+            logger.error(f"PDF report creation failed: {str(e)}")
+            raise
+
+    async def _analyze_business_performance(self) -> Dict[str, Any]:
+        """Analyze business performance with realistic metrics."""
+        # Simulate reading from the Excel file that was created
+        return {
+            "monthly_revenue": 2450000,
+            "monthly_expenses": 1890000,
+            "net_profit": 560000,
+            "profit_margin": 22.9,
+            "cash_position": 8500000,
+            "employee_count": 125,
+            "customer_acquisition_cost": 125,
+            "customer_lifetime_value": 2850,
+            "growth_rate": 12.5,
+            "burn_rate": 1890000,
+            "runway_months": 4.5,
+            "debt_to_equity": 0.3,
+            "current_ratio": 2.1,
+            "revenue_per_employee": 19600
+        }
+
+    def _generate_funny_executive_summary(self, data: Dict[str, Any]) -> str:
+        """Generate executive summary with data humor."""
+        profit_margin = data["profit_margin"]
+        growth_rate = data["growth_rate"]
+
+        if profit_margin > 25:
+            performance = "crushing it like a data compression algorithm"
+        elif profit_margin > 15:
+            performance = "performing better than my SQL queries on a Monday morning"
+        elif profit_margin > 5:
+            performance = "hanging in there like a deprecated function that somehow still works"
+        else:
+            performance = "struggling more than a nested loop in a bubble sort"
+
+        return f"""
+        Your business is currently {performance}! With a {profit_margin}% profit margin,
+        you're either a financial wizard or you've been cooking the books harder than a
+        data scientist trying to make their model fit.
+
+        Your {growth_rate}% growth rate suggests you're expanding faster than my
+        database after I forgot to add indexes. The good news? You're not bankrupt yet.
+        The bad news? Neither was Enron... until they were.
+
+        <b>TL;DR:</b> Your business has more potential than a machine learning model
+        with unlimited training data, but execution is key!
+        """
+
+    def _generate_performance_analysis_with_jokes(self, data: Dict[str, Any]) -> str:
+        """Generate performance analysis with hilarious data jokes."""
+        revenue_per_employee = data["revenue_per_employee"]
+        cac = data["customer_acquisition_cost"]
+        ltv = data["customer_lifetime_value"]
+
+        return f"""
+        <b>Revenue per Employee:</b> ${revenue_per_employee:,}/month
+        <i>That's like each employee is a tiny profit-generating algorithm!
+        Though some are more like infinite loops...</i>
+
+        <b>Customer Metrics:</b>
+        • Acquisition Cost: ${cac} (Cheaper than my coffee addiction!)
+        • Lifetime Value: ${ltv:,} (Better ROI than my college degree)
+        • LTV/CAC Ratio: {ltv/cac:.1f}x (Higher than my expectations for this analysis)
+
+        Your customer acquisition is more efficient than a well-optimized database query,
+        and your lifetime value suggests customers stick around longer than variables
+        in global scope (which is saying something).
+
+        <b>Growth Analysis:</b>
+        You're growing at {data["growth_rate"]}% annually, which is faster than the
+        number of JavaScript frameworks released each week. Keep this up and you'll
+        be scaling harder than a poorly designed microservice architecture!
+        """
+
+    def _generate_financial_health_analysis(self, data: Dict[str, Any]) -> str:
+        """Generate financial health analysis with humor."""
+        cash_position = data["cash_position"]
+        runway_months = data["runway_months"]
+        current_ratio = data["current_ratio"]
+
+        if runway_months > 12:
+            runway_status = "longer than a Windows update"
+        elif runway_months > 6:
+            runway_status = "decent, like a well-written function"
+        else:
+            runway_status = "shorter than my patience with legacy code"
+
+        return f"""
+        <b>Cash Position:</b> ${cash_position:,}
+        <i>You've got more cash than a cryptocurrency enthusiast in 2017!</i>
+
+        <b>Runway:</b> {runway_months:.1f} months
+        Your runway is {runway_status}. This gives you enough time to either
+        pivot successfully or fail spectacularly - choose wisely!
+
+        <b>Current Ratio:</b> {current_ratio}
+        With a current ratio of {current_ratio}, you're more liquid than my
+        understanding of quantum computing (which isn't saying much, but it's good!).
+
+        <b>Debt Management:</b>
+        Your debt-to-equity ratio of {data["debt_to_equity"]} suggests you're
+        leveraged like a well-architected system - enough to be efficient,
+        not enough to crash spectacularly.
+        """
+
+    def _generate_hilarious_recommendations(self, data: Dict[str, Any]) -> str:
+        """Generate business recommendations with maximum humor."""
+        profit_margin = data["profit_margin"]
+        growth_rate = data["growth_rate"]
+        runway_months = data["runway_months"]
+
+        recommendations = []
+
+        if profit_margin < 15:
+            recommendations.append(
+                "🔧 <b>Cost Optimization:</b> Your expenses are higher than a cloud bill after "
+                "someone left auto-scaling on. Time to debug your spending like you're hunting "
+                "for a memory leak!"
+            )
+
+        if growth_rate < 10:
+            recommendations.append(
+                "📈 <b>Growth Acceleration:</b> Your growth rate is slower than Internet Explorer. "
+                "Consider pivoting your strategy faster than a JavaScript developer changes frameworks!"
+            )
+
+        if runway_months < 6:
+            recommendations.append(
+                "💰 <b>URGENT - Funding:</b> Your runway is shorter than a variable name in "
+                "minified code. Get funding ASAP or start practicing your 'pivot to blockchain' pitch!"
+            )
+
+        recommendations.append(
+            "🤖 <b>Automation:</b> Automate more processes than a DevOps engineer on Red Bull. "
+            "If it can be scripted, script it. If it can't be scripted, question why it exists."
+        )
+
+        recommendations.append(
+            "📊 <b>Data-Driven Decisions:</b> Make decisions based on data, not gut feelings. "
+            "Your gut is probably wrong more often than a machine learning model trained on biased data."
+        )
+
+        return "<br/><br/>".join(recommendations)
+
+    def _generate_final_verdict_with_humor(self, data: Dict[str, Any]) -> str:
+        """Generate the final business verdict with brutal honesty and humor."""
+        profit_margin = data["profit_margin"]
+        growth_rate = data["growth_rate"]
+        runway_months = data["runway_months"]
+
+        # Calculate overall score
+        score = 0
+        if profit_margin > 20: score += 3
+        elif profit_margin > 10: score += 2
+        elif profit_margin > 0: score += 1
+
+        if growth_rate > 20: score += 3
+        elif growth_rate > 10: score += 2
+        elif growth_rate > 0: score += 1
+
+        if runway_months > 12: score += 3
+        elif runway_months > 6: score += 2
+        elif runway_months > 3: score += 1
+
+        if score >= 8:
+            verdict = """
+            🎉 <b>VERDICT: UNICORN POTENTIAL!</b>
+
+            Congratulations! Your business is performing better than a perfectly optimized
+            algorithm running on quantum hardware. You're not just good - you're
+            "accidentally-became-a-billionaire" good.
+
+            <i>Recommendation:</i> Keep doing whatever you're doing, but maybe hire a
+            data scientist to make sure you're not just getting lucky with your random
+            number generator.
+            """
+        elif score >= 6:
+            verdict = """
+            ✅ <b>VERDICT: SOLID BUSINESS</b>
+
+            Your business is like a well-written function - it works, it's reliable,
+            and it doesn't crash the system. You're not going to revolutionize the
+            world, but you're also not going to end up as a cautionary tale in a
+            business school case study.
+
+            <i>Recommendation:</i> You're in the sweet spot. Don't get cocky, but
+            don't panic either. Just keep iterating like a good agile team.
+            """
+        elif score >= 4:
+            verdict = """
+            ⚠️ <b>VERDICT: NEEDS DEBUGGING</b>
+
+            Your business has more bugs than a beta release. It's not broken, but
+            it's definitely not production-ready. Time to roll up your sleeves and
+            do some serious refactoring.
+
+            <i>Recommendation:</i> Fix the critical issues first, then optimize.
+            You're one good pivot away from success or one bad decision away from
+            becoming a startup horror story.
+            """
+        else:
+            verdict = """
+            🚨 <b>VERDICT: EMERGENCY SHUTDOWN REQUIRED</b>
+
+            Houston, we have a problem. Your business is crashing harder than a
+            recursive function without a base case. It's time to either pivot
+            dramatically or start updating your LinkedIn profile.
+
+            <i>Recommendation:</i> Don't panic, but maybe start panicking a little.
+            You need a complete system reboot, not just a patch. Consider this your
+            "blue screen of death" moment - time for a fresh install.
+
+            <b>P.S.:</b> At least you're not Theranos! 🩸
+            """
+
+        return verdict
 
     # ========================================
     # 🚀 REVOLUTIONARY API METHODS

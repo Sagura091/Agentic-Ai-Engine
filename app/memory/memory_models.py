@@ -1,8 +1,15 @@
 """
-Revolutionary Memory Models - Enhanced Foundation for Agentic AI.
+OPTIMIZED Revolutionary Memory Models - Enhanced Foundation for Agentic AI.
 
 Advanced data models supporting the complete revolutionary memory architecture
 with Core Memory, Knowledge Vault, Resource Memory, and Active Retrieval.
+
+OPTIMIZATION FEATURES:
+✅ Fast data structures with optimized lookups
+✅ Cached calculations and precomputed values
+✅ Streamlined operations for performance
+✅ Memory-efficient storage and retrieval
+✅ Thread-safe operations with minimal locking
 """
 
 from datetime import datetime
@@ -12,6 +19,8 @@ from typing import Dict, Any, Optional, Set, List, Union
 import uuid
 import json
 from pathlib import Path
+import threading
+from collections import defaultdict
 
 import structlog
 
@@ -53,7 +62,7 @@ class SensitivityLevel(str, Enum):
 
 @dataclass
 class MemoryEntry:
-    """Revolutionary memory entry with enhanced capabilities."""
+    """OPTIMIZED Revolutionary memory entry with enhanced capabilities."""
     id: str
     agent_id: str
     memory_type: MemoryType
@@ -75,6 +84,16 @@ class MemoryEntry:
     expires_at: Optional[datetime] = None
     source: str = "agent"
     session_id: Optional[str] = None
+
+    # OPTIMIZATION: Cached values for fast access
+    _cached_importance_score: Optional[float] = field(default=None, init=False)
+    _cached_relevance_score: Optional[float] = field(default=None, init=False)
+    _cached_temporal_score: Optional[float] = field(default=None, init=False)
+    _cached_emotional_score: Optional[float] = field(default=None, init=False)
+    _cached_frequency_score: Optional[float] = field(default=None, init=False)
+    _cached_association_score: Optional[float] = field(default=None, init=False)
+    _cache_timestamp: Optional[datetime] = field(default=None, init=False)
+    _cache_lock: threading.RLock = field(default_factory=threading.RLock, init=False)
 
     @classmethod
     def create(
@@ -103,6 +122,156 @@ class MemoryEntry:
             tags=tags or set(),
             context=context or {}
         )
+
+    def get_importance_score(self) -> float:
+        """OPTIMIZATION: Fast importance score with caching."""
+        with self._cache_lock:
+            if self._cached_importance_score is None or self._cache_timestamp is None:
+                importance_mapping = {
+                    MemoryImportance.CRITICAL: 1.0,
+                    MemoryImportance.HIGH: 0.8,
+                    MemoryImportance.MEDIUM: 0.6,
+                    MemoryImportance.LOW: 0.4,
+                    MemoryImportance.TEMPORARY: 0.2
+                }
+                self._cached_importance_score = importance_mapping.get(self.importance, 0.6)
+                self._cache_timestamp = datetime.now()
+            return self._cached_importance_score
+
+    def get_temporal_score(self, current_time: datetime = None) -> float:
+        """OPTIMIZATION: Fast temporal score with caching."""
+        if current_time is None:
+            current_time = datetime.now()
+        
+        with self._cache_lock:
+            if (self._cached_temporal_score is None or 
+                self._cache_timestamp is None or 
+                (current_time - self._cache_timestamp).total_seconds() > 300):  # 5 minutes
+                
+                time_diff = abs((current_time - self.created_at).total_seconds())
+                if time_diff < 3600:  # 1 hour
+                    self._cached_temporal_score = 1.0
+                elif time_diff < 86400:  # 1 day
+                    self._cached_temporal_score = 0.8
+                elif time_diff < 604800:  # 1 week
+                    self._cached_temporal_score = 0.6
+                elif time_diff < 2592000:  # 1 month
+                    self._cached_temporal_score = 0.4
+                else:
+                    self._cached_temporal_score = 0.2
+                
+                self._cache_timestamp = current_time
+            return self._cached_temporal_score
+
+    def get_frequency_score(self) -> float:
+        """OPTIMIZATION: Fast frequency score with caching."""
+        with self._cache_lock:
+            if self._cached_frequency_score is None or self._cache_timestamp is None:
+                if self.access_count == 0:
+                    self._cached_frequency_score = 0.0
+                else:
+                    # Normalize access count (log scale to prevent dominance)
+                    import math
+                    self._cached_frequency_score = min(math.log(self.access_count + 1) / 10.0, 1.0)
+                self._cache_timestamp = datetime.now()
+            return self._cached_frequency_score
+
+    def get_emotional_score(self, current_emotional_state: float = 0.0) -> float:
+        """OPTIMIZATION: Fast emotional score with caching."""
+        with self._cache_lock:
+            if (self._cached_emotional_score is None or 
+                self._cache_timestamp is None or 
+                (datetime.now() - self._cache_timestamp).total_seconds() > 300):  # 5 minutes
+                
+                if current_emotional_state == 0.0 and self.emotional_valence == 0.0:
+                    self._cached_emotional_score = 0.5  # Neutral alignment
+                else:
+                    # Calculate emotional distance
+                    emotional_distance = abs(current_emotional_state - self.emotional_valence)
+                    # Convert distance to similarity (closer = more similar)
+                    self._cached_emotional_score = 1.0 - (emotional_distance / 2.0)
+                
+                self._cache_timestamp = datetime.now()
+            return self._cached_emotional_score
+
+    def get_association_score(self, priority_memories: Set[str]) -> float:
+        """OPTIMIZATION: Fast association score with caching."""
+        with self._cache_lock:
+            if (self._cached_association_score is None or 
+                self._cache_timestamp is None or 
+                (datetime.now() - self._cache_timestamp).total_seconds() > 300):  # 5 minutes
+                
+                if not priority_memories:
+                    self._cached_association_score = 0.0
+                else:
+                    max_strength = 0.0
+                    for priority_id in priority_memories:
+                        if priority_id in self.associations:
+                            strength = self.associations[priority_id]
+                            max_strength = max(max_strength, strength)
+                    self._cached_association_score = max_strength
+                
+                self._cache_timestamp = datetime.now()
+            return self._cached_association_score
+
+    def get_relevance_score(self, context: Dict[str, Any] = None) -> float:
+        """OPTIMIZATION: Fast comprehensive relevance score with caching."""
+        if context is None:
+            context = {}
+        
+        with self._cache_lock:
+            if (self._cached_relevance_score is None or 
+                self._cache_timestamp is None or 
+                (datetime.now() - self._cache_timestamp).total_seconds() > 300):  # 5 minutes
+                
+                total_score = 0.0
+                
+                # 1. Importance score
+                total_score += self.get_importance_score() * 0.3
+                
+                # 2. Temporal relevance
+                total_score += self.get_temporal_score() * 0.2
+                
+                # 3. Access frequency
+                total_score += self.get_frequency_score() * 0.1
+                
+                # 4. Emotional alignment
+                emotional_state = context.get('emotional_state', 0.0)
+                total_score += self.get_emotional_score(emotional_state) * 0.1
+                
+                # 5. Association strength
+                priority_memories = context.get('priority_memories', set())
+                total_score += self.get_association_score(priority_memories) * 0.1
+                
+                # 6. Tag matches
+                active_tags = context.get('active_tags', set())
+                if active_tags and self.tags:
+                    tag_matches = len(active_tags.intersection(self.tags))
+                    tag_score = tag_matches / len(active_tags) if active_tags else 0.0
+                    total_score += tag_score * 0.2
+                
+                self._cached_relevance_score = min(total_score, 1.0)
+                self._cache_timestamp = datetime.now()
+            return self._cached_relevance_score
+
+    def invalidate_cache(self) -> None:
+        """OPTIMIZATION: Invalidate cached values when memory is updated."""
+        with self._cache_lock:
+            self._cached_importance_score = None
+            self._cached_relevance_score = None
+            self._cached_temporal_score = None
+            self._cached_emotional_score = None
+            self._cached_frequency_score = None
+            self._cached_association_score = None
+            self._cache_timestamp = None
+
+    def access(self) -> None:
+        """OPTIMIZATION: Fast memory access with cache invalidation."""
+        self.access_count += 1
+        self.last_accessed = datetime.now()
+        # Invalidate cached frequency score since access count changed
+        with self._cache_lock:
+            self._cached_frequency_score = None
 
 
 @dataclass
@@ -175,7 +344,7 @@ class ResourceMemoryEntry:
     
 @dataclass
 class RevolutionaryMemoryCollection:
-    """Revolutionary memory collection supporting all memory types."""
+    """OPTIMIZED Revolutionary memory collection supporting all memory types."""
     agent_id: str
     created_at: datetime
     last_updated: datetime
@@ -200,10 +369,17 @@ class RevolutionaryMemoryCollection:
     resource_memory: Dict[str, ResourceMemoryEntry] = field(default_factory=dict)
     knowledge_vault: Dict[str, KnowledgeVaultEntry] = field(default_factory=dict)
 
-    # Memory indices for fast retrieval
+    # OPTIMIZATION: Fast indices for retrieval
     tag_index: Dict[str, Set[str]] = field(default_factory=dict)
     temporal_index: Dict[str, List[str]] = field(default_factory=dict)  # date -> memory_ids
     association_graph: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    
+    # OPTIMIZATION: Fast lookup caches
+    _memory_cache: Dict[str, MemoryEntry] = field(default_factory=dict, init=False)
+    _importance_cache: Dict[str, float] = field(default_factory=dict, init=False)
+    _relevance_cache: Dict[str, float] = field(default_factory=dict, init=False)
+    _cache_lock: threading.RLock = field(default_factory=threading.RLock, init=False)
+    _cache_timestamp: Optional[datetime] = field(default=None, init=False)
 
     @classmethod
     def create(cls, agent_id: str) -> "RevolutionaryMemoryCollection":
@@ -216,20 +392,26 @@ class RevolutionaryMemoryCollection:
         )
 
     def add_memory(self, memory: MemoryEntry) -> None:
-        """Add a memory to the appropriate collection."""
-        memory_store = self._get_memory_store(memory.memory_type)
+        """OPTIMIZATION: Add a memory to the appropriate collection with fast caching."""
+        with self._cache_lock:
+            memory_store = self._get_memory_store(memory.memory_type)
 
-        if memory.memory_type == MemoryType.WORKING:
-            # Working memory is a list with max size
-            self.working_memories.append(memory)
-            if len(self.working_memories) > 20:  # Max working memory size
-                self.working_memories.pop(0)
-        else:
-            memory_store[memory.id] = memory
+            if memory.memory_type == MemoryType.WORKING:
+                # Working memory is a list with max size
+                self.working_memories.append(memory)
+                if len(self.working_memories) > 20:  # Max working memory size
+                    self.working_memories.pop(0)
+            else:
+                memory_store[memory.id] = memory
 
-        # Update indices
-        self._update_indices(memory)
-        self.last_updated = datetime.now()
+            # OPTIMIZATION: Update fast caches
+            self._memory_cache[memory.id] = memory
+            self._importance_cache[memory.id] = memory.get_importance_score()
+            
+            # Update indices
+            self._update_indices(memory)
+            self.last_updated = datetime.now()
+            self._cache_timestamp = datetime.now()
 
     def _get_memory_store(self, memory_type: MemoryType) -> Dict[str, MemoryEntry]:
         """Get the appropriate memory store for a memory type."""
@@ -263,33 +445,43 @@ class RevolutionaryMemoryCollection:
             self.association_graph[memory.id][assoc_id] = strength
 
     def get_memory(self, memory_id: str) -> Optional[MemoryEntry]:
-        """Get a memory by ID from any collection."""
-        # Search all memory stores
-        all_stores = [
-            self.short_term_memories,
-            self.long_term_memories,
-            self.episodic_memories,
-            self.semantic_memories,
-            self.procedural_memories
-        ]
-
-        for store in all_stores:
-            if memory_id in store:
-                memory = store[memory_id]
-                memory.access_count += 1
-                memory.last_accessed = datetime.now()
+        """OPTIMIZATION: Get a memory by ID with fast cache lookup."""
+        with self._cache_lock:
+            # OPTIMIZATION: Fast cache lookup first
+            if memory_id in self._memory_cache:
+                memory = self._memory_cache[memory_id]
+                memory.access()
                 self.last_updated = datetime.now()
                 return memory
 
-        # Check working memory
-        for memory in self.working_memories:
-            if memory.id == memory_id:
-                memory.access_count += 1
-                memory.last_accessed = datetime.now()
-                self.last_updated = datetime.now()
-                return memory
+            # Fallback to store search
+            all_stores = [
+                self.short_term_memories,
+                self.long_term_memories,
+                self.episodic_memories,
+                self.semantic_memories,
+                self.procedural_memories
+            ]
 
-        return None
+            for store in all_stores:
+                if memory_id in store:
+                    memory = store[memory_id]
+                    memory.access()
+                    self.last_updated = datetime.now()
+                    # Update cache
+                    self._memory_cache[memory_id] = memory
+                    return memory
+
+            # Check working memory
+            for memory in self.working_memories:
+                if memory.id == memory_id:
+                    memory.access()
+                    self.last_updated = datetime.now()
+                    # Update cache
+                    self._memory_cache[memory_id] = memory
+                    return memory
+
+            return None
 
     def remove_memory(self, memory_id: str) -> bool:
         """Remove a memory by ID from any collection."""
@@ -384,8 +576,96 @@ class RevolutionaryMemoryCollection:
             "core_memory_size": {
                 "persona": len(self.core_memory["persona"].content),
                 "human": len(self.core_memory["human"].content)
-            }
+            },
+            # OPTIMIZATION: Cache statistics
+            "cache_size": len(self._memory_cache),
+            "importance_cache_size": len(self._importance_cache),
+            "relevance_cache_size": len(self._relevance_cache)
         }
+
+    def fast_search(self, query: str, memory_types: List[MemoryType] = None, 
+                   limit: int = 10) -> List[MemoryEntry]:
+        """OPTIMIZATION: Fast memory search with caching."""
+        with self._cache_lock:
+            results = []
+            query_lower = query.lower()
+            
+            # Get all memories to search
+            all_memories = []
+            if memory_types is None:
+                # Search all memory types
+                all_memories.extend(self.short_term_memories.values())
+                all_memories.extend(self.long_term_memories.values())
+                all_memories.extend(self.episodic_memories.values())
+                all_memories.extend(self.semantic_memories.values())
+                all_memories.extend(self.procedural_memories.values())
+                all_memories.extend(self.working_memories)
+            else:
+                # Search specific memory types
+                for memory_type in memory_types:
+                    store = self._get_memory_store(memory_type)
+                    if memory_type == MemoryType.WORKING:
+                        all_memories.extend(self.working_memories)
+                    else:
+                        all_memories.extend(store.values())
+            
+            # Fast text matching
+            for memory in all_memories:
+                if query_lower in memory.content.lower():
+                    results.append(memory)
+                    if len(results) >= limit:
+                        break
+            
+            # Sort by access count and recency
+            results.sort(key=lambda m: (m.access_count, m.last_accessed), reverse=True)
+            
+            return results[:limit]
+
+    def fast_relevance_search(self, context: Dict[str, Any], limit: int = 10) -> List[MemoryEntry]:
+        """OPTIMIZATION: Fast relevance-based search with caching."""
+        with self._cache_lock:
+            # Check cache first
+            cache_key = f"relevance:{hash(str(sorted(context.items())))}"
+            if cache_key in self._relevance_cache:
+                # Return cached results if available
+                cached_score = self._relevance_cache[cache_key]
+                if isinstance(cached_score, list):
+                    return cached_score[:limit]
+            
+            # Get all memories
+            all_memories = []
+            all_memories.extend(self.short_term_memories.values())
+            all_memories.extend(self.long_term_memories.values())
+            all_memories.extend(self.episodic_memories.values())
+            all_memories.extend(self.semantic_memories.values())
+            all_memories.extend(self.procedural_memories.values())
+            all_memories.extend(self.working_memories)
+            
+            # Score memories
+            scored_memories = []
+            for memory in all_memories:
+                score = memory.get_relevance_score(context)
+                if score > 0.3:  # Relevance threshold
+                    scored_memories.append((memory, score))
+            
+            # Sort by score
+            scored_memories.sort(key=lambda x: x[1], reverse=True)
+            
+            # Get top results
+            results = [memory for memory, _ in scored_memories[:limit]]
+            
+            # Cache results
+            self._relevance_cache[cache_key] = results
+            
+            return results
+
+    def invalidate_cache(self) -> None:
+        """OPTIMIZATION: Invalidate all caches."""
+        with self._cache_lock:
+            self._memory_cache.clear()
+            self._importance_cache.clear()
+            self._relevance_cache.clear()
+            self._cache_timestamp = None
 
 
 # Backward compatibility alias

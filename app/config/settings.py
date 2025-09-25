@@ -59,9 +59,9 @@ class Settings(BaseSettings):
         description="Allowed CORS origins"
     )
 
-    # Logging settings - Optimized for clean console output
-    LOG_LEVEL: str = Field(default="WARNING", description="Console logging level (WARNING/ERROR only)")
-    LOG_FILE_LEVEL: str = Field(default="INFO", description="File logging level (detailed)")
+    # Logging settings - Show important info, reduce spam
+    LOG_LEVEL: str = Field(default="INFO", description="Console logging level (INFO shows agent reasoning)")
+    LOG_FILE_LEVEL: str = Field(default="DEBUG", description="File logging level (detailed for review)")
     LOG_TO_FILE: bool = Field(default=True, description="Enable file logging")
     LOG_TO_CONSOLE: bool = Field(default=True, description="Enable console logging")
     LOG_JSON_FORMAT: bool = Field(default=True, description="Use JSON log format for files")

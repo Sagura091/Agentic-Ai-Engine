@@ -34,6 +34,9 @@ aiohttp>=3.9.1
 websockets>=12.0
 python-socketio>=5.10.0
 
+# Financial data APIs (FREE)
+yfinance>=0.2.18
+
 # Utilities and helpers
 python-multipart>=0.0.6
 python-jose[cryptography]>=3.3.0
@@ -134,3 +137,27 @@ python-magic>=0.4.27
 # Additional Document Processing
 xlsxwriter>=3.1.0
 python-docx2txt>=0.8
+
+# 🌐 REVOLUTIONARY WEB SCRAPING ARSENAL - 2024 ULTIMATE EDITION
+# The most advanced web scraping libraries for bypassing ALL protections
+undetected-chromedriver>=3.5.5    # Bypass Chrome detection completely
+selenium-stealth>=1.0.6           # Make Selenium 100% undetectable
+requests-html>=0.10.0             # JavaScript rendering with requests
+cloudscraper>=1.2.71              # Cloudflare bypass specialist
+fake-useragent>=1.4.0             # Real browser user agents rotation
+curl-cffi>=0.5.10                 # TLS fingerprint spoofing (JA3/JA4)
+selenium>=4.15.0                  # Latest Selenium with all improvements
+playwright-stealth>=1.0.6         # Stealth plugin for Playwright
+requests-random-user-agent>=1.0.1 # Random user agent for requests
+selenium-wire>=5.1.0              # Intercept and modify requests
+pyppeteer>=1.0.2                  # Python port of Puppeteer
+selenium-profiles>=2.2.8          # Browser profile management
+undetected-playwright>=0.2.0      # Undetected Playwright
+rotated-user-agents>=0.1.0        # Advanced user agent rotation
+browser-cookie3>=0.19.1           # Cookie extraction from browsers
+selenium-recaptcha-solver>=1.9.0  # CAPTCHA solving capabilities
+selenium-driverless>=1.6.0        # Driverless Chrome automation
+nodriver>=0.17                    # Ultimate undetected Chrome
+botright>=0.4.0                   # Advanced bot detection bypass
+selenium-interceptor>=1.0.2       # Request/response interception
+playwright-extra>=0.1.0           # Extra plugins for Playwright

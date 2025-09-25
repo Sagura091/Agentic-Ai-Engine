@@ -113,9 +113,9 @@ agent_types:
 
 # Custom tool configurations for character creation
 tool_defaults:
-  character_creator: ["web_search", "document_analyzer", "creative_writing_assistant"]
-  fantasy_character: ["web_search", "lore_database", "fantasy_name_generator", "world_builder"]
-  sci_fi_character: ["web_search", "tech_database", "future_predictor", "science_consultant"]
+  character_creator: ["web_search", "revolutionary_web_scraper", "document_analyzer", "creative_writing_assistant"]
+  fantasy_character: ["web_search", "revolutionary_web_scraper", "lore_database", "fantasy_name_generator", "world_builder"]
+  sci_fi_character: ["web_search", "revolutionary_web_scraper", "tech_database", "future_predictor", "science_consultant"]
 
 # Performance settings optimized for creative work
 performance:

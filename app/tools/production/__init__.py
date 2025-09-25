@@ -45,6 +45,14 @@ __all__ = [
     "revolutionary_document_intelligence_tool"
 ]
 
+# Import the revolutionary web scraper tool
+try:
+    from .revolutionary_web_scraper_tool import get_revolutionary_web_scraper_tool
+    revolutionary_web_scraper_tool = get_revolutionary_web_scraper_tool()
+except ImportError as e:
+    logger.warning(f"Failed to import revolutionary web scraper tool: {e}")
+    revolutionary_web_scraper_tool = None
+
 # Tool registry for easy access
 PRODUCTION_TOOLS = {
     "file_system": file_system_tool,
@@ -58,7 +66,8 @@ PRODUCTION_TOOLS = {
     "screenshot_analysis": screenshot_analysis_tool,
     "browser_automation": browser_automation_tool,
     "computer_use_agent": computer_use_agent_tool,
-    "revolutionary_document_intelligence": revolutionary_document_intelligence_tool
+    "revolutionary_document_intelligence": revolutionary_document_intelligence_tool,
+    "revolutionary_web_scraper": revolutionary_web_scraper_tool
 }
 
 def get_production_tool(tool_name: str):

@@ -188,7 +188,7 @@ class UnifiedToolRepository:
             if metadata.requires_rag:
                 self.stats["rag_enabled_tools"] += 1
 
-            logger.info(f"Registered tool: {tool_id} ({metadata.category.value}, RAG: {metadata.requires_rag})")
+            logger.debug(f"Registered tool: {tool_id} ({metadata.category.value}, RAG: {metadata.requires_rag})")
             return tool_id
 
         except Exception as e:

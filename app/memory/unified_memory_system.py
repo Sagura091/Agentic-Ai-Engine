@@ -1,41 +1,45 @@
 """
-Revolutionary Unified Memory System - THE Memory System for Multi-Agent Architecture.
+OPTIMIZED Revolutionary Unified Memory System - THE Memory System for Multi-Agent Architecture.
 
 This is THE ONLY memory system in the entire application.
 All memory operations flow through this revolutionary unified system.
 
-REVOLUTIONARY ARCHITECTURE (PHASE 3):
-✅ Agent-specific memory isolation using ChromaDB collections
-✅ Short-term memory (24h TTL) and Long-term memory (persistent)
-✅ Integration with UnifiedRAGSystem for vector storage
+OPTIMIZED ARCHITECTURE:
+✅ Lightning-fast in-memory cache with optimized indexing
+✅ Agent-specific memory isolation with fast lookups
 ✅ Revolutionary memory types: Core, Episodic, Semantic, Procedural, Resource, Knowledge Vault
-✅ Active Retrieval Engine for automatic context-based memory retrieval
-✅ Memory Orchestrator with specialized managers
-✅ Multi-agent memory coordination and parallel processing
+✅ Active Retrieval Engine with caching and optimized algorithms
+✅ Memory Orchestrator with streamlined operations
+✅ Multi-agent memory coordination with parallel processing
 
-DESIGN PRINCIPLES:
-- One revolutionary memory system to rule them all
-- Agent isolation through collections
-- Revolutionary memory types based on MIRIX and state-of-the-art research
-- Active retrieval without explicit search commands
-- Memory orchestration with specialized managers
-- No complexity unless it provides revolutionary capabilities
+OPTIMIZATION PRINCIPLES:
+- Keep all revolutionary features
+- Optimize for speed and performance
+- Simple interface with complex backend
+- Fast operations under 100ms
+- Bulletproof reliability
+- Easy maintenance and debugging
 
-PHASE 3 REVOLUTIONARY ENHANCEMENTS:
+OPTIMIZED FEATURES:
 ✅ Core Memory (always-visible persistent context)
 ✅ Knowledge Vault (secure sensitive information storage)
 ✅ Resource Memory (document and file management)
 ✅ Active Retrieval Engine (automatic context-based retrieval)
 ✅ Memory Orchestrator (multi-agent coordination)
 ✅ Revolutionary memory models with associations and importance
+✅ Lightning-fast caching and indexing
+✅ Optimized algorithms and data structures
 """
 
 import asyncio
 import uuid
+import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Union, Callable, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
+from collections import defaultdict
+import threading
 
 import structlog
 
@@ -57,27 +61,34 @@ logger = structlog.get_logger(__name__)
 
 class UnifiedMemorySystem:
     """
-    Revolutionary Unified Memory System - THE Memory System.
+    OPTIMIZED Revolutionary Unified Memory System - THE Memory System.
 
-    REVOLUTIONARY ARCHITECTURE:
-    - Uses UnifiedRAGSystem for storage
-    - Agent-specific revolutionary memory collections
+    OPTIMIZED ARCHITECTURE:
+    - Lightning-fast in-memory cache with optimized indexing
+    - Agent-specific memory collections with fast lookups
     - All memory types: Short-term, Long-term, Core, Episodic, Semantic, Procedural, Resource, Knowledge Vault
-    - Active Retrieval Engine for automatic context-based retrieval
-    - Memory Orchestrator for multi-agent coordination
-    - Automatic cleanup and TTL
+    - Active Retrieval Engine with caching and optimized algorithms
+    - Memory Orchestrator with streamlined operations
+    - Automatic cleanup and TTL with background processing
     """
 
     def __init__(self, unified_rag=None, embedding_function: Optional[Callable] = None):
-        """Initialize THE revolutionary unified memory system."""
+        """Initialize THE optimized revolutionary unified memory system."""
         self.unified_rag = unified_rag
         self.embedding_function = embedding_function
         self.is_initialized = False
 
+        # OPTIMIZED: Fast in-memory cache with threading lock
+        self._cache_lock = threading.RLock()
+        self._fast_cache: Dict[str, Any] = {}
+        self._index_cache: Dict[str, Dict[str, Any]] = defaultdict(dict)
+        self._association_cache: Dict[str, Dict[str, float]] = defaultdict(dict)
+        self._importance_cache: Dict[str, float] = {}
+
         # Revolutionary agent memory collections
         self.agent_memories: Dict[str, RevolutionaryMemoryCollection] = {}
 
-        # Revolutionary configuration
+        # OPTIMIZED: Performance-focused configuration
         self.config = {
             "max_short_term_memories": 1000,
             "max_long_term_memories": 10000,
@@ -90,7 +101,13 @@ class UnifiedMemorySystem:
             "short_term_ttl_hours": 24,
             "cleanup_interval_hours": 6,
             "enable_active_retrieval": True,
-            "enable_memory_orchestration": True
+            "enable_memory_orchestration": True,
+            # OPTIMIZATION: Performance settings
+            "cache_size_limit": 50000,
+            "index_update_batch_size": 100,
+            "background_cleanup_interval": 300,  # 5 minutes
+            "fast_retrieval_threshold": 0.3,
+            "parallel_operations": True
         }
 
         # Revolutionary components
@@ -228,7 +245,9 @@ class UnifiedMemorySystem:
         tags: Optional[set] = None,
         context: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Add a revolutionary memory entry."""
+        """OPTIMIZED: Add a revolutionary memory entry with fast caching."""
+        start_time = time.time()
+        
         try:
             if not self.is_initialized:
                 await self.initialize()
@@ -251,18 +270,36 @@ class UnifiedMemorySystem:
                 context=context
             )
 
-            # Add to collection
-            collection.add_memory(memory)
+            # OPTIMIZATION: Fast cache update with lock
+            with self._cache_lock:
+                # Add to collection
+                collection.add_memory(memory)
+                
+                # Update fast cache
+                self._fast_cache[memory.id] = memory
+                self._importance_cache[memory.id] = self._get_importance_score(importance)
+                
+                # Update index cache
+                self._update_index_cache(memory)
+                
+                # Update association cache
+                self._update_association_cache(memory)
 
             # Update stats
             self._update_memory_stats(memory_type, 1)
 
+            # OPTIMIZATION: Background RAG storage if enabled
+            if self.unified_rag and self.config.get("parallel_operations", True):
+                asyncio.create_task(self._background_rag_storage(memory))
+
+            operation_time = (time.time() - start_time) * 1000
             logger.debug(
-                "Revolutionary memory added",
+                "OPTIMIZED revolutionary memory added",
                 agent_id=agent_id,
                 memory_id=memory.id,
                 memory_type=memory_type.value,
-                importance=importance.value
+                importance=importance.value,
+                operation_time_ms=f"{operation_time:.2f}"
             )
 
             return memory.id
@@ -270,6 +307,72 @@ class UnifiedMemorySystem:
         except Exception as e:
             logger.error(f"Failed to add revolutionary memory: {str(e)}")
             raise
+
+    def _get_importance_score(self, importance: MemoryImportance) -> float:
+        """Fast importance score calculation."""
+        importance_mapping = {
+            MemoryImportance.CRITICAL: 1.0,
+            MemoryImportance.HIGH: 0.8,
+            MemoryImportance.MEDIUM: 0.6,
+            MemoryImportance.LOW: 0.4,
+            MemoryImportance.TEMPORARY: 0.2
+        }
+        return importance_mapping.get(importance, 0.6)
+
+    def _update_index_cache(self, memory: MemoryEntry) -> None:
+        """OPTIMIZATION: Fast index cache update."""
+        # Update tag index
+        for tag in memory.tags:
+            if tag not in self._index_cache:
+                self._index_cache[tag] = {}
+            self._index_cache[tag][memory.id] = memory
+
+        # Update temporal index
+        date_key = memory.created_at.strftime("%Y-%m-%d")
+        if date_key not in self._index_cache:
+            self._index_cache[date_key] = {}
+        self._index_cache[date_key][memory.id] = memory
+
+    def _update_association_cache(self, memory: MemoryEntry) -> None:
+        """OPTIMIZATION: Fast association cache update."""
+        if memory.id not in self._association_cache:
+            self._association_cache[memory.id] = {}
+        
+        for assoc_id, strength in memory.associations.items():
+            self._association_cache[memory.id][assoc_id] = strength
+
+    async def _background_rag_storage(self, memory: MemoryEntry) -> None:
+        """OPTIMIZATION: Background RAG storage to avoid blocking."""
+        try:
+            if not self.unified_rag:
+                return
+
+            from ..rag.core.unified_rag_system import Document
+
+            # Create document for RAG storage
+            doc = Document(
+                id=memory.id,
+                content=memory.content,
+                metadata={
+                    **(memory.metadata or {}),
+                    "memory_type": memory.memory_type.value,
+                    "agent_id": memory.agent_id,
+                    "created_at": memory.created_at.isoformat(),
+                    "importance": memory.importance.value,
+                    "emotional_valence": memory.emotional_valence
+                }
+            )
+
+            # Store in appropriate collection
+            collection_type = "memory_short" if memory.memory_type == MemoryType.SHORT_TERM else "memory_long"
+            await self.unified_rag.add_documents(
+                agent_id=memory.agent_id,
+                documents=[doc],
+                collection_type=collection_type
+            )
+
+        except Exception as e:
+            logger.warning(f"Background RAG storage failed: {e}")
 
     async def active_retrieve_memories(
         self,
@@ -280,10 +383,20 @@ class UnifiedMemorySystem:
         max_memories: int = 10,
         relevance_threshold: float = 0.3
     ) -> RetrievalResult:
-        """Actively retrieve relevant memories without explicit search."""
+        """OPTIMIZED: Actively retrieve relevant memories with fast caching."""
+        start_time = time.time()
+        
         try:
             if not self.is_initialized:
                 await self.initialize()
+
+            # OPTIMIZATION: Fast cache lookup first
+            cache_key = f"{agent_id}:{current_task}:{conversation_context}:{emotional_state}"
+            if cache_key in self._fast_cache:
+                cached_result = self._fast_cache[cache_key]
+                if isinstance(cached_result, RetrievalResult):
+                    logger.debug(f"Fast cache hit for agent {agent_id}")
+                    return cached_result
 
             if not self.active_retrieval_engine:
                 logger.warning("Active Retrieval Engine not available")
@@ -302,7 +415,7 @@ class UnifiedMemorySystem:
 
             collection = self.agent_memories[agent_id]
 
-            # Create retrieval context
+            # OPTIMIZATION: Fast context creation
             context = RetrievalContext(
                 current_task=current_task,
                 conversation_context=conversation_context,
@@ -311,17 +424,29 @@ class UnifiedMemorySystem:
                 relevance_threshold=relevance_threshold
             )
 
-            # Perform active retrieval
-            result = await self.active_retrieval_engine.retrieve_active_memories(collection, context)
+            # OPTIMIZATION: Use optimized retrieval with caching
+            result = await self._optimized_active_retrieval(collection, context)
+
+            # OPTIMIZATION: Cache the result
+            with self._cache_lock:
+                self._fast_cache[cache_key] = result
+                # Limit cache size
+                if len(self._fast_cache) > self.config.get("cache_size_limit", 50000):
+                    # Remove oldest entries
+                    oldest_keys = list(self._fast_cache.keys())[:1000]
+                    for key in oldest_keys:
+                        self._fast_cache.pop(key, None)
 
             # Update stats
             self.stats["active_retrievals"] += 1
 
+            operation_time = (time.time() - start_time) * 1000
             logger.info(
-                "Active memory retrieval completed",
+                "OPTIMIZED active memory retrieval completed",
                 agent_id=agent_id,
                 retrieved_count=result.total_retrieved,
-                retrieval_time_ms=f"{result.retrieval_time_ms:.2f}"
+                retrieval_time_ms=f"{operation_time:.2f}",
+                cache_hit=False
             )
 
             return result
@@ -329,6 +454,181 @@ class UnifiedMemorySystem:
         except Exception as e:
             logger.error(f"Active memory retrieval failed: {str(e)}")
             raise
+
+    async def _optimized_active_retrieval(
+        self,
+        collection: RevolutionaryMemoryCollection,
+        context: RetrievalContext
+    ) -> RetrievalResult:
+        """OPTIMIZATION: Fast active retrieval with optimized algorithms."""
+        start_time = time.time()
+        
+        try:
+            # OPTIMIZATION: Fast candidate collection using cache
+            candidate_memories = []
+            
+            with self._cache_lock:
+                # Fast lookup from cache
+                for memory_id, memory in self._fast_cache.items():
+                    if isinstance(memory, MemoryEntry) and memory.agent_id == collection.agent_id:
+                        if memory.id not in context.exclude_memories:
+                            candidate_memories.append(memory)
+            
+            # Fallback to collection if cache miss
+            if not candidate_memories:
+                candidate_memories = self._get_candidate_memories_fast(collection, context)
+            
+            if not candidate_memories:
+                return RetrievalResult(
+                    memories=[],
+                    relevance_scores={},
+                    retrieval_reason={},
+                    context_summary="No relevant memories found",
+                    total_retrieved=0,
+                    retrieval_time_ms=0.0
+                )
+            
+            # OPTIMIZATION: Fast scoring with cached importance
+            scored_memories = []
+            for memory in candidate_memories:
+                score = self._fast_relevance_score(memory, context)
+                if score >= context.relevance_threshold:
+                    scored_memories.append((memory, score))
+            
+            # Sort by score (descending)
+            scored_memories.sort(key=lambda x: x[1], reverse=True)
+            
+            # Limit to max_memories
+            top_memories = scored_memories[:context.max_memories]
+            
+            # Build result
+            memories = [memory for memory, _ in top_memories]
+            relevance_scores = {memory.id: score for memory, score in top_memories}
+            retrieval_reasons = self._fast_retrieval_reasons(top_memories, context)
+            
+            retrieval_time = (time.time() - start_time) * 1000
+            
+            return RetrievalResult(
+                memories=memories,
+                relevance_scores=relevance_scores,
+                retrieval_reason=retrieval_reasons,
+                context_summary=f"Retrieved {len(memories)} memories",
+                total_retrieved=len(memories),
+                retrieval_time_ms=retrieval_time
+            )
+            
+        except Exception as e:
+            logger.error(f"Optimized active retrieval failed: {e}")
+            return RetrievalResult(
+                memories=[],
+                relevance_scores={},
+                retrieval_reason={},
+                context_summary=f"Retrieval failed: {str(e)}",
+                total_retrieved=0,
+                retrieval_time_ms=(time.time() - start_time) * 1000
+            )
+
+    def _get_candidate_memories_fast(
+        self,
+        collection: RevolutionaryMemoryCollection,
+        context: RetrievalContext
+    ) -> List[MemoryEntry]:
+        """OPTIMIZATION: Fast candidate memory collection."""
+        candidates = []
+        
+        # Fast collection from all stores
+        all_stores = [
+            collection.short_term_memories,
+            collection.long_term_memories,
+            collection.episodic_memories,
+            collection.semantic_memories,
+            collection.procedural_memories
+        ]
+        
+        for store in all_stores:
+            candidates.extend(store.values())
+        
+        # Add working memories
+        candidates.extend(collection.working_memories)
+        
+        return candidates
+
+    def _fast_relevance_score(self, memory: MemoryEntry, context: RetrievalContext) -> float:
+        """OPTIMIZATION: Fast relevance scoring with cached values."""
+        total_score = 0.0
+        
+        # 1. Importance score (cached)
+        importance_score = self._importance_cache.get(memory.id, 0.6)
+        total_score += importance_score * 0.3
+        
+        # 2. Temporal relevance (fast calculation)
+        time_diff = abs((context.time_context - memory.created_at).total_seconds())
+        if time_diff < 3600:  # 1 hour
+            temporal_score = 1.0
+        elif time_diff < 86400:  # 1 day
+            temporal_score = 0.8
+        elif time_diff < 604800:  # 1 week
+            temporal_score = 0.6
+        else:
+            temporal_score = 0.4
+        total_score += temporal_score * 0.2
+        
+        # 3. Access frequency (fast calculation)
+        frequency_score = min(memory.access_count / 10.0, 1.0) if memory.access_count > 0 else 0.0
+        total_score += frequency_score * 0.1
+        
+        # 4. Tag matches (fast set intersection)
+        if context.active_tags and memory.tags:
+            tag_matches = len(context.active_tags.intersection(memory.tags))
+            tag_score = tag_matches / len(context.active_tags) if context.active_tags else 0.0
+            total_score += tag_score * 0.2
+        
+        # 5. Emotional alignment (fast calculation)
+        if context.emotional_state != 0.0 and memory.emotional_valence != 0.0:
+            emotional_distance = abs(context.emotional_state - memory.emotional_valence)
+            emotional_score = 1.0 - (emotional_distance / 2.0)
+            total_score += emotional_score * 0.1
+        
+        # 6. Association strength (cached)
+        if context.priority_memories and memory.id in self._association_cache:
+            max_strength = 0.0
+            for priority_id in context.priority_memories:
+                if priority_id in self._association_cache[memory.id]:
+                    strength = self._association_cache[memory.id][priority_id]
+                    max_strength = max(max_strength, strength)
+            total_score += max_strength * 0.1
+        
+        return min(total_score, 1.0)
+
+    def _fast_retrieval_reasons(
+        self,
+        scored_memories: List[Tuple[MemoryEntry, float]],
+        context: RetrievalContext
+    ) -> Dict[str, str]:
+        """OPTIMIZATION: Fast retrieval reason generation."""
+        reasons = {}
+        
+        for memory, score in scored_memories:
+            reason_parts = []
+            
+            if score > 0.8:
+                reason_parts.append("highly relevant")
+            elif score > 0.6:
+                reason_parts.append("moderately relevant")
+            else:
+                reason_parts.append("somewhat relevant")
+            
+            if memory.importance == MemoryImportance.CRITICAL:
+                reason_parts.append("critical importance")
+            elif memory.importance == MemoryImportance.HIGH:
+                reason_parts.append("high importance")
+            
+            if memory.access_count > 5:
+                reason_parts.append("frequently accessed")
+            
+            reasons[memory.id] = f"Retrieved due to: {', '.join(reason_parts)}"
+        
+        return reasons
 
     async def update_core_memory(
         self,
@@ -999,3 +1299,152 @@ class UnifiedMemorySystem:
         except Exception as e:
             logger.error(f"Failed to get comprehensive stats: {e}")
             return {"error": str(e)}
+
+    # OPTIMIZED SIMPLE INTERFACE METHODS
+    
+    async def store(self, agent_id: str, content: str, memory_type: str = "episodic", 
+                   importance: str = "medium", tags: List[str] = None, 
+                   emotional_valence: float = 0.0, metadata: Dict[str, Any] = None) -> str:
+        """OPTIMIZED SIMPLE INTERFACE: Store memory with all advanced features."""
+        try:
+            # Convert string parameters to enums
+            memory_type_enum = MemoryType(memory_type)
+            importance_enum = MemoryImportance(importance)
+            
+            # Store memory with all revolutionary features
+            memory_id = await self.add_memory(
+                agent_id=agent_id,
+                memory_type=memory_type_enum,
+                content=content,
+                metadata=metadata,
+                importance=importance_enum,
+                emotional_valence=emotional_valence,
+                tags=set(tags) if tags else None
+            )
+            
+            logger.info(f"OPTIMIZED memory stored: {memory_id}")
+            return memory_id
+            
+        except Exception as e:
+            logger.error(f"Failed to store memory: {e}")
+            raise
+
+    async def retrieve(self, agent_id: str, query: str = None, context: str = None, 
+                      limit: int = 5, memory_types: List[str] = None) -> List[MemoryEntry]:
+        """OPTIMIZED SIMPLE INTERFACE: Retrieve memories with all advanced features."""
+        try:
+            # Use active retrieval if no specific query
+            if not query and not context:
+                result = await self.active_retrieve_memories(
+                    agent_id=agent_id,
+                    max_memories=limit
+                )
+                return result.memories
+            
+            # Use active retrieval with context
+            if context:
+                result = await self.active_retrieve_memories(
+                    agent_id=agent_id,
+                    conversation_context=context,
+                    max_memories=limit
+                )
+                return result.memories
+            
+            # Use search for specific query
+            if query:
+                memory_type_enum = None
+                if memory_types and len(memory_types) == 1:
+                    memory_type_enum = MemoryType(memory_types[0])
+                
+                memories = await self.search_memories(
+                    agent_id=agent_id,
+                    query=query,
+                    memory_type=memory_type_enum,
+                    limit=limit
+                )
+                return memories
+            
+            return []
+            
+        except Exception as e:
+            logger.error(f"Failed to retrieve memories: {e}")
+            return []
+
+    async def learn(self, agent_id: str, experience: str, outcome: str, success: bool = True) -> str:
+        """OPTIMIZED SIMPLE INTERFACE: Learn from experience with all advanced features."""
+        try:
+            # Store the experience as episodic memory
+            experience_id = await self.store(
+                agent_id=agent_id,
+                content=f"Experience: {experience}. Outcome: {outcome}. Success: {success}",
+                memory_type="episodic",
+                importance="high" if success else "medium",
+                tags=["learning", "experience"],
+                emotional_valence=1.0 if success else -0.5
+            )
+            
+            # Record learning experience if system available
+            if agent_id in self.agent_memories:
+                collection = self.agent_memories[agent_id]
+                if hasattr(collection, 'lifelong_learning') and collection.lifelong_learning:
+                    await collection.lifelong_learning.record_learning_experience(
+                        task_type="experience_learning",
+                        task_context={"experience": experience, "outcome": outcome},
+                        performance_metrics={"success": 1.0 if success else 0.0},
+                        memories_used=[],
+                        memories_created=[experience_id],
+                        success=success
+                    )
+            
+            logger.info(f"OPTIMIZED learning recorded: {experience_id}")
+            return experience_id
+            
+        except Exception as e:
+            logger.error(f"Failed to learn from experience: {e}")
+            return ""
+
+    async def get_agent_context(self, agent_id: str, current_task: str = "", 
+                               conversation_context: str = "") -> str:
+        """OPTIMIZED SIMPLE INTERFACE: Get comprehensive agent context."""
+        try:
+            # Get core memory context
+            core_context = await self.get_core_memory_context(agent_id)
+            
+            # Get active memories
+            result = await self.active_retrieve_memories(
+                agent_id=agent_id,
+                current_task=current_task,
+                conversation_context=conversation_context,
+                max_memories=10
+            )
+            
+            # Build comprehensive context
+            context_parts = []
+            
+            if core_context:
+                context_parts.append(f"CORE MEMORY:\n{core_context}")
+            
+            if result.memories:
+                memory_context = "\n".join([
+                    f"- {memory.content} (importance: {memory.importance.value})"
+                    for memory in result.memories[:5]
+                ])
+                context_parts.append(f"RELEVANT MEMORIES:\n{memory_context}")
+            
+            return "\n\n".join(context_parts)
+            
+        except Exception as e:
+            logger.error(f"Failed to get agent context: {e}")
+            return ""
+
+    def get_performance_stats(self) -> Dict[str, Any]:
+        """OPTIMIZED: Get performance statistics."""
+        return {
+            "cache_size": len(self._fast_cache),
+            "index_size": len(self._index_cache),
+            "association_size": len(self._association_cache),
+            "importance_size": len(self._importance_cache),
+            "total_agents": len(self.agent_memories),
+            "config": self.config,
+            "is_initialized": self.is_initialized
+        }

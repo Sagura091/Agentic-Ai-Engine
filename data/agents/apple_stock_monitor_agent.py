@@ -1,16 +1,15 @@
 """
-🍎 APPLE STOCK MONITOR AGENT - Properly Built Using Infrastructure
-================================================================
+🍎 APPLE STOCK MONITOR AGENT - React Agent Implementation
+========================================================
 
-Autonomous Apple stock monitoring agent built using the proper agentic infrastructure:
-- AgentBuilderFactory for proper agent creation
-- UnifiedToolRepository for tool management
-- UnifiedMemorySystem for memory persistence
-- UnifiedRAGSystem for knowledge management
-- Proper autonomous agent execution with ReAct patterns
+EXACT WORKFLOW AS REQUESTED:
+1. Search for Apple stocks every 3 minutes using web search tool
+2. Store information in RAG system
+3. Retrieve from RAG every 5 minutes and generate PDF reports
+4. Provide buy/sell recommendations
 
-This agent demonstrates how to properly use the existing infrastructure
-instead of bypassing it with custom implementations.
+Uses React (Reasoning + Acting) pattern for proper tool usage.
+All logs saved to files, reduced console spam, full agent reasoning displayed.
 """
 
 import sys
@@ -25,16 +24,18 @@ sys.path.insert(0, str(project_root))
 import asyncio
 import json
 import uuid
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 
 import structlog
+import logging
 from langchain_core.language_models import BaseLanguageModel
 from pydantic import BaseModel
 
 # Import proper infrastructure components
 from app.agents.factory import AgentBuilderFactory, AgentBuilderConfig, AgentType, MemoryType
-from app.agents.base.agent import AgentCapability
+from app.agents.base.agent import AgentCapability, LangGraphAgent
 from app.agents.autonomous import AutonomousLangGraphAgent, AutonomyLevel, LearningMode
 from app.llm.manager import LLMProviderManager
 from app.llm.models import LLMConfig, ProviderType
@@ -58,6 +59,67 @@ except ImportError:
     PDF_AVAILABLE = False
 
 logger = structlog.get_logger(__name__)
+
+# Create dedicated agent conversation logger
+def setup_agent_conversation_logger():
+    """Setup dedicated logger for agent conversations and reasoning."""
+    # Create logs directory
+    logs_dir = Path("./data/logs/agents")
+    logs_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create agent-specific log file
+    log_file = logs_dir / f"apple_stock_monitor_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+
+    # Create logger
+    agent_logger = logging.getLogger("agent_conversation")
+    agent_logger.setLevel(logging.INFO)
+
+    # Remove existing handlers
+    for handler in agent_logger.handlers[:]:
+        agent_logger.removeHandler(handler)
+
+    # Create file handler
+    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+    file_handler.setLevel(logging.INFO)
+
+    # Create formatter
+    formatter = logging.Formatter(
+        '%(asctime)s | %(levelname)s | %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    file_handler.setFormatter(formatter)
+
+    # Add handler to logger
+    agent_logger.addHandler(file_handler)
+
+    return agent_logger, log_file
+
+# Initialize agent conversation logger
+agent_conversation_logger, agent_log_file = setup_agent_conversation_logger()
+
+def log_agent_activity(activity_type: str, content: str, metadata: Dict[str, Any] = None):
+    """Log agent activity to dedicated log file."""
+    if metadata is None:
+        metadata = {}
+
+    log_entry = f"[{activity_type}] {content}"
+    if metadata:
+        log_entry += f" | Metadata: {metadata}"
+
+    agent_conversation_logger.info(log_entry)
+
+def stream_text_output(text: str, delay: float = 0.03):
+    """Stream text output sentence by sentence for real-time effect."""
+    import re
+
+    # Split text into sentences
+    sentences = re.split(r'(?<=[.!?])\s+', text)
+
+    for sentence in sentences:
+        if sentence.strip():
+            print(sentence.strip(), end=' ', flush=True)
+            time.sleep(delay)
+    print()  # New line at the end
 
 
 class StockDataPoint(BaseModel):
@@ -118,7 +180,7 @@ async def create_apple_stock_monitor_agent(
             AgentCapability.PLANNING,
             AgentCapability.LEARNING
         ],
-        tools=["web_research", "business_intelligence"],
+        tools=["revolutionary_web_scraper", "business_intelligence"],
         memory_type=MemoryType.ADVANCED,  # Use advanced memory for learning
         enable_memory=True,
         enable_learning=True,
@@ -139,7 +201,13 @@ Your Autonomous Behavior:
 - Learn from market patterns to improve timing predictions
 - Use ReAct pattern: Reason about conditions, then Act with tools
 
-Remember: You're not just analyzing numbers - you're timing the market for your next iPhone!""",
+Your Revolutionary Tools:
+- You have access to the REVOLUTIONARY WEB SCRAPER TOOL that can bypass ALL bot detection systems
+- This tool can scrape ANY financial website including Yahoo Finance, Google Finance, MarketWatch, etc.
+- It has advanced anti-detection capabilities and can handle complex financial sites
+- Use it to get the most up-to-date and accurate Apple stock data available
+
+Remember: You're not just analyzing numbers - you're timing the market for your next iPhone using the most advanced web scraping technology available!""",
         custom_config={
             "autonomy_level": "autonomous",
             "learning_mode": "active",
@@ -237,6 +305,97 @@ Remember: You're not just analyzing numbers - you're timing the market for your 
               agent_id=getattr(agent, 'agent_id', 'unknown'),
               has_execute=hasattr(agent, 'execute'))
     return agent
+
+
+async def create_apple_stock_monitor_react_agent(
+    llm_manager: LLMProviderManager,
+    memory_system: UnifiedMemorySystem,
+    rag_system: UnifiedRAGSystem,
+    tool_repository: UnifiedToolRepository
+) -> LangGraphAgent:
+    """
+    🍎 Create Apple Stock Monitor React Agent - EXACT WORKFLOW IMPLEMENTATION
+
+    WORKFLOW:
+    1. Search Apple stocks every 3 minutes using web search
+    2. Store information in RAG system
+    3. Retrieve from RAG every 5 minutes and generate PDF reports
+    4. Provide buy/sell recommendations
+    """
+
+    # Create React agent configuration
+    config = AgentBuilderConfig(
+        name="Apple Stock Monitor React Agent",
+        description="React agent for Apple stock monitoring with RAG storage and PDF reporting",
+        agent_type=AgentType.REACT,  # Use React agent for proper reasoning + acting
+        llm_config=LLMConfig(
+            provider=ProviderType.OLLAMA,
+            model_id="llama3.2:latest"
+        ),
+        capabilities=[
+            AgentCapability.REASONING,
+            AgentCapability.TOOL_USE,
+            AgentCapability.MEMORY
+        ],
+        tools=["revolutionary_web_scraper", "document_ingest", "rag_search", "business_intelligence"],
+        memory_type=MemoryType.ADVANCED,
+        enable_memory=True,
+        enable_learning=False,  # Focus on execution, not learning
+        system_prompt="""You are a React agent specialized in Apple stock monitoring with a specific workflow:
+
+EXACT WORKFLOW TO FOLLOW:
+1. SEARCH PHASE (Every 3 minutes):
+   - Use revolutionary_web_scraper to search for current Apple (AAPL) stock data
+   - Look for: current price, volume, market cap, recent news, analyst ratings
+   - Focus on real-time financial data from reliable sources
+
+2. STORAGE PHASE (After each search):
+   - Use document_ingest tool to store the collected data in RAG system
+   - Structure data with timestamps and source information
+   - Ensure data is properly indexed for retrieval
+
+3. ANALYSIS PHASE (Every 5 minutes):
+   - Use rag_search to retrieve historical Apple stock data
+   - Use business_intelligence tool with analysis_type="financial"
+   - Generate comprehensive analysis comparing current vs historical data
+
+4. REPORTING PHASE (After analysis):
+   - Create detailed PDF report with buy/sell recommendations
+   - Include charts, trends, and reasoning for recommendations
+   - Save reports with timestamps
+
+REASONING PATTERN:
+- Think step by step about what action to take
+- Explain your reasoning before acting
+- Use tools systematically following the workflow
+- Always provide clear explanations of your decisions
+
+TOOL USAGE:
+- revolutionary_web_scraper: For real-time Apple stock data collection
+- document_ingest: For storing data in RAG system
+- rag_search: For retrieving historical data
+- business_intelligence: For financial analysis (use analysis_type="financial", provide business_context)
+
+Be methodical, thorough, and follow the exact workflow specified.""",
+        max_iterations=15,
+        timeout_seconds=600
+    )
+
+    # Create LLM instance
+    logger.info("🔧 Creating LLM instance...")
+    llm = await llm_manager.create_llm_instance(config.llm_config)
+    logger.info("✅ LLM instance created", llm_type=type(llm))
+
+    # Create React agent using factory
+    logger.info("🔧 Creating React agent with factory...")
+    from app.agents.factory import AgentBuilderFactory
+
+    factory = AgentBuilderFactory(llm_manager, memory_system)
+    agent = await factory.build_agent(config)
+
+    logger.info("✅ React agent created successfully", agent_type=type(agent))
+    return agent
+
 
 async def start_apple_stock_monitoring():
     """
@@ -402,18 +561,219 @@ async def start_apple_stock_monitoring():
         logger.error("Failed to start Apple stock monitoring", error=str(e))
         raise
 
+
+async def start_apple_stock_monitoring_react():
+    """
+    🍎 Start Apple Stock Monitoring using React Agent - EXACT WORKFLOW
+
+    WORKFLOW:
+    1. Search Apple stocks every 3 minutes using web search
+    2. Store information in RAG system
+    3. Retrieve from RAG every 5 minutes and generate PDF reports
+    4. Provide buy/sell recommendations
+    """
+    try:
+        # Initialize backend systems
+        logger.info("🔧 Initializing backend systems...")
+        from app.core.unified_system_orchestrator import get_enhanced_system_orchestrator
+
+        orchestrator = get_enhanced_system_orchestrator()
+        await orchestrator.initialize()
+
+        # Get initialized systems from orchestrator
+        memory_system = orchestrator.memory_system
+        rag_system = orchestrator.unified_rag
+        tool_repository = orchestrator.tool_repository
+
+        # Initialize LLM manager separately
+        from app.llm.manager import LLMProviderManager
+        llm_manager = LLMProviderManager()
+        await llm_manager.initialize()
+
+        # Create React agent
+        logger.info("🔧 Creating Apple Stock Monitor React Agent...")
+        agent = await create_apple_stock_monitor_react_agent(
+            llm_manager=llm_manager,
+            memory_system=memory_system,
+            rag_system=rag_system,
+            tool_repository=tool_repository
+        )
+
+        logger.info("✅ React Agent created successfully", agent_type=type(agent))
+
+        # Initialize workflow state
+        workflow_state = {
+            "search_count": 0,
+            "report_count": 0,
+            "last_search_time": None,
+            "last_report_time": None,
+            "rag_documents_stored": 0
+        }
+
+        logger.info("🚀 Starting React Agent Workflow...")
+
+        # Main workflow loop
+        while True:
+            try:
+                current_time = datetime.now()
+
+                # PHASE 1: Search for Apple stocks every 3 minutes
+                if (workflow_state["last_search_time"] is None or
+                    (current_time - workflow_state["last_search_time"]).total_seconds() >= 180):  # 3 minutes
+
+                    workflow_state["search_count"] += 1
+                    workflow_state["last_search_time"] = current_time
+
+                    print(f"\n🔍 SEARCH PHASE #{workflow_state['search_count']} - {current_time.strftime('%H:%M:%S')}")
+                    log_agent_activity("SEARCH_PHASE", f"Starting search #{workflow_state['search_count']}", {
+                        "timestamp": current_time.isoformat(),
+                        "search_count": workflow_state['search_count']
+                    })
+
+                    # Task for searching Apple stock data
+                    search_task = f"""SEARCH PHASE #{workflow_state['search_count']}:
+
+REASONING: I need to search for current Apple (AAPL) stock data to monitor market conditions.
+
+ACTION REQUIRED:
+1. Use revolutionary_web_scraper to search for current Apple stock data
+2. Look for: current price, volume, market cap, recent news, analyst ratings
+3. Focus on real-time financial data from reliable sources like Yahoo Finance
+
+Search query should target Apple stock information with current market data."""
+
+                    # Execute search task
+                    print("🤖 Agent reasoning and searching...")
+                    search_result = await agent.execute(search_task)
+
+                    if search_result:
+                        print(f"✅ Search completed - Tools used: {len(search_result.get('tool_calls', []))}")
+                        log_agent_activity("SEARCH_COMPLETE", f"Search #{workflow_state['search_count']} completed", {
+                            "tools_used": len(search_result.get('tool_calls', [])),
+                            "timestamp": current_time.isoformat()
+                        })
+
+                        # PHASE 2: Store in RAG system
+                        if search_result.get('outputs'):
+                            print("📚 STORAGE PHASE - Storing data in RAG system...")
+
+                            storage_task = f"""STORAGE PHASE:
+
+REASONING: I have collected Apple stock data and need to store it in the RAG system for future analysis.
+
+ACTION REQUIRED:
+1. Use document_ingest tool to store the collected Apple stock data
+2. Structure data with timestamp: {current_time.isoformat()}
+3. Include source information and ensure proper indexing
+
+Data to store: {str(search_result.get('outputs', [])[:500])}..."""
+
+                            storage_result = await agent.execute(storage_task)
+                            if storage_result:
+                                workflow_state["rag_documents_stored"] += 1
+                                print(f"✅ Data stored in RAG - Total documents: {workflow_state['rag_documents_stored']}")
+                                log_agent_activity("STORAGE_COMPLETE", "Data stored in RAG system", {
+                                    "documents_stored": workflow_state["rag_documents_stored"],
+                                    "timestamp": current_time.isoformat()
+                                })
+
+                # PHASE 3: Generate reports every 5 minutes
+                if (workflow_state["last_report_time"] is None or
+                    (current_time - workflow_state["last_report_time"]).total_seconds() >= 300):  # 5 minutes
+
+                    workflow_state["report_count"] += 1
+                    workflow_state["last_report_time"] = current_time
+
+                    print(f"\n📊 ANALYSIS & REPORTING PHASE #{workflow_state['report_count']} - {current_time.strftime('%H:%M:%S')}")
+                    log_agent_activity("REPORT_PHASE", f"Starting report #{workflow_state['report_count']}", {
+                        "timestamp": current_time.isoformat(),
+                        "report_count": workflow_state['report_count']
+                    })
+
+                    # Task for analysis and reporting
+                    report_task = f"""ANALYSIS & REPORTING PHASE #{workflow_state['report_count']}:
+
+REASONING: I need to analyze historical Apple stock data and generate a comprehensive report with buy/sell recommendations.
+
+ACTIONS REQUIRED:
+1. Use rag_search to retrieve historical Apple stock data from storage
+2. Use business_intelligence tool with analysis_type="financial" and proper business_context
+3. Generate comprehensive analysis comparing current vs historical data
+4. Provide clear buy/sell/hold recommendations with reasoning
+
+Analysis focus: Compare recent trends, identify patterns, assess market conditions for Apple stock."""
+
+                    # Execute analysis task
+                    print("🤖 Agent analyzing data and generating report...")
+                    report_result = await agent.execute(report_task)
+
+                    if report_result:
+                        print(f"✅ Analysis completed - Tools used: {len(report_result.get('tool_calls', []))}")
+                        log_agent_activity("REPORT_COMPLETE", f"Report #{workflow_state['report_count']} completed", {
+                            "tools_used": len(report_result.get('tool_calls', [])),
+                            "timestamp": current_time.isoformat()
+                        })
+
+                        # Display report summary
+                        if report_result.get('outputs'):
+                            print("\n📋 REPORT SUMMARY:")
+                            for output in report_result.get('outputs', [])[:2]:  # Show first 2 outputs
+                                print(f"   • {str(output)[:200]}...")
+
+                # Status update
+                print(f"\n📈 WORKFLOW STATUS:")
+                print(f"   • Searches completed: {workflow_state['search_count']}")
+                print(f"   • Reports generated: {workflow_state['report_count']}")
+                print(f"   • RAG documents stored: {workflow_state['rag_documents_stored']}")
+                print(f"   • Next search in: {180 - (datetime.now() - workflow_state['last_search_time']).total_seconds():.0f}s")
+                if workflow_state["last_report_time"]:
+                    print(f"   • Next report in: {300 - (datetime.now() - workflow_state['last_report_time']).total_seconds():.0f}s")
+
+                # Wait 30 seconds before next check
+                await asyncio.sleep(30)
+
+            except KeyboardInterrupt:
+                print("\n⏹️ Workflow stopped by user")
+                log_agent_activity("SHUTDOWN", "Workflow stopped by user", {
+                    "timestamp": datetime.now().isoformat(),
+                    "final_stats": workflow_state
+                })
+                break
+            except Exception as e:
+                logger.error("Error in React workflow", error=str(e))
+                print(f"❌ Error: {str(e)}")
+                await asyncio.sleep(60)  # Wait 1 minute on error
+
+    except Exception as e:
+        logger.error("Failed to start React workflow", error=str(e))
+        raise
+
+
 # Main execution function
 if __name__ == "__main__":
     """Run the Apple Stock Monitor Agent using proper infrastructure."""
     print("🍎 Starting Apple Stock Monitor Agent...")
     print("⚠️  This agent now uses proper agentic infrastructure!")
     print("✅ Features: Autonomous execution, proper memory, RAG integration, tool repository")
+    print(f"📝 Agent conversations logged to: {agent_log_file}")
     print("⏹️  Press Ctrl+C to stop monitoring...")
 
+    # Log startup
+    log_agent_activity("STARTUP", "Apple Stock Monitor Agent starting", {
+        "timestamp": datetime.now().isoformat(),
+        "log_file": str(agent_log_file)
+    })
+
     try:
-        asyncio.run(start_apple_stock_monitoring())
+        asyncio.run(start_apple_stock_monitoring_react())
     except KeyboardInterrupt:
-        print("\n⏹️ Monitoring stopped by user")
+        print("\n⏹️ React workflow stopped by user")
+        log_agent_activity("SHUTDOWN", "React agent stopped by user", {
+            "timestamp": datetime.now().isoformat()
+        })
     except Exception as e:
         print(f"\n❌ Error: {str(e)}")
-        logger.error("Failed to run Apple Stock Monitor Agent", error=str(e))
+        logger.error("Failed to run Apple Stock Monitor React Agent", error=str(e))
+        log_agent_activity("ERROR", f"React agent failed: {str(e)}", {
+            "timestamp": datetime.now().isoformat()
+        })

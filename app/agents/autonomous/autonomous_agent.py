@@ -938,11 +938,16 @@ class AutonomousLangGraphAgent(LangGraphAgent):
         max_iterations = state.get("max_iterations", 50)
         tools_used = len(state.get("tool_calls", []))
 
-        # CRITICAL FIX: End execution if we've completed the task successfully
-        # Check if we've used tools and have outputs - indicates successful execution
+        # ENHANCED TASK COMPLETION LOGIC: Check if task is truly complete
         if tools_used > 0 and state.get("outputs"):
-            logger.info(f"Task completed successfully with {tools_used} tools used, ending execution")
-            return "end"
+            task_complete = self._is_task_truly_complete(state)
+            if task_complete:
+                logger.info(f"Task completed successfully with {tools_used} tools used, ending execution")
+                return "end"
+            else:
+                logger.debug(f"Task partially complete ({tools_used} tools used), continuing execution")
+                # Continue execution to complete remaining requirements
+                return "continue"
 
         # CRITICAL FIX: Prevent infinite loops - limit total iterations
         if iteration_count >= max_iterations:
@@ -988,6 +993,65 @@ class AutonomousLangGraphAgent(LangGraphAgent):
         logger.info(f"Ending execution after {iteration_count} iterations with {tools_used} tools used")
         return "end"
 
+    def _is_task_truly_complete(self, state: AutonomousAgentState) -> bool:
+        """Check if the task is truly complete based on requirements analysis."""
+        try:
+            current_task = state.get("current_task", "").lower()
+            tool_calls = state.get("tool_calls", [])
+            outputs = state.get("outputs", {})
+
+            # Extract tools that have been used
+            tools_used = [call.get("tool") for call in tool_calls if call.get("tool")]
+
+            # Check for multi-step tasks that require both analysis AND generation
+            requires_analysis = any(keyword in current_task for keyword in [
+                "analyze", "analysis", "metrics", "insights", "intelligence", "review"
+            ])
+
+            requires_generation = any(keyword in current_task for keyword in [
+                "excel", "spreadsheet", "document", "file", "generate", "create", "build", "produce"
+            ])
+
+            # If task requires both analysis and generation
+            if requires_analysis and requires_generation:
+                has_analysis = any(tool in tools_used for tool in [
+                    "business_intelligence", "knowledge_search", "document_analysis"
+                ])
+                has_generation = any(tool in tools_used for tool in [
+                    "revolutionary_document_intelligence", "file_system"
+                ])
+
+                if has_analysis and not has_generation:
+                    logger.debug("Task requires both analysis and generation - analysis complete, generation pending")
+                    return False
+                elif has_analysis and has_generation:
+                    logger.debug("Task requires both analysis and generation - both complete")
+                    return True
+                else:
+                    logger.debug("Task requires both analysis and generation - analysis pending")
+                    return False
+
+            # For single-requirement tasks, check if requirement is met
+            if requires_generation:
+                has_generation = any(tool in tools_used for tool in [
+                    "revolutionary_document_intelligence", "file_system"
+                ])
+                return has_generation
+
+            if requires_analysis:
+                has_analysis = any(tool in tools_used for tool in [
+                    "business_intelligence", "knowledge_search", "document_analysis"
+                ])
+                return has_analysis
+
+            # For other tasks, consider complete if we have outputs
+            return bool(outputs)
+
+        except Exception as e:
+            logger.warning(f"Task completion check failed: {e}")
+            # Default to incomplete to be safe
+            return False
+
     def _get_available_actions(self, state: AutonomousAgentState) -> Dict[str, Any]:
         """Get available actions based on current state - dynamically generate tool parameters."""
         # Extract context for dynamic parameter generation
@@ -998,15 +1062,22 @@ class AutonomousLangGraphAgent(LangGraphAgent):
         tools_with_params = []
         for tool_name in state["tools_available"]:
             suggested_params = self._generate_tool_parameters(tool_name, current_task, goal_stack, state)
+
+            # Context-aware confidence calculation
+            tool_confidence = self._calculate_tool_confidence(tool_name, current_task, suggested_params, state)
+
             tools_with_params.append({
                 "name": tool_name,
                 "suggested_params": suggested_params,
-                "confidence": 0.7 if suggested_params else 0.3  # Higher confidence if we have good params
+                "confidence": tool_confidence
             })
+
+        # Calculate reasoning confidence based on recent iterations
+        reasoning_confidence = self._calculate_reasoning_confidence(state)
 
         return {
             "tools": tools_with_params,
-            "reasoning": {"available": True, "confidence": 0.8},
+            "reasoning": {"available": True, "confidence": reasoning_confidence},
             "goal_actions": [{"action": "pursue_goal", "goal": goal} for goal in goal_stack],
             "exploration": {"available": self.config.learning_mode != "disabled", "risk_level": 0.5}
         }
@@ -1043,18 +1114,96 @@ class AutonomousLangGraphAgent(LangGraphAgent):
                     }
 
         elif tool_name == "business_intelligence":
-            # Generate business analysis parameters
-            if "apple" in task_lower:
-                params = {
-                    "action": "analyze_company",
-                    "company": "Apple Inc",
-                    "analysis_type": "stock_performance"
+            # ENHANCED: Generate comprehensive business analysis parameters with correct schema
+
+            # Map task requirements to valid analysis types
+            if "financial" in task_lower or "revenue" in task_lower or "metrics" in task_lower:
+                analysis_type = "financial"
+            elif "market" in task_lower or "research" in task_lower:
+                analysis_type = "market_research"
+            elif "growth" in task_lower or "expansion" in task_lower:
+                analysis_type = "growth_analysis"
+            elif "strategic" in task_lower or "planning" in task_lower:
+                analysis_type = "strategic"
+            else:
+                analysis_type = "financial"  # Default for business revenue tasks
+
+            # Extract business context from task
+            business_type = "technology"  # Default
+            if "technology" in task_lower:
+                business_type = "technology"
+            elif "retail" in task_lower:
+                business_type = "retail"
+            elif "manufacturing" in task_lower:
+                business_type = "manufacturing"
+
+            company_size = "medium"  # Default
+            if "small" in task_lower:
+                company_size = "small"
+            elif "medium" in task_lower:
+                company_size = "medium"
+            elif "large" in task_lower:
+                company_size = "large"
+
+            # Create comprehensive business context (required field)
+            business_context = {
+                "company_name": f"{business_type.title()} Corp",
+                "industry": business_type,
+                "company_size": company_size,
+                "revenue_range": "10M-50M" if company_size == "medium" else "1M-10M" if company_size == "small" else "50M+",
+                "employees": 150 if company_size == "medium" else 25 if company_size == "small" else 500,
+                "market_position": "growing",
+                "primary_products": ["Software solutions", "Technology services"] if business_type == "technology" else ["Products", "Services"],
+                "target_market": "B2B enterprises",
+                "geographic_presence": "North America",
+                "fiscal_year_end": "December",
+                "current_challenges": ["Market competition", "Scaling operations", "Technology adoption"],
+                "growth_objectives": ["Revenue growth", "Market expansion", "Operational efficiency"]
+            }
+
+            # Set correct parameters according to tool schema
+            params = {
+                "analysis_type": analysis_type,
+                "business_context": business_context,
+                "focus_areas": ["revenue_analysis", "profitability", "growth_metrics", "market_position"],
+                "time_horizon": "6_months",
+                "include_recommendations": True,
+                "detail_level": "comprehensive"
+            }
+
+        elif tool_name == "revolutionary_document_intelligence":
+            # ENHANCED: Generate comprehensive document parameters as JSON query
+            # Check if we need PDF report or Excel spreadsheet based on task context
+            if "pdf" in task_lower or "report" in task_lower or "analysis" in task_lower:
+                # Create PDF business report with hilarious analysis
+                document_params = {
+                    "operation": "create_document",
+                    "document_type": "pdf_report",
+                    "content_type": "business_analysis",
+                    "include_humor": True,
+                    "include_data_jokes": True,
+                    "brutal_honesty": True
                 }
-            elif "stock" in task_lower:
-                params = {
-                    "action": "market_analysis",
-                    "focus": "stock_market_trends"
+            else:
+                # Create Excel spreadsheet
+                document_params = {
+                    "operation": "create_document",
+                    "document_type": "excel_spreadsheet",
+                    "format": "multi_sheet",
+                    "content_type": "business_analysis"
                 }
+
+                if "excel" in task_lower or "spreadsheet" in task_lower:
+                    document_params["sheets"] = ["Executive_Summary", "Revenue_Analysis", "Cost_Analysis", "Projections"]
+
+                if "business" in task_lower or "revenue" in task_lower:
+                    document_params["include_charts"] = True
+                    document_params["include_formulas"] = True
+                    document_params["professional_formatting"] = True
+
+            # Convert to JSON query string that the tool expects
+            import json
+            params["query"] = json.dumps(document_params)
 
         # Add goal-based parameters if available
         if goal_stack:
@@ -1068,6 +1217,75 @@ class AutonomousLangGraphAgent(LangGraphAgent):
                         })
 
         return params
+
+    def _calculate_tool_confidence(self, tool_name: str, current_task: str, suggested_params: Dict[str, Any], state: AutonomousAgentState) -> float:
+        """Calculate context-aware confidence for tool usage."""
+        task_lower = current_task.lower()
+
+        # Base confidence based on parameters
+        base_confidence = 0.7 if suggested_params else 0.3
+
+        # Boost confidence for execution tasks
+        execution_keywords = ["generate", "create", "build", "make", "produce", "develop"]
+        if any(keyword in task_lower for keyword in execution_keywords):
+            base_confidence = max(base_confidence, 0.8)
+
+        # Tool-specific confidence adjustments
+        if tool_name == "business_intelligence":
+            if any(word in task_lower for word in ["business", "revenue", "financial", "analysis"]):
+                base_confidence = max(base_confidence, 0.85)
+
+        elif tool_name == "revolutionary_document_intelligence":
+            if any(word in task_lower for word in ["excel", "spreadsheet", "document", "report"]):
+                base_confidence = max(base_confidence, 0.85)
+
+        # Reduce confidence if tool has been used recently without success
+        recent_failures = self._count_recent_tool_failures(tool_name, state)
+        confidence_penalty = min(0.3, recent_failures * 0.1)
+
+        final_confidence = max(0.3, base_confidence - confidence_penalty)
+        return min(1.0, final_confidence)
+
+    def _calculate_reasoning_confidence(self, state: AutonomousAgentState) -> float:
+        """Calculate reasoning confidence based on recent iterations."""
+        # Count recent reasoning actions
+        reasoning_iterations = self._count_recent_reasoning_actions(state)
+
+        # Start with base confidence
+        base_confidence = 0.7
+
+        # Reduce confidence after multiple reasoning iterations
+        confidence_reduction = reasoning_iterations * 0.15
+
+        # Minimum confidence to prevent complete elimination
+        final_confidence = max(0.3, base_confidence - confidence_reduction)
+
+        return final_confidence
+
+    def _count_recent_reasoning_actions(self, state: AutonomousAgentState) -> int:
+        """Count recent reasoning actions to prevent infinite loops."""
+        # Look at recent outputs for reasoning actions
+        outputs = state.get("outputs", {})
+        reasoning_count = 0
+
+        # Count autonomous_reasoning outputs
+        if "autonomous_reasoning" in outputs:
+            reasoning_count += 1
+
+        # Check iteration count as proxy for reasoning loops
+        iteration_count = state.get("iteration_count", 0)
+        if iteration_count > 2:  # After 2 iterations, start reducing reasoning confidence
+            reasoning_count += max(0, iteration_count - 2)
+
+        return reasoning_count
+
+    def _count_recent_tool_failures(self, tool_name: str, state: AutonomousAgentState) -> int:
+        """Count recent failures for a specific tool."""
+        # This is a placeholder - in a full implementation, this would check
+        # the agent's memory or execution history for tool failures
+        errors = state.get("errors", [])
+        tool_failures = sum(1 for error in errors if tool_name in str(error))
+        return tool_failures
 
     def _extract_key_terms(self, text: str) -> list:
         """Extract key terms from text for search queries."""

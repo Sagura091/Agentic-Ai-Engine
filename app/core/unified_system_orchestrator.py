@@ -127,39 +127,39 @@ class UnifiedSystemOrchestrator:
                 logger.warning("System already initialized")
                 return
 
-            logger.info("🚀 Initializing THE Unified Multi-Agent System...")
+            logger.warning("🚀 Initializing THE Unified Multi-Agent System...")
             self.status.start_time = datetime.utcnow()
 
             # PHASE 1: Foundation (Weeks 1-3)
-            logger.info("🏗️ PHASE 1: Foundation - Unified RAG System core, Collection-based KB manager, Basic agent isolation")
+            logger.debug("🏗️ PHASE 1: Foundation - Unified RAG System core, Collection-based KB manager, Basic agent isolation")
             await self._initialize_phase_1_foundation()
 
             # PHASE 2: Memory & Tools (Weeks 4-6)
-            logger.info("🧠 PHASE 2: Memory & Tools - Unified memory system, Tool repository consolidation, Agent-specific memory collections")
+            logger.debug("🧠 PHASE 2: Memory & Tools - Unified memory system, Tool repository consolidation, Agent-specific memory collections")
             await self._initialize_phase_2_memory_tools()
 
             # PHASE 3: Communication (Weeks 7-9)
             if self.config.enable_communication:
-                logger.info("📡 PHASE 3: Communication - Agent communication layer, Knowledge sharing protocols, Collaboration mechanisms")
+                logger.debug("📡 PHASE 3: Communication - Agent communication layer, Knowledge sharing protocols, Collaboration mechanisms")
                 await self._initialize_phase_3_communication()
 
             # PHASE 4: Optimization (Weeks 10-11)
             if self.config.enable_optimization:
-                logger.info("⚡ PHASE 4: Optimization - Performance tuning, Advanced access controls, Monitoring & analytics")
+                logger.debug("⚡ PHASE 4: Optimization - Performance tuning, Advanced access controls, Monitoring & analytics")
                 await self._initialize_phase_4_optimization()
 
             # REVOLUTIONARY: Component Workflow Execution System
-            logger.info("🚀 REVOLUTIONARY: Initializing Component Workflow Execution System...")
+            logger.debug("🚀 REVOLUTIONARY: Initializing Component Workflow Execution System...")
             await self._initialize_component_workflow_system()
 
             # Final system validation
-            logger.info("✅ Final System Validation...")
+            logger.debug("✅ Final System Validation...")
             await self._validate_system_integrity()
 
             self.status.is_initialized = True
             self.status.is_running = True
-            
-            logger.info("🎉 Unified Multi-Agent System initialized successfully!")
+
+            logger.warning("🎉 Unified Multi-Agent System initialized successfully!")
             await self._log_system_summary()
             
         except Exception as e:
@@ -171,16 +171,16 @@ class UnifiedSystemOrchestrator:
         """Initialize PHASE 1: Foundation components."""
         try:
             # 1. Initialize THE UnifiedRAGSystem (THE single RAG system)
-            logger.info("   🎯 Initializing THE UnifiedRAGSystem...")
+            logger.debug("   🎯 Initializing THE UnifiedRAGSystem...")
             self.unified_rag = UnifiedRAGSystem(self.config.rag_config)
             await self.unified_rag.initialize()
             self.status.components_status["unified_rag"] = True
 
             # 🚀 Initialize Revolutionary Dynamic RAG Configuration Manager
-            logger.info("   🔧 Initializing Revolutionary Dynamic RAG Configuration Manager...")
+            logger.debug("   🔧 Initializing Revolutionary Dynamic RAG Configuration Manager...")
             from app.rag.core.dynamic_config_manager import initialize_rag_config_manager, rag_config_manager
             await initialize_rag_config_manager(self.unified_rag)
-            logger.info("   ✅ RAG Configuration Manager initialized - Real-time updates enabled!")
+            logger.debug("   ✅ RAG Configuration Manager initialized - Real-time updates enabled!")
 
             # 🚀 Initialize Revolutionary Global Configuration Manager
             logger.info("   🌐 Initializing Revolutionary Global Configuration Manager...")
@@ -327,7 +327,7 @@ class UnifiedSystemOrchestrator:
                     use_cases=["calculation", "math", "arithmetic", "computation"]
                 )
                 await self.tool_repository.register_tool(calculator_tool, metadata)
-                logger.info("✅ Registered calculator tool")
+                logger.debug("✅ Registered calculator tool")
             except Exception as e:
                 logger.warning(f"Failed to register calculator tool: {e}")
 
@@ -604,24 +604,71 @@ class UnifiedSystemOrchestrator:
             except Exception as e:
                 logger.warning(f"Failed to register revolutionary document intelligence tool: {e}")
 
-            # Import and register business intelligence tool
+            # Import and register REVOLUTIONARY WEB SCRAPER TOOL
             try:
-                from app.tools.business_intelligence_tool import BusinessIntelligenceTool
+                from app.tools.production.revolutionary_web_scraper_tool import RevolutionaryWebScraperTool
 
-                bi_tool = BusinessIntelligenceTool()
+                # Create instance
+                revolutionary_web_scraper_tool = RevolutionaryWebScraperTool()
+
                 metadata = ToolMetadata(
-                    tool_id="business_intelligence",
-                    name="Business Intelligence",
-                    description="Business analysis and intelligence operations",
+                    tool_id="revolutionary_web_scraper",
+                    name="🌐 Revolutionary Web Scraper Tool",
+                    description="The most advanced web scraping tool ever created - Bypasses ALL bot detection systems (Cloudflare, DataDome, etc.), scrapes ANY website with complete stealth, search engine integration, JavaScript rendering, human behavior simulation, proxy rotation, TLS fingerprint spoofing, and CAPTCHA bypass. GUARANTEED to work on ANY website!",
+                    category=ToolCategory.RESEARCH,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=False,
+                    use_cases=[
+                        "web_scraping", "search_engines", "content_extraction", "website_crawling",
+                        "bot_detection_bypass", "cloudflare_bypass", "javascript_rendering",
+                        "proxy_rotation", "stealth_scraping", "captcha_bypass", "tls_spoofing",
+                        "google_search", "bing_search", "duckduckgo_search", "link_extraction",
+                        "image_extraction", "video_extraction", "structured_data_extraction",
+                        "human_behavior_simulation", "fingerprint_spoofing", "rate_limit_evasion"
+                    ]
+                )
+                await self.tool_repository.register_tool(revolutionary_web_scraper_tool, metadata)
+                logger.info("🌐 Registered REVOLUTIONARY WEB SCRAPER TOOL - THE ULTIMATE INTERNET DOMINATION SYSTEM!")
+            except Exception as e:
+                logger.warning(f"Failed to register revolutionary web scraper tool: {e}")
+
+            # Import and register general business intelligence tool
+            try:
+                from app.tools.general_business_intelligence_tool import GeneralBusinessIntelligenceTool
+
+                general_bi_tool = GeneralBusinessIntelligenceTool()
+                metadata = ToolMetadata(
+                    tool_id="general_business_intelligence",
+                    name="General Business Intelligence",
+                    description="Generate realistic business data and comprehensive analysis for any company context",
                     category=ToolCategory.BUSINESS,
                     access_level=ToolAccessLevel.PUBLIC,
                     requires_rag=False,
-                    use_cases=["business_analysis", "analytics", "reporting"]
+                    use_cases=["business_analysis", "financial_analysis", "data_generation", "business_planning", "strategic_analysis"]
                 )
-                await self.tool_repository.register_tool(bi_tool, metadata)
-                logger.info("✅ Registered business intelligence tool")
+                await self.tool_repository.register_tool(general_bi_tool, metadata)
+                logger.info("✅ Registered general business intelligence tool")
             except Exception as e:
-                logger.warning(f"Failed to register business intelligence tool: {e}")
+                logger.warning(f"Failed to register general business intelligence tool: {e}")
+
+            # Import and register stock business intelligence tool (for stock analysis)
+            try:
+                from app.tools.business_intelligence_tool import BusinessIntelligenceTool
+
+                stock_bi_tool = BusinessIntelligenceTool()
+                metadata = ToolMetadata(
+                    tool_id="stock_business_intelligence",
+                    name="Stock Business Intelligence",
+                    description="Stock market analysis and financial intelligence operations",
+                    category=ToolCategory.BUSINESS,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=False,
+                    use_cases=["stock_analysis", "market_research", "financial_reporting"]
+                )
+                await self.tool_repository.register_tool(stock_bi_tool, metadata)
+                logger.info("✅ Registered stock business intelligence tool")
+            except Exception as e:
+                logger.warning(f"Failed to register stock business intelligence tool: {e}")
 
             # Import and register RAG knowledge tools
             try:
