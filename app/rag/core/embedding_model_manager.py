@@ -83,27 +83,49 @@ class CentralizedModelManager:
             embedding_dir = self.models_dir / "embedding"
             if embedding_dir.exists():
                 for model_path in embedding_dir.iterdir():
-                    if model_path.is_dir():
+                    if model_path.is_dir() and not self._should_skip_directory(model_path):
                         self._register_model(model_path, ModelType.EMBEDDING)
-            
+
             # Discover vision models
             vision_dir = self.models_dir / "vision"
             if vision_dir.exists():
                 for model_path in vision_dir.iterdir():
-                    if model_path.is_dir():
+                    if model_path.is_dir() and not self._should_skip_directory(model_path):
                         self._register_model(model_path, ModelType.VISION)
-            
+
             # Discover reranking models
             reranking_dir = self.models_dir / "reranking"
             if reranking_dir.exists():
                 for model_path in reranking_dir.iterdir():
-                    if model_path.is_dir():
+                    if model_path.is_dir() and not self._should_skip_directory(model_path):
                         self._register_model(model_path, ModelType.RERANKING)
-            
+
             logger.info(f"✅ Discovered {len(self._models)} models", models=list(self._models.keys()))
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to discover models: {str(e)}")
+
+    def _should_skip_directory(self, model_path: Path) -> bool:
+        """Check if a directory should be skipped during model discovery."""
+        directory_name = model_path.name
+
+        # Skip HuggingFace cache directories
+        if directory_name.startswith("models--"):
+            return True
+
+        # Skip lock directories
+        if directory_name == ".locks":
+            return True
+
+        # Skip hidden directories
+        if directory_name.startswith("."):
+            return True
+
+        # Skip temporary directories
+        if directory_name.startswith("tmp") or directory_name.startswith("temp"):
+            return True
+
+        return False
     
     def _register_model(self, model_path: Path, model_type: ModelType) -> None:
         """Register a discovered model."""
