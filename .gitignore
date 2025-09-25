@@ -54,10 +54,9 @@ secrets.json
 data/cache/
 data/chroma/
 data/vector_databases/
-data/models/embedding/
+data/models/
 data/embedding_models/
 data/checkpoints/
-data/agents/
 data/workflows/
 *.db
 *.sqlite
@@ -268,6 +267,28 @@ data/vector_databases/
 *.sqlite3-journal
 *.sqlite3-wal
 *.sqlite3-shm
+
+# Auto-generated directories (backend creates these)
+data/uploads/
+data/session_documents/
+data/temp/
+data/downloads/
+data/autonomous/
+data/agent_files/
+
+# Auto-generated config files
+data/rag_config.json
+data/knowledge_bases.json
+
+# User/generated content
+data/harvested_content/
+data/memes/generated/
+data/screenshots/
+
+# Test and analysis files
+data/hybrid_rag_test_results.json
+data/rag_test_report.txt
+data/meme_analysis_cache/
 
 # Generated agent files
 agent_files/test_*.txt
