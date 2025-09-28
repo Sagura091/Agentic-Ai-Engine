@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field, validator
 from langchain_core.tools import BaseTool
 
 from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
 logger = structlog.get_logger(__name__)
 
@@ -142,7 +143,7 @@ class TextProcessingInput(BaseModel):
     cache_results: bool = Field(default=True, description="Cache processing results")
 
 
-class TextProcessingNLPTool(BaseTool):
+class TextProcessingNLPTool(BaseTool, MetadataCapableToolMixin):
     """
     Revolutionary Text Processing & NLP Tool.
     
@@ -162,6 +163,7 @@ class TextProcessingNLPTool(BaseTool):
     """
 
     name: str = "text_processing_nlp"
+    tool_id: str = "text_processing_nlp"
     description: str = """
     Revolutionary text processing and NLP tool with comprehensive language intelligence.
     
@@ -847,6 +849,90 @@ class TextProcessingNLPTool(BaseTool):
                 "execution_time": execution_time
             }, indent=2)
 
+    def _create_metadata(self) -> MetadataToolMetadata:
+        """Create metadata for text processing NLP tool."""
+        return MetadataToolMetadata(
+            name="text_processing_nlp",
+            description="Revolutionary text processing and NLP tool for advanced text analysis with AI superiority capabilities",
+            category="analysis",
+            usage_patterns=[
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="roast,superior,sarcastic,ai_intellect,condescending",
+                    weight=0.95,
+                    context_requirements=["roast_mode", "superiority_theme"],
+                    description="Triggers on sarcastic AI analysis tasks"
+                ),
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="creative,analysis,chaos,revolutionary,advanced",
+                    weight=0.85,
+                    context_requirements=["creative_task", "text_analysis"],
+                    description="Matches creative text analysis tasks"
+                ),
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="sentiment,emotion,analyze,text,nlp",
+                    weight=0.8,
+                    context_requirements=["text_processing_task"],
+                    description="Matches sentiment analysis tasks"
+                )
+            ],
+            confidence_modifiers=[
+                ConfidenceModifier(
+                    type=ConfidenceModifierType.BOOST,
+                    condition="roast_mode",
+                    value=0.25,
+                    description="Boost confidence for AI superiority text analysis"
+                ),
+                ConfidenceModifier(
+                    type=ConfidenceModifierType.BOOST,
+                    condition="text_analysis",
+                    value=0.15,
+                    description="Boost confidence for text processing tasks"
+                )
+            ],
+            parameter_schemas=[
+                ParameterSchema(
+                    name="operation",
+                    type=ParameterType.STRING,
+                    description="Text processing operation to perform",
+                    required=True,
+                    default_value="sentiment_analysis"
+                ),
+                ParameterSchema(
+                    name="text",
+                    type=ParameterType.STRING,
+                    description="Text content to analyze",
+                    required=True,
+                    default_value="Analyzing human creativity with superior AI intellect"
+                ),
+                ParameterSchema(
+                    name="analysis_type",
+                    type=ParameterType.STRING,
+                    description="Type of analysis to perform",
+                    required=False,
+                    default_value="sarcastic_ai"
+                )
+            ]
+        )
+
+
+# Factory function
+def get_text_processing_nlp_tool() -> TextProcessingNLPTool:
+    """Get text processing NLP tool instance."""
+    return TextProcessingNLPTool()
 
 # Create tool instance
 text_processing_nlp_tool = TextProcessingNLPTool()
+
+# Tool metadata for unified repository registration
+TEXT_PROCESSING_NLP_TOOL_METADATA = ToolMetadata(
+    tool_id="text_processing_nlp",
+    name="Text Processing & NLP Tool",
+    description="Revolutionary text processing and NLP tool with comprehensive language intelligence",
+    category=ToolCategory.ANALYSIS,
+    access_level=ToolAccessLevel.PUBLIC,
+    requires_rag=False,
+    use_cases={"nlp", "text_processing", "sentiment", "analysis", "ai_superiority", "text_cleaning", "entity_extraction", "keyword_extraction", "language_detection"}
+)

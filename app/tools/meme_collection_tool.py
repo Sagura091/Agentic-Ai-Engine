@@ -41,6 +41,7 @@ from pydantic import BaseModel, Field
 # Import required modules
 from app.http_client import SimpleHTTPClient
 from app.tools.unified_tool_repository import ToolCategory
+from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
 logger = structlog.get_logger(__name__)
 
@@ -87,7 +88,7 @@ class MemeCollectionConfig:
     ])
 
 
-class MemeCollectionTool(BaseTool):
+class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
     """Revolutionary meme collection tool for autonomous agents."""
 
     name: str = "meme_collection_tool"
@@ -1034,11 +1035,67 @@ class MemeCollectionTool(BaseTool):
             }
         }
 
+    def _create_metadata(self) -> MetadataToolMetadata:
+        """Create metadata for meme collection tool."""
+        return MetadataToolMetadata(
+            name="meme_collection",
+            description="Revolutionary meme collection tool for gathering meme inspiration from multiple sources",
+            category="research",
+            usage_patterns=[
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="collect,gather,meme,inspiration,source,research",
+                    weight=1.0,
+                    description="Triggers on collection and research keywords"
+                ),
+                UsagePattern(
+                    type=UsagePatternType.TASK_TYPE_MATCH,
+                    pattern="research,collection,gathering,inspiration",
+                    weight=0.9,
+                    description="Matches research and collection tasks"
+                )
+            ],
+            confidence_modifiers=[
+                ConfidenceModifier(
+                    type=ConfidenceModifierType.BOOST,
+                    condition="research_task",
+                    value=0.2,
+                    description="Boost confidence for research tasks"
+                )
+            ],
+            parameter_schemas=[
+                ParameterSchema(
+                    name="action",
+                    type=ParameterType.STRING,
+                    description="Collection action to perform",
+                    required=True,
+                    default_value="collect_memes"
+                ),
+                ParameterSchema(
+                    name="source",
+                    type=ParameterType.STRING,
+                    description="Source to collect from",
+                    required=False,
+                    default_value="reddit"
+                ),
+                ParameterSchema(
+                    name="collection_type",
+                    type=ParameterType.STRING,
+                    description="Type of collection",
+                    required=False,
+                    default_value="trending"
+                )
+            ]
+        )
+
 
 # Tool registration
 def get_meme_collection_tool(config: Optional[MemeCollectionConfig] = None) -> MemeCollectionTool:
     """Get configured meme collection tool."""
     return MemeCollectionTool(config)
+
+# Create tool instance
+meme_collection_tool = MemeCollectionTool()
 
 # Tool metadata for UnifiedToolRepository registration
 from app.tools.unified_tool_repository import ToolMetadata, ToolCategory, ToolAccessLevel
@@ -1052,3 +1109,4 @@ MEME_COLLECTION_TOOL_METADATA = ToolMetadata(
     requires_rag=False,
     use_cases={"meme_collection", "content_scraping", "social_media_monitoring", "trend_analysis", "data_collection"}
 )
+

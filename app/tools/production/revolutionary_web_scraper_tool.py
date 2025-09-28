@@ -67,6 +67,7 @@ import requests
 # Import required modules
 from app.http_client import SimpleHTTPClient
 from app.tools.unified_tool_repository import ToolCategory
+from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
 logger = structlog.get_logger(__name__)
 
@@ -288,7 +289,7 @@ class RevolutionaryScrapingRequest(BaseModel):
     user_agent: Optional[str] = Field(None, description="Custom user agent")
 
 
-class RevolutionaryWebScraperTool(BaseTool):
+class RevolutionaryWebScraperTool(BaseTool, MetadataCapableToolMixin):
     """
     🌐 REVOLUTIONARY WEB SCRAPER TOOL - THE ULTIMATE INTERNET DOMINATION SYSTEM
 
@@ -1915,10 +1916,88 @@ This tool is UNSTOPPABLE and UNDETECTABLE - it will scrape ANY website successfu
         except Exception as e:
             logger.warning(f"⚠️ Cleanup warning: {e}")
 
+    def _create_metadata(self) -> MetadataToolMetadata:
+        """Create metadata for revolutionary web scraper tool."""
+        return MetadataToolMetadata(
+            name="revolutionary_web_scraper",
+            description="Revolutionary web scraper tool for discovering unexpected connections and gathering chaos inspiration from the internet",
+            category="research",
+            usage_patterns=[
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="connection,chaos,discover,unexpected,deep",
+                    weight=0.95,
+                    context_requirements=["chaos_mode", "creative_task"],
+                    description="Matches chaos connection discovery tasks"
+                ),
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="creative,research,inspiration,explore,scrape",
+                    weight=0.85,
+                    context_requirements=["research_task", "creative_exploration"],
+                    description="Matches creative research tasks"
+                ),
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="scrape,extract,web,data,content",
+                    weight=0.8,
+                    context_requirements=["web_scraping_task"],
+                    description="Matches web scraping tasks"
+                )
+            ],
+            confidence_modifiers=[
+                ConfidenceModifier(
+                    type=ConfidenceModifierType.BOOST,
+                    condition="chaos_mode",
+                    value=0.25,
+                    description="Boost confidence for chaotic connection discovery"
+                ),
+                ConfidenceModifier(
+                    type=ConfidenceModifierType.BOOST,
+                    condition="research_task",
+                    value=0.15,
+                    description="Boost confidence for web research tasks"
+                )
+            ],
+            parameter_schemas=[
+                ParameterSchema(
+                    name="action",
+                    type=ParameterType.STRING,
+                    description="Web scraping action to perform",
+                    required=True,
+                    default_value="discover_connections"
+                ),
+                ParameterSchema(
+                    name="search_depth",
+                    type=ParameterType.STRING,
+                    description="Depth of search/scraping",
+                    required=False,
+                    default_value="deep_chaos"
+                ),
+                ParameterSchema(
+                    name="connection_type",
+                    type=ParameterType.STRING,
+                    description="Type of connections to discover",
+                    required=False,
+                    default_value="unexpected"
+                ),
+                ParameterSchema(
+                    name="target_url",
+                    type=ParameterType.STRING,
+                    description="Target URL for scraping",
+                    required=False,
+                    default_value="https://www.reddit.com/r/dankmemes"
+                ),
+                ParameterSchema(
+                    name="scope",
+                    type=ParameterType.STRING,
+                    description="Scope of scraping operation",
+                    required=False,
+                    default_value="creative_inspiration"
+                )
+            ]
+        )
 
-# ========================================
-# TOOL REGISTRATION
-# ========================================
 
 def get_revolutionary_web_scraper_tool() -> RevolutionaryWebScraperTool:
     """Get the revolutionary web scraper tool instance."""

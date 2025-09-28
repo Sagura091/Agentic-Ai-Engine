@@ -26,6 +26,8 @@ from .screenshot_analysis_tool import screenshot_analysis_tool
 from .browser_automation_tool import browser_automation_tool
 from .computer_use_agent_tool import computer_use_agent_tool
 from .revolutionary_document_intelligence_tool import RevolutionaryDocumentIntelligenceTool
+from .ai_music_composition_tool import get_ai_music_composition_tool
+from .ai_lyric_vocal_synthesis_tool import get_ai_lyric_vocal_synthesis_tool
 
 # Create instance of the revolutionary document intelligence tool
 revolutionary_document_intelligence_tool = RevolutionaryDocumentIntelligenceTool()
@@ -42,16 +44,31 @@ __all__ = [
     "screenshot_analysis_tool",
     "browser_automation_tool",
     "computer_use_agent_tool",
-    "revolutionary_document_intelligence_tool"
+    "revolutionary_document_intelligence_tool",
+    "get_ai_music_composition_tool",
+    "get_ai_lyric_vocal_synthesis_tool"
 ]
 
-# Import the revolutionary web scraper tool
+# Import the revolutionary web scraper tool (lazy loading to avoid event loop issues)
 try:
     from .revolutionary_web_scraper_tool import get_revolutionary_web_scraper_tool
-    revolutionary_web_scraper_tool = get_revolutionary_web_scraper_tool()
+    # Don't initialize immediately to avoid event loop issues
+    revolutionary_web_scraper_tool = None
+    _get_revolutionary_web_scraper_tool = get_revolutionary_web_scraper_tool
 except ImportError as e:
     logger.warning(f"Failed to import revolutionary web scraper tool: {e}")
     revolutionary_web_scraper_tool = None
+    _get_revolutionary_web_scraper_tool = None
+
+try:
+    from .screen_capture_tool import get_screen_capture_tool
+    # Don't initialize immediately to avoid event loop issues
+    screen_capture_tool = None
+    _get_screen_capture_tool = get_screen_capture_tool
+except ImportError as e:
+    logger.warning(f"Failed to import screen capture tool: {e}")
+    screen_capture_tool = None
+    _get_screen_capture_tool = None
 
 # Tool registry for easy access
 PRODUCTION_TOOLS = {
@@ -67,7 +84,10 @@ PRODUCTION_TOOLS = {
     "browser_automation": browser_automation_tool,
     "computer_use_agent": computer_use_agent_tool,
     "revolutionary_document_intelligence": revolutionary_document_intelligence_tool,
-    "revolutionary_web_scraper": revolutionary_web_scraper_tool
+    "revolutionary_web_scraper": revolutionary_web_scraper_tool,
+    "screen_capture": screen_capture_tool,
+    "ai_music_composition": get_ai_music_composition_tool,
+    "ai_lyric_vocal_synthesis": get_ai_lyric_vocal_synthesis_tool
 }
 
 def get_production_tool(tool_name: str):

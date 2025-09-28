@@ -39,6 +39,7 @@ from pydantic import BaseModel, Field
 # Import required modules
 from app.tools.unified_tool_repository import ToolCategory
 from app.tools.meme_collection_tool import MemeData
+from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
 logger = structlog.get_logger(__name__)
 
@@ -90,7 +91,7 @@ class MemeAnalysisConfig:
     analysis_cache_dir: str = "./data/meme_analysis_cache"
 
 
-class MemeAnalysisTool(BaseTool):
+class MemeAnalysisTool(BaseTool, MetadataCapableToolMixin):
     """Revolutionary meme analysis tool for understanding meme content."""
     
     name: str = "meme_analysis_tool"
@@ -665,11 +666,67 @@ class MemeAnalysisTool(BaseTool):
             ]
         }
 
+    def _create_metadata(self) -> MetadataToolMetadata:
+        """Create metadata for meme analysis tool."""
+        return MetadataToolMetadata(
+            name="meme_analysis",
+            description="Revolutionary meme analysis tool for comprehensive meme content analysis and AI superiority critique",
+            category="analysis",
+            usage_patterns=[
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="analyze,analysis,meme,critique,evaluate,assess",
+                    weight=1.0,
+                    description="Triggers on analysis and critique keywords"
+                ),
+                UsagePattern(
+                    type=UsagePatternType.TASK_TYPE_MATCH,
+                    pattern="analysis,evaluation,critique,assessment",
+                    weight=0.9,
+                    description="Matches analytical tasks"
+                )
+            ],
+            confidence_modifiers=[
+                ConfidenceModifier(
+                    type=ConfidenceModifierType.BOOST,
+                    condition="analysis_task",
+                    value=0.2,
+                    description="Boost confidence for analysis tasks"
+                )
+            ],
+            parameter_schemas=[
+                ParameterSchema(
+                    name="action",
+                    type=ParameterType.STRING,
+                    description="Analysis action to perform",
+                    required=True,
+                    default_value="analyze_meme"
+                ),
+                ParameterSchema(
+                    name="target",
+                    type=ParameterType.STRING,
+                    description="Target to analyze",
+                    required=False,
+                    default_value="latest_meme"
+                ),
+                ParameterSchema(
+                    name="analysis_type",
+                    type=ParameterType.STRING,
+                    description="Type of analysis",
+                    required=False,
+                    default_value="comprehensive"
+                )
+            ]
+        )
+
 
 # Tool registration
 def get_meme_analysis_tool(config: Optional[MemeAnalysisConfig] = None) -> MemeAnalysisTool:
     """Get configured meme analysis tool."""
     return MemeAnalysisTool(config)
+
+# Create tool instance
+meme_analysis_tool = MemeAnalysisTool()
 
 # Tool metadata for UnifiedToolRepository registration
 from app.tools.unified_tool_repository import ToolMetadata, ToolCategory, ToolAccessLevel
@@ -683,3 +740,4 @@ MEME_ANALYSIS_TOOL_METADATA = ToolMetadata(
     requires_rag=False,
     use_cases={"meme_analysis", "image_analysis", "text_extraction", "sentiment_analysis", "content_classification"}
 )
+

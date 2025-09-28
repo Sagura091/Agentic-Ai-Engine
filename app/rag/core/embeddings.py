@@ -204,9 +204,9 @@ class EmbeddingManager:
 
             # Load SentenceTransformer model
             if not SENTENCE_TRANSFORMERS_AVAILABLE:
-                logger.warning("sentence_transformers not available, using fallback embedding")
-                # Use a simple fallback embedding
-                self.models["primary"] = "fallback"
+                logger.warning("sentence_transformers not available, using hash-based fallback embedding")
+                # Use a hash-based fallback that actually generates embeddings
+                self.models["primary"] = "hash_fallback"
                 self.config.dense_dimension = 384  # Default dimension
                 return
 
@@ -217,21 +217,14 @@ class EmbeddingManager:
             if self.config.dense_dimension is None:
                 self.config.dense_dimension = model.get_sentence_embedding_dimension()
 
-            else:
-                # Load HuggingFace model
-                if not TRANSFORMERS_AVAILABLE:
-                    logger.warning("transformers not available, using fallback embedding")
-                    # Use a simple fallback embedding
-                    self.models["primary"] = "fallback"
-                    self.config.dense_dimension = 384  # Default dimension
-                    return
+            logger.info(f"Primary model loaded: {self.config.model_name}")
 
-                tokenizer = AutoTokenizer.from_pretrained(self.config.model_name)
-                model = AutoModel.from_pretrained(self.config.model_name)
-                model.to(self.device)
-                
-                self.tokenizers["primary"] = tokenizer
-                self.models["primary"] = model
+        except Exception as e:
+            logger.error(f"Failed to load primary model: {str(e)}")
+            # Fallback to hash-based embeddings
+            logger.warning("Using hash-based fallback embeddings")
+            self.models["primary"] = "hash_fallback"
+            self.config.dense_dimension = 384
                 
             logger.info(f"Primary model loaded: {self.config.model_name}")
             
@@ -422,7 +415,7 @@ class EmbeddingManager:
             model = self.models["primary"]
 
             # Handle fallback case
-            if model == "fallback":
+            if model in ["fallback", "hash_fallback"]:
                 logger.warning("Using fallback embedding generation")
                 # Generate simple hash-based embeddings as fallback
                 embeddings = []

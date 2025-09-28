@@ -153,7 +153,7 @@ class RevolutionaryDocumentIntelligenceEngine:
         """Initialize AI components."""
         try:
             # Import and initialize LLM manager
-            from app.llm.providers.manager import LLMProviderManager
+            from app.llm.llm_provider_manager import LLMProviderManager
             self.llm_manager = LLMProviderManager()
             await self.llm_manager.initialize()
             

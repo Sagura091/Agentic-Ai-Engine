@@ -737,6 +737,101 @@ class UnifiedSystemOrchestrator:
             except Exception as e:
                 logger.warning(f"Failed to register meme tools: {e}")
 
+            # Import and register screen capture tool
+            try:
+                from app.tools.production.screen_capture_tool import get_screen_capture_tool
+
+                screen_capture_tool = get_screen_capture_tool()
+                metadata = ToolMetadata(
+                    tool_id="screen_capture",
+                    name="🖥️ Revolutionary Screen Capture Tool",
+                    description="Revolutionary screen capture with multi-monitor support, region selection, OCR, and visual analysis - Capture full screen, windows, regions with advanced image processing and text extraction",
+                    category=ToolCategory.AUTOMATION,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=False,
+                    use_cases=["screen_capture", "visual_analysis", "ocr", "automation", "testing", "documentation"]
+                )
+                await self.tool_repository.register_tool(screen_capture_tool, metadata)
+                logger.info("🖥️ Registered Revolutionary Screen Capture Tool")
+            except Exception as e:
+                logger.warning(f"Failed to register screen capture tool: {e}")
+
+            # Import and register social media orchestrator tool
+            try:
+                from app.tools.social_media.social_media_orchestrator_tool import get_social_media_orchestrator_tool
+
+                social_media_tool = get_social_media_orchestrator_tool()
+                metadata = ToolMetadata(
+                    tool_id="social_media_orchestrator",
+                    name="📱 Revolutionary Social Media Orchestrator",
+                    description="Revolutionary multi-platform social media management with AI-powered content creation, scheduling, analytics, and engagement automation across all major platforms",
+                    category=ToolCategory.COMMUNICATION,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=False,
+                    use_cases=["social_media", "content_creation", "marketing", "engagement", "analytics", "automation"]
+                )
+                await self.tool_repository.register_tool(social_media_tool, metadata)
+                logger.info("📱 Registered Revolutionary Social Media Orchestrator Tool")
+            except Exception as e:
+                logger.warning(f"Failed to register social media orchestrator tool: {e}")
+
+            # Import and register viral content generator tool
+            try:
+                from app.tools.social_media.viral_content_generator_tool import get_viral_content_generator_tool
+
+                viral_content_tool = get_viral_content_generator_tool()
+                metadata = ToolMetadata(
+                    tool_id="viral_content_generator",
+                    name="🚀 Revolutionary Viral Content Generator",
+                    description="Revolutionary AI-powered viral content creation with trend analysis, engagement optimization, and multi-format content generation for maximum social media impact",
+                    category=ToolCategory.CREATIVE,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=False,
+                    use_cases=["viral_content", "content_creation", "social_media", "marketing", "engagement", "trends"]
+                )
+                await self.tool_repository.register_tool(viral_content_tool, metadata)
+                logger.info("🚀 Registered Revolutionary Viral Content Generator Tool")
+            except Exception as e:
+                logger.warning(f"Failed to register viral content generator tool: {e}")
+
+            # Import and register AI music composition tool
+            try:
+                from app.tools.production.ai_music_composition_tool import get_ai_music_composition_tool
+
+                music_tool = get_ai_music_composition_tool()
+                metadata = ToolMetadata(
+                    tool_id="ai_music_composition",
+                    name="🎵 Revolutionary AI Music Composition Tool",
+                    description="Revolutionary AI-powered music composition with multi-genre support, MIDI generation, audio synthesis, and professional music production capabilities",
+                    category=ToolCategory.CREATIVE,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=False,
+                    use_cases=["music_composition", "audio_generation", "creative_content", "entertainment", "media_production"]
+                )
+                await self.tool_repository.register_tool(music_tool, metadata)
+                logger.info("🎵 Registered Revolutionary AI Music Composition Tool")
+            except Exception as e:
+                logger.warning(f"Failed to register AI music composition tool: {e}")
+
+            # Import and register AI lyric vocal synthesis tool
+            try:
+                from app.tools.production.ai_lyric_vocal_synthesis_tool import get_ai_lyric_vocal_synthesis_tool
+
+                vocal_tool = get_ai_lyric_vocal_synthesis_tool()
+                metadata = ToolMetadata(
+                    tool_id="ai_lyric_vocal_synthesis",
+                    name="🎤 Revolutionary AI Lyric & Vocal Synthesis Tool",
+                    description="Revolutionary AI-powered lyric generation and vocal synthesis with multiple voice styles, emotional expression, and professional audio production quality",
+                    category=ToolCategory.CREATIVE,
+                    access_level=ToolAccessLevel.PUBLIC,
+                    requires_rag=False,
+                    use_cases=["lyric_generation", "vocal_synthesis", "music_production", "creative_content", "entertainment"]
+                )
+                await self.tool_repository.register_tool(vocal_tool, metadata)
+                logger.info("🎤 Registered Revolutionary AI Lyric & Vocal Synthesis Tool")
+            except Exception as e:
+                logger.warning(f"Failed to register AI lyric vocal synthesis tool: {e}")
+
             # Log tool registration summary
             stats = self.tool_repository.stats
             logger.info(f"🎯 Tool registration complete: {stats['total_tools']} tools registered")
@@ -1403,6 +1498,11 @@ class EnhancedUnifiedSystemOrchestrator(UnifiedSystemOrchestrator):
         """Check if the enhanced orchestrator is initialized."""
         return self.status.is_initialized
 
+    @property
+    def rag_system(self):
+        """Get the unified RAG system for backward compatibility."""
+        return self.unified_rag
+
     async def initialize(self) -> bool:
         """Initialize the enhanced system with Agent Builder integration."""
         try:
@@ -1941,6 +2041,11 @@ class OrchestrationCompatibilityLayer:
         """Get checkpoint saver."""
         # Return None for now - can be implemented later
         return None
+
+    @property
+    def rag_system(self):
+        """Get the unified RAG system for backward compatibility."""
+        return self.enhanced_orchestrator.unified_rag
 
     async def initialize(self):
         """Initialize the orchestrator."""

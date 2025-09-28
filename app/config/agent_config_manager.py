@@ -440,6 +440,86 @@ class AgentConfigurationManager:
 
         return base_config
 
+    def load_individual_agent_config(self, agent_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Load configuration for an individual agent from YAML file.
+
+        Args:
+            agent_id: Unique agent identifier
+
+        Returns:
+            Agent configuration dictionary or None if not found
+        """
+        try:
+            # Look for agent config in data/config/agents/{agent_id}.yaml
+            agent_config_file = self.config_dir / "agents" / f"{agent_id}.yaml"
+
+            if not agent_config_file.exists():
+                logger.debug(f"Individual agent config not found: {agent_config_file}")
+                return None
+
+            with open(agent_config_file, 'r', encoding='utf-8') as f:
+                agent_config = yaml.safe_load(f)
+
+            logger.info(f"Loaded individual agent configuration: {agent_id}")
+            return agent_config
+
+        except Exception as e:
+            logger.error(f"Failed to load individual agent config for {agent_id}: {str(e)}")
+            return None
+
+    def get_individual_agent_config(self, agent_id: str) -> Dict[str, Any]:
+        """
+        Get complete configuration for an individual agent, merging with defaults.
+
+        Args:
+            agent_id: Unique agent identifier
+
+        Returns:
+            Complete agent configuration dictionary
+        """
+        # Load individual agent config
+        individual_config = self.load_individual_agent_config(agent_id)
+
+        if individual_config is None:
+            # Fallback to type-based config if no individual config found
+            agent_type = "autonomous"  # Default fallback
+            logger.warning(f"No individual config found for {agent_id}, using default {agent_type} config")
+            return self.get_agent_config(agent_type)
+
+        # Get agent type from individual config
+        agent_type = individual_config.get("agent_type", "autonomous")
+
+        # Start with type-based defaults
+        base_config = self.get_agent_config(agent_type)
+
+        # Merge individual config over defaults
+        merged_config = self._deep_merge_configs(base_config, individual_config)
+
+        logger.info(f"Merged individual agent configuration for {agent_id}")
+        return merged_config
+
+    def _deep_merge_configs(self, base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Deep merge two configuration dictionaries.
+
+        Args:
+            base: Base configuration dictionary
+            override: Override configuration dictionary
+
+        Returns:
+            Merged configuration dictionary
+        """
+        result = base.copy()
+
+        for key, value in override.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = self._deep_merge_configs(result[key], value)
+            else:
+                result[key] = value
+
+        return result
+
     def get_llm_config(self, provider: Optional[str] = None) -> Dict[str, Any]:
         """
         Get LLM configuration for a provider.

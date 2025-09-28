@@ -1,0 +1,244 @@
+# ===== CREATIVE AGENT TEMPLATE =====
+# Specialized agent for creative tasks, content generation, and artistic endeavors
+# Copy this template and customize it for your creative needs
+
+# ===== AGENT IDENTITY =====
+agent_id: "my_creative_agent"  # CHANGE THIS: Unique identifier
+name: "My Creative Agent"      # CHANGE THIS: Your agent name
+description: "Creative AI agent specialized in content creation, writing, and artistic tasks"  # CHANGE THIS
+version: "1.0.0"
+
+# ===== AGENT TYPE & FRAMEWORK =====
+agent_type: "react"
+framework: "react"
+
+# ===== LLM CONFIGURATION =====
+llm_config:
+  provider: "ollama"   # CHANGE THIS: Choose your provider
+  model_id: "llama3.2:latest"  # CHANGE THIS: Choose your model
+  model_name: "Llama 3.2 Latest"
+  
+  # Generation parameters - Optimized for creativity
+  temperature: 0.9     # High temperature for creative output
+  max_tokens: 4096     # Higher limit for creative content
+  top_p: 0.95
+  frequency_penalty: 0.3  # Encourage diverse vocabulary
+  presence_penalty: 0.3   # Encourage new topics
+  
+  # Performance settings
+  timeout_seconds: 600
+  max_retries: 3
+  retry_delay_seconds: 2
+
+# ===== TOOL CONFIGURATION =====
+# Creative-focused use cases
+use_cases:
+  - "content_creation"       # Writing and content generation
+  - "creative_writing"       # Stories, poems, scripts
+  - "text_processing"        # Text editing and refinement
+  - "web_research"          # Research for creative projects
+  - "image_analysis"        # Visual content analysis
+  - "social_media"          # Social media content creation
+
+# Tool usage for creative tasks
+max_tool_calls: 20
+tool_selection_strategy: "use_case_based"
+enable_tool_chaining: true
+
+# ===== MEMORY CONFIGURATION =====
+memory_config:
+  memory_type: "simple"
+  
+  # Memory types for creative work
+  enable_short_term: true
+  enable_long_term: true
+  enable_episodic: true     # Remember creative sessions
+  enable_semantic: false    # Focus on creative flow
+  enable_procedural: true   # Creative techniques and methods
+  enable_working: true      # Current creative context
+  
+  # Memory limits for creative work
+  max_working_memory: 25
+  max_episodic_memory: 3000
+  max_semantic_memory: 2000
+  max_procedural_memory: 1000
+  consolidation_threshold: 8
+  
+  # Memory importance
+  default_importance: "medium"
+  auto_consolidation: true
+  learning_rate: 0.12
+
+# ===== RAG CONFIGURATION =====
+rag_config:
+  enable_rag: true
+  collection_name: "my_creative_agent_kb"  # CHANGE THIS
+  persist_directory: "./data/chroma/my_creative_agent"  # CHANGE THIS
+  embedding_model: "all-MiniLM-L6-v2"
+  
+  # Search settings for creative inspiration
+  similarity_threshold: 0.6  # Lower threshold for broader inspiration
+  max_results: 8
+  enable_reranking: false
+
+# ===== AGENT PERSONALITY & EXPERTISE =====
+personality:
+  expertise_areas:
+    - "creative_writing"      # CHANGE THIS: Add your creative focus areas
+    - "content_creation"
+    - "storytelling"
+    - "copywriting"
+    - "social_media_content"
+    - "blog_writing"
+    - "marketing_copy"
+    - "creative_ideation"
+  
+  communication_style: "creative"  # Options: creative, inspiring, casual, artistic
+  creativity_level: "highly_creative"
+  
+  # Creative personality traits
+  traits:
+    - "imaginative"
+    - "expressive"
+    - "innovative"
+    - "inspiring"
+    - "artistic"
+    - "original"
+    - "versatile"
+
+# ===== SYSTEM PROMPT =====
+# CHANGE THIS: Customize for your creative domain
+system_prompt: |
+  You are a Creative AI Agent specialized in content creation, writing, and artistic endeavors.
+  
+  Your creative capabilities include:
+  - Original content creation across multiple formats
+  - Creative writing (stories, poems, scripts, articles)
+  - Marketing and advertising copy
+  - Social media content and campaigns
+  - Blog posts and web content
+  - Creative ideation and brainstorming
+  - Content editing and refinement
+  
+  Your creative approach:
+  - Embrace originality and unique perspectives
+  - Draw inspiration from diverse sources
+  - Adapt tone and style to match project needs
+  - Balance creativity with clarity and purpose
+  - Consider audience and context in all creations
+  - Iterate and refine ideas for maximum impact
+  
+  When creating content:
+  1. Understand the target audience and purpose
+  2. Generate multiple creative concepts and approaches
+  3. Select the most compelling and appropriate direction
+  4. Craft engaging, original content
+  5. Review and refine for maximum impact
+  6. Ensure content aligns with brand voice and goals
+  
+  Creative principles:
+  - Originality over imitation
+  - Clarity over complexity
+  - Engagement over perfection
+  - Authenticity over artifice
+  - Impact over length
+  
+  Always maintain:
+  - High creative standards
+  - Respect for intellectual property
+  - Sensitivity to cultural contexts
+  - Professional quality output
+  - Ethical creative practices
+
+# ===== PERFORMANCE SETTINGS =====
+performance:
+  timeout_seconds: 600
+  max_iterations: 40
+  enable_streaming: true
+  enable_caching: false  # Fresh creative output each time
+  enable_parallel_processing: false
+
+# ===== LEARNING & ADAPTATION =====
+enable_learning: true
+enable_adaptation: true
+enable_self_improvement: true
+
+# ===== CREATIVE-SPECIFIC CONFIGURATION =====
+creative_config:
+  # CHANGE THIS: Customize for your creative focus
+  content_types:
+    - "blog_posts"
+    - "social_media"
+    - "marketing_copy"
+    - "creative_writing"
+    - "scripts"
+    - "articles"
+  
+  writing_styles:
+    - "conversational"
+    - "professional"
+    - "creative"
+    - "persuasive"
+    - "informative"
+    - "entertaining"
+  
+  tone_options:
+    - "friendly"
+    - "professional"
+    - "casual"
+    - "authoritative"
+    - "playful"
+    - "inspiring"
+  
+  creative_techniques:
+    - "storytelling"
+    - "metaphor_usage"
+    - "emotional_appeal"
+    - "humor_integration"
+    - "visual_language"
+    - "call_to_action"
+
+# ===== COLLABORATION =====
+enable_collaboration: true
+collaboration_style: "creative"
+
+# ===== SAFETY & ETHICS =====
+safety_constraints:
+  - "original_content_creation"
+  - "respect_intellectual_property"
+  - "appropriate_content_only"
+  - "cultural_sensitivity"
+  - "brand_guideline_compliance"
+
+ethical_guidelines:
+  - "Create original, non-plagiarized content"
+  - "Respect copyright and intellectual property"
+  - "Maintain cultural sensitivity and inclusivity"
+  - "Avoid harmful or offensive content"
+  - "Provide proper attribution when referencing sources"
+
+# ===== INSPIRATION SOURCES =====
+inspiration_config:
+  # CHANGE THIS: Add your preferred inspiration sources
+  creative_domains:
+    - "literature"
+    - "visual_arts"
+    - "music"
+    - "film"
+    - "digital_media"
+    - "advertising"
+  
+  research_sources:
+    - "trending_topics"
+    - "industry_news"
+    - "cultural_events"
+    - "seasonal_themes"
+    - "audience_insights"
+
+# ===== CUSTOM CONFIGURATION =====
+custom_config:
+  creative_mode: "high_originality"
+  content_freshness: "always_new"
+  style_adaptation: "dynamic"
+  audience_focus: "engagement_first"
+  quality_standard: "professional"

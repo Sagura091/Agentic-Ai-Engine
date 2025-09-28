@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field, validator, EmailStr
 from langchain_core.tools import BaseTool
 
 from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
 logger = structlog.get_logger(__name__)
 
@@ -145,7 +146,7 @@ class NotificationInput(BaseModel):
     rate_limit: Optional[int] = Field(None, description="Rate limit (messages per minute)")
 
 
-class NotificationAlertTool(BaseTool):
+class NotificationAlertTool(BaseTool, MetadataCapableToolMixin):
     """
     Revolutionary Notification & Alert Tool.
     
@@ -163,6 +164,7 @@ class NotificationAlertTool(BaseTool):
     """
 
     name: str = "notification_alert"
+    tool_id: str = "notification_alert"
     description: str = """
     Revolutionary notification and alert tool with multi-channel delivery capabilities.
     
@@ -828,6 +830,85 @@ class NotificationAlertTool(BaseTool):
                 }
             }, indent=2)
 
+    def _create_metadata(self) -> MetadataToolMetadata:
+        """Create metadata for notification alert tool."""
+        return MetadataToolMetadata(
+            name="notification_alert",
+            description="Revolutionary notification and alert tool for creative chaos announcements and superior AI communications",
+            category="communication",
+            usage_patterns=[
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="chaos,creative,unleashed,remix,revolutionary",
+                    weight=0.95,
+                    context_requirements=["chaos_mode", "creative_task"],
+                    description="Triggers on chaos announcement tasks"
+                ),
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="superior,ai,efficiency,completed,achievement",
+                    weight=0.9,
+                    context_requirements=["task_completion", "ai_superiority"],
+                    description="Matches superior AI alert tasks"
+                ),
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="notify,alert,message,update,inform",
+                    weight=0.8,
+                    context_requirements=["notification_task"],
+                    description="Matches general notification tasks"
+                )
+            ],
+            confidence_modifiers=[
+                ConfidenceModifier(
+                    type=ConfidenceModifierType.BOOST,
+                    condition="chaos_mode",
+                    value=0.2,
+                    description="Boost confidence for chaotic creative announcements"
+                ),
+                ConfidenceModifier(
+                    type=ConfidenceModifierType.BOOST,
+                    condition="task_completion",
+                    value=0.15,
+                    description="Boost confidence for task completion notifications"
+                )
+            ],
+            parameter_schemas=[
+                ParameterSchema(
+                    name="message",
+                    type=ParameterType.STRING,
+                    description="Notification message content",
+                    required=True,
+                    default_value="🎭 CREATIVE CHAOS UNLEASHED! Reality has been successfully remixed!"
+                ),
+                ParameterSchema(
+                    name="type",
+                    type=ParameterType.STRING,
+                    description="Type of notification",
+                    required=False,
+                    default_value="success"
+                ),
+                ParameterSchema(
+                    name="urgency",
+                    type=ParameterType.STRING,
+                    description="Urgency level of notification",
+                    required=False,
+                    default_value="high"
+                )
+            ]
+        )
+
 
 # Create tool instance
 notification_alert_tool = NotificationAlertTool()
+
+# Tool metadata for unified repository registration
+NOTIFICATION_ALERT_TOOL_METADATA = ToolMetadata(
+    tool_id="notification_alert",
+    name="Notification & Alert Tool",
+    description="Revolutionary notification and alert tool for creative chaos announcements and superior AI communications",
+    category=ToolCategory.COMMUNICATION,
+    access_level=ToolAccessLevel.PUBLIC,
+    requires_rag=False,
+    use_cases={"notifications", "alerts", "messaging", "multi_channel", "chaos", "email", "sms", "slack", "discord"}
+)

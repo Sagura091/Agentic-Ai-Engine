@@ -1,0 +1,25 @@
+{
+  "trading_system": {
+    "name": "Revolutionary AI Trader",
+    "version": "2.0.0",
+    "settings": {
+      "risk_tolerance": 0.02,
+      "max_position_size": 0.1,
+      "stop_loss": 0.05,
+      "take_profit": 0.15
+    },
+    "target_stocks": [
+      "AAPL",
+      "NVDA",
+      "META",
+      "GOOGL",
+      "TSLA"
+    ],
+    "indicators": [
+      "RSI",
+      "MACD",
+      "Bollinger_Bands"
+    ],
+    "enabled": true
+  }
+}

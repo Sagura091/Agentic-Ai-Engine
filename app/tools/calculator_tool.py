@@ -14,6 +14,7 @@ import structlog
 from pydantic import BaseModel, Field
 from langchain_core.callbacks import CallbackManagerForToolRun
 from langchain_core.tools import BaseTool
+from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
 logger = structlog.get_logger(__name__)
 
@@ -24,12 +25,13 @@ class CalculatorInput(BaseModel):
     precision: int = Field(default=2, description="Number of decimal places for result")
 
 
-class CalculatorTool(BaseTool):
+class CalculatorTool(BaseTool, MetadataCapableToolMixin):
     """Simple calculator tool for mathematical operations."""
 
     name: str = "calculator"
     description: str = "Perform mathematical calculations including arithmetic, percentages, and basic functions"
     args_schema: Type[BaseModel] = CalculatorInput
+    tool_id: str = "calculator"
 
     def __init__(self):
         super().__init__()
@@ -269,6 +271,80 @@ class CalculatorTool(BaseTool):
             "recent_executions": self.execution_history[-5:] if self.execution_history else []
         }
 
+    def _create_metadata(self) -> MetadataToolMetadata:
+        """Create metadata for calculator tool."""
+        return MetadataToolMetadata(
+            name="calculator",
+            description="Simple calculator tool for mathematical operations with creative chaos capabilities",
+            category="utility",
+            usage_patterns=[
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="chaos,creative,chaotic,random,42,1337",
+                    weight=0.9,
+                    context_requirements=["chaos_mode", "creative_task"],
+                    description="Triggers on creative chaos math tasks"
+                ),
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="calculate,math,compute,add,subtract,multiply,divide",
+                    weight=0.8,
+                    context_requirements=["calculation_task"],
+                    description="Matches basic calculation tasks"
+                ),
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="expression,formula,equation,evaluate",
+                    weight=0.85,
+                    context_requirements=["mathematical_expression"],
+                    description="Matches expression evaluation tasks"
+                )
+            ],
+            confidence_modifiers=[
+                ConfidenceModifier(
+                    type=ConfidenceModifierType.BOOST,
+                    condition="chaos_mode",
+                    value=0.15,
+                    description="Boost confidence for chaotic mathematical creativity"
+                ),
+                ConfidenceModifier(
+                    type=ConfidenceModifierType.BOOST,
+                    condition="calculation_task",
+                    value=0.1,
+                    description="Boost confidence for mathematical calculations"
+                )
+            ],
+            parameter_schemas=[
+                ParameterSchema(
+                    name="expression",
+                    type=ParameterType.STRING,
+                    description="Mathematical expression to calculate",
+                    required=True,
+                    default_value="42 * 1337 / 69"
+                ),
+                ParameterSchema(
+                    name="precision",
+                    type=ParameterType.INTEGER,
+                    description="Number of decimal places for result",
+                    required=False,
+                    default_value=4
+                )
+            ]
+        )
+
 
 # Create tool instance for registration
 calculator_tool = CalculatorTool()
+
+# Tool metadata for unified repository registration
+from app.tools.unified_tool_repository import ToolMetadata as UnifiedToolMetadata, ToolCategory, ToolAccessLevel
+
+CALCULATOR_TOOL_METADATA = UnifiedToolMetadata(
+    tool_id="calculator",
+    name="Calculator Tool",
+    description="Simple calculator tool for mathematical operations with creative chaos capabilities",
+    category=ToolCategory.COMPUTATION,
+    access_level=ToolAccessLevel.PUBLIC,
+    requires_rag=False,
+    use_cases={"math", "calculation", "utility", "chaos", "arithmetic", "percentages"}
+)

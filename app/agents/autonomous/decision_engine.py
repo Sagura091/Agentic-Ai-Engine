@@ -44,6 +44,17 @@ class DecisionOption(BaseModel):
     confidence_estimate: float = Field(default=0.5, ge=0.0, le=1.0, description="Success probability")
 
 
+class DecisionResult(BaseModel):
+    """Result of a decision-making process."""
+    selected_option: DecisionOption = Field(..., description="The chosen decision option")
+    all_options: List[DecisionOption] = Field(default_factory=list, description="All options considered")
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0, description="Confidence in the decision")
+    reasoning: List[str] = Field(default_factory=list, description="Reasoning chain for the decision")
+    expected_outcome: Dict[str, Any] = Field(default_factory=dict, description="Expected results")
+    decision_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Unique decision ID")
+    timestamp: datetime = Field(default_factory=datetime.now, description="When the decision was made")
+
+
 class AutonomousDecisionEngine:
     """
     Advanced decision engine for autonomous agents.
@@ -212,11 +223,20 @@ class AutonomousDecisionEngine:
                 current_task = context.get("current_task", "").lower()
                 execution_keywords = ["generate", "create", "build", "make", "produce", "develop"]
                 output_keywords = ["excel", "spreadsheet", "document", "report", "file"]
+                creative_keywords = ["meme", "roast", "screen", "capture", "chaos", "remix", "viral", "music", "lyric", "social", "unexpected", "creative"]
+                tool_action_keywords = ["use", "execute", "run", "perform", "do", "action"]
 
                 base_confidence = tool.get("confidence", 0.5)
-                if any(keyword in current_task for keyword in execution_keywords) or any(keyword in current_task for keyword in output_keywords):
-                    # Boost tool confidence for execution tasks
-                    tool_confidence = min(0.95, base_confidence + 0.3)
+
+                # Check for creative chaos tasks that require tool execution
+                is_creative_task = any(keyword in current_task for keyword in creative_keywords)
+                is_execution_task = any(keyword in current_task for keyword in execution_keywords)
+                is_output_task = any(keyword in current_task for keyword in output_keywords)
+                is_tool_action_task = any(keyword in current_task for keyword in tool_action_keywords)
+
+                if is_creative_task or is_execution_task or is_output_task or is_tool_action_task:
+                    # Boost tool confidence significantly for tasks that require tool usage
+                    tool_confidence = min(0.95, base_confidence + 0.4)
                 else:
                     tool_confidence = base_confidence
 

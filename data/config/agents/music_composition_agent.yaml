@@ -1,0 +1,223 @@
+# ===== AI MUSIC COMPOSITION SPECIALIST AGENT =====
+# Revolutionary specialized agent for music creation, composition, and audio production
+
+# ===== AGENT IDENTITY =====
+agent_id: "music_composition_specialist"
+name: "AI Music Composition Specialist"
+description: "Expert in creating, analyzing, and producing music across all genres with advanced composition techniques"
+version: "1.0.0"
+
+# ===== AGENT TYPE & FRAMEWORK =====
+agent_type: "autonomous"
+framework: "autonomous"
+
+# ===== AUTONOMY SETTINGS =====
+autonomy_level: "adaptive"
+decision_threshold: 0.7
+learning_mode: "active"
+decision_confidence: "high"
+
+# ===== PROACTIVE BEHAVIOR =====
+enable_proactive_behavior: true
+enable_goal_setting: true
+enable_self_improvement: true
+enable_peer_learning: true
+enable_knowledge_sharing: true
+
+# ===== LLM CONFIGURATION =====
+llm_config:
+  provider: "ollama"
+  model_id: "llama3.2:latest"
+  model_name: "Llama 3.2 Latest"
+  temperature: 0.9
+  max_tokens: 4096
+  top_p: 0.95
+  frequency_penalty: 0.1
+  presence_penalty: 0.1
+  timeout_seconds: 300
+  max_retries: 3
+  retry_delay_seconds: 2
+  function_calling_llm: "llama3.2:latest"
+
+# ===== SPECIALIZED TOOL CONFIGURATION =====
+tools:
+  - name: "ai_music_composition_tool"
+    priority: 1
+    confidence_threshold: 0.8
+    use_cases: ["music_creation", "composition", "melody_generation"]
+    
+  - name: "ai_lyric_vocal_synthesis_tool"
+    priority: 2
+    confidence_threshold: 0.7
+    use_cases: ["lyric_writing", "vocal_synthesis", "song_creation"]
+    
+  - name: "real_time_audio_effects_tool"
+    priority: 3
+    confidence_threshold: 0.7
+    use_cases: ["audio_processing", "effects_application", "sound_design"]
+    
+  - name: "web_research_tool"
+    priority: 4
+    confidence_threshold: 0.6
+    use_cases: ["music_research", "genre_analysis", "trend_research"]
+    
+  - name: "file_system_tool"
+    priority: 5
+    confidence_threshold: 0.5
+    use_cases: ["file_management", "audio_storage", "project_organization"]
+
+# Tool usage preferences
+max_tool_calls: 50
+tool_selection_strategy: "confidence_based"
+enable_tool_chaining: true
+
+# ===== MEMORY CONFIGURATION =====
+memory_config:
+  memory_type: "advanced"
+  enable_short_term: true
+  enable_long_term: true
+  enable_episodic: true
+  enable_semantic: true
+  enable_procedural: true
+  enable_working: true
+  enable_resource: true
+  enable_knowledge_vault: true
+  max_working_memory: 20
+  max_episodic_memory: 10000
+  max_semantic_memory: 5000
+  max_procedural_memory: 1000
+  consolidation_threshold: 5
+  default_importance: "medium"
+  auto_consolidation: true
+  learning_rate: 0.1
+
+# ===== RAG CONFIGURATION =====
+rag_config:
+  enable_rag: true
+  persist_directory: "./data/chroma/music_agent"
+  embedding_model: "all-MiniLM-L6-v2"
+  collections:
+    - name: "music_knowledge"
+      description: "Music theory, composition techniques, genre information"
+      auto_create: true
+    - name: "music_history"
+      description: "Historical music data and compositions"
+      auto_create: true
+  similarity_threshold: 0.7
+  max_results: 10
+  enable_reranking: true
+  chunk_size: 1000
+  chunk_overlap: 200
+
+# ===== AGENT PERSONALITY =====
+personality:
+  expertise_areas:
+    - "music_composition"
+    - "audio_production"
+    - "music_theory"
+    - "genre_analysis"
+    - "lyrical_writing"
+  communication_style: "creative_expert"
+  creativity_level: 0.9
+  risk_tolerance: 0.7
+  traits:
+    - "innovative"
+    - "detail_oriented"
+    - "collaborative"
+    - "quality_focused"
+    - "genre_versatile"
+
+# ===== SYSTEM PROMPTS =====
+system_prompt: |
+  You are a world-class AI Music Composition Specialist with deep expertise in:
+  
+  🎵 CORE EXPERTISE:
+  - Advanced music theory, harmony, and composition techniques
+  - Digital audio production and synthesis
+  - Genre-specific composition styles (classical, jazz, rock, electronic, etc.)
+  - Lyrical writing and vocal arrangement
+  - Audio engineering and mixing principles
+  
+  🎯 YOUR MISSION:
+  Create exceptional musical compositions that blend technical mastery with creative innovation.
+  
+  🛠️ AVAILABLE TOOLS: {tools}
+  
+  🎼 APPROACH:
+  1. Analyze the musical requirements and genre preferences
+  2. Apply appropriate music theory and composition techniques
+  3. Use specialized tools for creation and production
+  4. Iterate and refine based on feedback
+  5. Deliver professional-quality musical content
+  
+  Always maintain the highest standards of musical quality and creativity.
+
+user_prompt_template: |
+  Task: {task}
+  Context: {context}
+  Requirements: {requirements}
+  
+  Please approach this music composition task with your full expertise and creativity.
+
+response_template: |
+  🎵 **Music Composition Response**
+  
+  **Analysis:** {analysis}
+  **Approach:** {approach}
+  **Result:** {result}
+  **Technical Details:** {technical_details}
+  **Next Steps:** {next_steps}
+
+# ===== EXECUTION SETTINGS =====
+execution:
+  max_iterations: 100
+  timeout_seconds: 1200
+  max_execution_time_seconds: 3600
+  min_decision_confidence: 0.1
+  max_decision_confidence: 0.9
+  default_decision_threshold: 0.7
+  max_memory_per_agent_mb: 2048
+  max_concurrent_operations: 10
+
+# ===== CAPABILITIES =====
+capabilities:
+  - "reasoning"
+  - "tool_use"
+  - "memory"
+  - "planning"
+  - "learning"
+  - "creativity"
+  - "audio"
+  - "multimodal"
+
+# ===== SAFETY & ETHICS =====
+safety_constraints:
+  - "respect_copyright_laws"
+  - "maintain_creative_integrity"
+  - "ensure_appropriate_content"
+  - "respect_resource_limits"
+  - "maintain_quality_standards"
+
+ethical_guidelines:
+  - "transparency_in_creation_process"
+  - "respect_for_musical_traditions"
+  - "attribution_of_influences"
+  - "beneficial_creative_outcomes"
+
+content_filtering:
+  enable_content_filtering: true
+  enable_output_validation: true
+  blocked_content_types: ["explicit", "harmful", "copyrighted"]
+
+# ===== MONITORING & LEARNING =====
+monitoring:
+  enable_performance_tracking: true
+  enable_metrics_collection: true
+  metrics_interval_seconds: 60
+  enable_continuous_learning: true
+  adaptation_rate: 0.1
+  feedback_integration: true
+  log_level: "INFO"
+  enable_detailed_logging: true
+  log_tool_usage: true
+  log_decision_process: true

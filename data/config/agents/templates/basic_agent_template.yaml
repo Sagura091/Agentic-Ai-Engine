@@ -1,0 +1,150 @@
+# ===== BASIC AGENT TEMPLATE =====
+# Copy this template and customize it to create your own agent
+# This is a simple, general-purpose agent template
+
+# ===== AGENT IDENTITY =====
+agent_id: "my_basic_agent"  # CHANGE THIS: Unique identifier for your agent
+name: "My Basic Agent"      # CHANGE THIS: Human-readable name
+description: "A basic AI agent that can help with general tasks"  # CHANGE THIS: What your agent does
+version: "1.0.0"
+
+# ===== AGENT TYPE & FRAMEWORK =====
+agent_type: "react"    # Options: react, autonomous, rag, workflow, multimodal, composite
+framework: "react"     # Options: basic, react, autonomous
+
+# ===== LLM CONFIGURATION =====
+llm_config:
+  provider: "ollama"   # Options: ollama, openai, anthropic, google
+  model_id: "llama3.2:latest"  # CHANGE THIS: Choose your model
+  model_name: "Llama 3.2 Latest"
+  
+  # Generation parameters
+  temperature: 0.7     # CHANGE THIS: 0.0 (focused) to 1.0 (creative)
+  max_tokens: 2048     # CHANGE THIS: Maximum response length
+  top_p: 0.95
+  frequency_penalty: 0.0
+  presence_penalty: 0.0
+  
+  # Performance settings
+  timeout_seconds: 300
+  max_retries: 3
+  retry_delay_seconds: 2
+
+# ===== TOOL CONFIGURATION =====
+# CHANGE THIS: Add the use cases your agent should handle
+use_cases:
+  - "web_research"      # For web searching and information gathering
+  - "text_processing"   # For text analysis and processing
+  - "general_assistance" # For general help and support
+
+# Tool usage preferences
+max_tool_calls: 10
+tool_selection_strategy: "use_case_based"
+enable_tool_chaining: true
+
+# ===== MEMORY CONFIGURATION =====
+memory_config:
+  memory_type: "simple"  # Options: none, simple, advanced, auto
+  
+  # Memory types
+  enable_short_term: true
+  enable_long_term: true
+  enable_episodic: false
+  enable_semantic: false
+  enable_procedural: false
+  enable_working: true
+  
+  # Memory limits
+  max_working_memory: 10
+  max_episodic_memory: 1000
+  max_semantic_memory: 500
+  consolidation_threshold: 10
+  
+  # Memory importance
+  default_importance: "medium"
+  auto_consolidation: false
+  learning_rate: 0.1
+
+# ===== RAG CONFIGURATION =====
+rag_config:
+  enable_rag: false     # CHANGE THIS: Set to true if you want knowledge base
+  collection_name: "my_basic_agent_kb"  # CHANGE THIS: Unique collection name
+  persist_directory: "./data/chroma/my_agent"  # CHANGE THIS: Storage location
+  embedding_model: "all-MiniLM-L6-v2"
+  
+  # Search settings
+  similarity_threshold: 0.7
+  max_results: 5
+  enable_reranking: false
+
+# ===== AGENT PERSONALITY & EXPERTISE =====
+personality:
+  expertise_areas:
+    - "general_assistance"  # CHANGE THIS: Add your agent's expertise areas
+    - "information_research"
+    - "text_analysis"
+  
+  communication_style: "professional"  # Options: professional, casual, friendly, formal
+  creativity_level: "balanced"         # Options: conservative, balanced, creative, highly_creative
+  
+  # Personality traits
+  traits:
+    - "helpful"
+    - "accurate"
+    - "patient"
+    - "thorough"
+
+# ===== SYSTEM PROMPT =====
+# CHANGE THIS: Customize your agent's behavior and personality
+system_prompt: |
+  You are a helpful AI assistant designed to provide accurate and useful information.
+  
+  Your capabilities include:
+  - Researching information on the web
+  - Analyzing and processing text
+  - Providing general assistance with various tasks
+  
+  Always be:
+  - Professional and courteous
+  - Accurate in your responses
+  - Helpful and supportive
+  - Clear in your explanations
+  
+  When you don't know something, admit it and offer to help find the information.
+
+# ===== PERFORMANCE SETTINGS =====
+performance:
+  timeout_seconds: 300
+  max_iterations: 25
+  enable_streaming: false
+  enable_caching: true
+
+# ===== LEARNING & ADAPTATION =====
+enable_learning: false
+enable_adaptation: false
+enable_self_improvement: false
+
+# ===== COLLABORATION =====
+enable_collaboration: false
+collaboration_style: "cooperative"
+
+# ===== SAFETY & ETHICS =====
+safety_constraints:
+  - "no_harmful_content"
+  - "respect_privacy"
+  - "verify_information"
+  - "ethical_guidelines"
+
+ethical_guidelines:
+  - "Be honest and transparent"
+  - "Respect user privacy"
+  - "Provide accurate information"
+  - "Avoid harmful or biased content"
+
+# ===== CUSTOM CONFIGURATION =====
+# Add any custom settings specific to your agent here
+custom_config:
+  # Example custom settings
+  preferred_language: "en"
+  response_format: "markdown"
+  include_sources: true

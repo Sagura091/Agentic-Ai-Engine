@@ -47,34 +47,9 @@ from app.tools.unified_tool_repository import UnifiedToolRepository
 import structlog
 logger = structlog.get_logger(__name__)
 
-# Agent Configuration - TRUE AGENTIC SETUP
-AGENT_CONFIG = {
-    "name": "Agentic Business Revenue Metrics Agent",
-    "description": "Autonomous agent that uses LLM reasoning and dynamic tool selection to generate comprehensive business revenue metrics and Excel spreadsheets",
-    "agent_type": "autonomous_business_analysis",
-    "llm_provider": "ollama",
-    "llm_model": "llama3.2:latest", 
-    "temperature": 0.3,
-    "max_tokens": 8000,
-    "autonomy_level": "PROACTIVE",
-    "learning_mode": "ACTIVE",
-    "use_cases": [
-        "business_analysis",
-        "document_generation",
-        "excel_processing", 
-        "financial_analysis",
-        "data_generation"
-    ],
-    "capabilities": [
-        "autonomous_reasoning",
-        "tool_selection",
-        "financial_analysis",
-        "excel_generation", 
-        "business_intelligence"
-    ],
-    "memory_type": "UNIFIED",
-    "rag_enabled": True,
-    "collection_name": "agentic_business_revenue_metrics"
+# UPDATED: Now uses YAML configuration system
+# Configuration is loaded from: data/config/agents/agentic_business_revenue_agent.yaml
+AGENT_ID = "agentic_business_revenue_agent"
 }
 
 # System prompt for TRUE AGENTIC behavior with HILARIOUS DATA COMEDIAN personality
@@ -139,7 +114,7 @@ class AgenticBusinessRevenueAgent:
     
     def __init__(self):
         """Initialize the Agentic Business Revenue Metrics Agent."""
-        self.agent_id = f"agentic_business_revenue_agent_{uuid.uuid4().hex[:8]}"
+        self.agent_id = AGENT_ID  # Use the YAML-configured agent ID
         self.orchestrator = None
         self.agent = None
         self.llm_manager = None
@@ -213,19 +188,37 @@ class AgenticBusinessRevenueAgent:
             
             print(f"   ✅ Tools loaded: {len(tools)} tools available for autonomous selection")
             
-            # Create autonomous agent with PROACTIVE autonomy
-            self.agent = create_autonomous_agent(
-                name=AGENT_CONFIG["name"],
-                description=AGENT_CONFIG["description"],
-                llm=llm,
-                tools=tools,
-                autonomy_level=AGENT_CONFIG["autonomy_level"].lower(),
-                learning_mode=AGENT_CONFIG["learning_mode"].lower(),
-                capabilities=["reasoning", "tool_use", "memory", "planning"],
-                enable_proactive_behavior=True,
-                enable_goal_setting=True,
-                system_prompt=SYSTEM_PROMPT
-            )
+            # Try to build agent from YAML configuration first
+            try:
+                from app.agents.factory import AgentBuilderFactory
+
+                # Create agent factory
+                factory = AgentBuilderFactory(self.llm_manager, self.orchestrator.memory_system)
+
+                # Build agent from YAML configuration
+                self.agent = await factory.build_agent_from_yaml("agentic_business_revenue_agent")
+
+                print("   ✅ Agent built from YAML configuration")
+                print(f"   ✅ Agent type: {self.agent.config.agent_type if hasattr(self.agent, 'config') else 'autonomous'}")
+
+            except Exception as yaml_error:
+                print(f"   ⚠️ YAML config failed, falling back to hardcoded config: {yaml_error}")
+
+                # Fallback: Create autonomous agent with PROACTIVE autonomy
+                self.agent = create_autonomous_agent(
+                    name=AGENT_CONFIG["name"],
+                    description=AGENT_CONFIG["description"],
+                    llm=llm,
+                    tools=tools,
+                    autonomy_level=AGENT_CONFIG["autonomy_level"].lower(),
+                    learning_mode=AGENT_CONFIG["learning_mode"].lower(),
+                    capabilities=["reasoning", "tool_use", "memory", "planning"],
+                    enable_proactive_behavior=True,
+                    enable_goal_setting=True,
+                    system_prompt=SYSTEM_PROMPT
+                )
+
+                print(f"   ✅ Autonomous agent created with {AGENT_CONFIG['autonomy_level']} autonomy (hardcoded fallback)")
             
             if not self.agent:
                 print("❌ Failed to create autonomous agent")

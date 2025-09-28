@@ -31,7 +31,25 @@ import structlog
 import requests
 import cv2
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
+
+# Standardized PIL/Pillow imports with error handling
+try:
+    from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
+    PIL_AVAILABLE = True
+except ImportError:
+    try:
+        import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
+        PIL_AVAILABLE = True
+    except ImportError:
+        PIL_AVAILABLE = False
+        # Create mock classes for graceful degradation
+        class MockImage:
+            @staticmethod
+            def new(*args, **kwargs): return None
+            @staticmethod
+            def open(*args, **kwargs): return None
+        Image = MockImage()
+
 from langchain_core.tools import BaseTool
 from langchain_core.language_models import BaseLanguageModel
 from pydantic import BaseModel, Field
@@ -39,6 +57,11 @@ from pydantic import BaseModel, Field
 # Import required modules
 from app.tools.unified_tool_repository import ToolCategory
 from app.tools.meme_analysis_tool import MemeTemplate, MemeAnalysisResult
+from app.tools.metadata import (
+    ToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType,
+    ConfidenceModifier, ConfidenceModifierType, ExecutionPreference, ContextRequirement,
+    BehavioralHint, MetadataCapableToolMixin
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -93,7 +116,7 @@ class MemeGenerationConfig:
     generation_timeout: int = 60
 
 
-class MemeGenerationTool(BaseTool):
+class MemeGenerationTool(BaseTool, MetadataCapableToolMixin):
     """Revolutionary meme generation tool for creating viral content."""
     
     name: str = "meme_generation_tool"
@@ -792,16 +815,148 @@ class MemeGenerationTool(BaseTool):
             'system_stats': self._generation_stats
         }
 
+    def _create_metadata(self) -> ToolMetadata:
+        """Create metadata for the meme generation tool."""
+        return ToolMetadata(
+            name="meme_generation",
+            category="creative",
+            description="Revolutionary AI-powered meme generation tool that creates original memes using image generation, templates, and intelligent text overlay",
+
+            # Usage patterns
+            usage_patterns=[
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="meme,funny,humor,joke,viral,creative,generate,create,image,picture",
+                    weight=1.0,
+                    description="Triggers on meme and humor-related keywords"
+                ),
+                UsagePattern(
+                    type=UsagePatternType.TASK_TYPE_MATCH,
+                    pattern="creative,content_generation,humor,entertainment",
+                    weight=0.9,
+                    description="Matches creative and entertainment tasks"
+                ),
+                UsagePattern(
+                    type=UsagePatternType.CONTEXT_MATCH,
+                    pattern="current_task,user_input,goal",
+                    weight=0.8,
+                    description="Uses context to determine meme generation needs"
+                )
+            ],
+
+            # Parameter schemas
+            parameter_schemas=[
+                ParameterSchema(
+                    name="action",
+                    type=ParameterType.ENUM,
+                    description="Type of meme generation action to perform",
+                    required=True,
+                    enum_values=["generate", "generate_from_template", "generate_variations", "generate_unexpected", "generate_chaotic"],
+                    default_value="generate",
+                    examples=["generate", "generate_unexpected"],
+                    context_hints=["current_task", "goal"]
+                ),
+                ParameterSchema(
+                    name="prompt",
+                    type=ParameterType.STRING,
+                    description="Text prompt describing the meme to generate",
+                    required=False,
+                    default_value="",
+                    examples=["Funny cat doing spreadsheets", "When you realize it's Monday"],
+                    context_hints=["current_task", "user_input", "description"]
+                ),
+                ParameterSchema(
+                    name="style",
+                    type=ParameterType.ENUM,
+                    description="Style of humor for the meme",
+                    required=False,
+                    enum_values=["funny", "sarcastic", "wholesome", "dark", "chaotic", "maximum", "unexpected"],
+                    default_value="funny",
+                    examples=["chaotic", "sarcastic"],
+                    context_hints=["personality", "mood"]
+                ),
+                ParameterSchema(
+                    name="humor_level",
+                    type=ParameterType.ENUM,
+                    description="Intensity level of humor",
+                    required=False,
+                    enum_values=["mild", "moderate", "high", "maximum", "chaotic"],
+                    default_value="moderate",
+                    examples=["maximum", "chaotic"],
+                    context_hints=["creativity_level", "chaos_mode"]
+                )
+            ],
+
+            # Confidence modifiers
+            confidence_modifiers=[
+                ConfidenceModifier(
+                    type=ConfidenceModifierType.BOOST,
+                    condition="current_task:meme",
+                    value=0.3,
+                    description="High confidence for meme-related tasks"
+                ),
+                ConfidenceModifier(
+                    type=ConfidenceModifierType.BOOST,
+                    condition="current_task:creative",
+                    value=0.2,
+                    description="Boost for creative tasks"
+                ),
+                ConfidenceModifier(
+                    type=ConfidenceModifierType.BOOST,
+                    condition="chaos_mode:maximum",
+                    value=0.4,
+                    description="Maximum boost for chaos mode"
+                )
+            ],
+
+            # Execution preferences
+            execution_preferences=ExecutionPreference(
+                preferred_contexts=["creative", "humor", "entertainment", "chaos", "unexpected"],
+                avoid_contexts=["serious", "formal", "business"],
+                execution_order_preference=1,  # High priority for creative tasks
+                parallel_execution_allowed=True,
+                max_concurrent_executions=3
+            ),
+
+            # Context requirements
+            context_requirements=ContextRequirement(
+                required_context_keys=[],  # No strict requirements
+                optional_context_keys=["current_task", "user_input", "creativity_level", "chaos_mode"],
+                minimum_context_quality=0.0
+            ),
+
+            # Behavioral hints
+            behavioral_hints=BehavioralHint(
+                creativity_level=0.9,  # Highly creative
+                risk_level=0.3,  # Low risk
+                resource_intensity=0.6,  # Moderate resource usage
+                output_predictability=0.2,  # Highly unpredictable output
+                user_interaction_level=0.1,  # Low interaction needed
+                learning_value=0.7  # High learning value
+            ),
+
+            # Capabilities and metadata
+            capabilities=["image_generation", "text_overlay", "template_usage", "humor_generation", "creative_content"],
+            limitations=["requires_image_libraries", "generation_time_varies"],
+            dependencies=["PIL", "requests", "cv2"],
+            tags=["creative", "humor", "viral", "entertainment", "chaos"],
+            aliases=["meme_creator", "humor_generator", "viral_content"],
+            related_tools=["meme_analysis", "social_media_orchestrator", "viral_content_generator"]
+        )
+
 
 # Tool registration
 def get_meme_generation_tool(config: Optional[MemeGenerationConfig] = None, llm: Optional[BaseLanguageModel] = None) -> MemeGenerationTool:
     """Get configured meme generation tool."""
     return MemeGenerationTool(config, llm)
 
-# Tool metadata for UnifiedToolRepository registration
-from app.tools.unified_tool_repository import ToolMetadata, ToolCategory, ToolAccessLevel
+# Create tool instance
+meme_generation_tool = MemeGenerationTool()
 
-MEME_GENERATION_TOOL_METADATA = ToolMetadata(
+# Tool metadata for UnifiedToolRepository registration
+from app.tools.unified_tool_repository import ToolMetadata as UnifiedToolMetadata, ToolCategory, ToolAccessLevel
+
+MEME_GENERATION_TOOL_METADATA = UnifiedToolMetadata(
     tool_id="meme_generation",
     name="Meme Generation Tool",
     description="Revolutionary meme generation tool that creates original memes using AI-powered image generation, template-based creation, and intelligent text overlay with humor patterns",

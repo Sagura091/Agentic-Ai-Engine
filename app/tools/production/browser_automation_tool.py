@@ -33,6 +33,7 @@ from pathlib import Path
 import structlog
 from pydantic import BaseModel, Field
 from langchain.tools import BaseTool
+from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
 # Import screenshot analysis capabilities
 from .screenshot_analysis_tool import (
@@ -702,10 +703,11 @@ class BrowserAutomationInput(BaseModel):
     data_description: Optional[str] = Field(default=None, description="Description of data to extract")
 
 
-class BrowserAutomationTool(BaseTool):
+class BrowserAutomationTool(BaseTool, MetadataCapableToolMixin):
     """Revolutionary Browser Automation Tool for AI Agents."""
 
     name: str = "browser_automation"
+    tool_id: str = "browser_automation"
     description: str = """Revolutionary browser automation tool with visual intelligence that can:
     - Navigate to any website
     - Click on elements using visual description (no selectors needed)
@@ -848,12 +850,97 @@ class BrowserAutomationTool(BaseTool):
         except Exception as e:
             logger.error(f"Browser cleanup error: {e}")
 
+    def _create_metadata(self) -> MetadataToolMetadata:
+        """Create metadata for browser automation tool."""
+        return MetadataToolMetadata(
+            name="browser_automation",
+            description="Revolutionary browser automation tool with visual intelligence for creative web interactions",
+            category="automation",
+            usage_patterns=[
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="chaos,research,creative,inspiration,memes",
+                    weight=0.9,
+                    context_requirements=["chaos_mode", "creative_task"],
+                    description="Triggers on creative research tasks"
+                ),
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="browse,navigate,website,url,web",
+                    weight=0.8,
+                    context_requirements=["web_interaction_task"],
+                    description="Matches web browsing tasks"
+                ),
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="click,type,scroll,interact,automate",
+                    weight=0.85,
+                    context_requirements=["browser_automation_task"],
+                    description="Matches automated interaction tasks"
+                )
+            ],
+            confidence_modifiers=[
+                ConfidenceModifier(
+                    type=ConfidenceModifierType.BOOST,
+                    condition="chaos_mode",
+                    value=0.2,
+                    description="Boost confidence for chaotic web research"
+                ),
+                ConfidenceModifier(
+                    type=ConfidenceModifierType.BOOST,
+                    condition="web_interaction_task",
+                    value=0.15,
+                    description="Boost confidence for web automation tasks"
+                )
+            ],
+            parameter_schemas=[
+                ParameterSchema(
+                    name="action",
+                    type=ParameterType.STRING,
+                    description="Browser automation action to perform",
+                    required=True,
+                    default_value="navigate"
+                ),
+                ParameterSchema(
+                    name="url",
+                    type=ParameterType.STRING,
+                    description="Target URL for navigation",
+                    required=False,
+                    default_value="https://www.reddit.com/r/dankmemes"
+                ),
+                ParameterSchema(
+                    name="target",
+                    type=ParameterType.STRING,
+                    description="Target element or content",
+                    required=False,
+                    default_value="meme_content"
+                )
+            ]
+        )
+
 
 # Factory function to create the tool
 def create_browser_automation_tool(config: Optional[BrowserAutomationConfig] = None) -> BrowserAutomationTool:
     """Create a browser automation tool instance."""
     return BrowserAutomationTool(config)
 
+# Expected factory function name
+def get_browser_automation_tool(config: Optional[BrowserAutomationConfig] = None) -> BrowserAutomationTool:
+    """Get browser automation tool instance."""
+    return BrowserAutomationTool(config)
 
 # Default tool instance
 browser_automation_tool = create_browser_automation_tool()
+
+# Tool metadata for unified repository registration
+from app.tools.unified_tool_repository import ToolMetadata as UnifiedToolMetadata, ToolCategory, ToolAccessLevel
+
+BROWSER_AUTOMATION_TOOL_METADATA = UnifiedToolMetadata(
+    tool_id="browser_automation",
+    name="Browser Automation Tool",
+    description="Revolutionary browser automation tool with visual intelligence for creative web interactions",
+    category=ToolCategory.AUTOMATION,
+    access_level=ToolAccessLevel.PUBLIC,
+    requires_rag=False,
+    use_cases={"browser", "automation", "visual", "web", "chaos", "navigation", "element_detection", "form_filling", "data_extraction"}
+)

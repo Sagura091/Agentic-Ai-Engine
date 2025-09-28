@@ -110,7 +110,350 @@ class ConfigIntegration:
                    model=config.model_name, provider=config.model_provider)
         
         return config
-    
+
+    def create_builder_config_from_yaml(
+        self,
+        agent_id: str,
+        **overrides
+    ) -> AgentBuilderConfig:
+        """
+        Create an AgentBuilderConfig from individual agent YAML configuration.
+
+        Args:
+            agent_id: Unique agent identifier
+            **overrides: Configuration overrides
+
+        Returns:
+            Configured AgentBuilderConfig instance
+        """
+        try:
+            # Load individual agent configuration
+            agent_config = self.config_manager.get_individual_agent_config(agent_id)
+            if not agent_config:
+                raise ValueError(f"No YAML configuration found for agent: {agent_id}")
+
+            # Apply overrides
+            if overrides:
+                agent_config = self._deep_merge_configs(agent_config, overrides)
+
+            # Extract basic configuration
+            name = agent_config.get("name", f"Agent {agent_id}")
+            description = agent_config.get("description", f"Agent created from YAML configuration")
+
+            # Extract agent type and framework
+            agent_type_str = agent_config.get("agent_type", "react")
+            framework = agent_config.get("framework", "basic")
+
+            # Convert agent type string to enum
+            try:
+                agent_type = AgentType(agent_type_str.lower())
+            except ValueError:
+                logger.warning(f"Unknown agent type '{agent_type_str}', defaulting to REACT")
+                agent_type = AgentType.REACT
+
+            # Extract LLM configuration
+            llm_config_data = agent_config.get("llm_config", {})
+            llm_config = self._create_llm_config_from_yaml(llm_config_data)
+
+            # Extract capabilities
+            capabilities = self._extract_capabilities(agent_config)
+
+            # Extract tools from use_cases
+            tools = self._extract_tools_from_use_cases(agent_config)
+
+            # Extract memory configuration
+            memory_config = agent_config.get("memory_config", {})
+            memory_type = self._extract_memory_type(memory_config)
+            enable_memory = memory_config.get("enable_short_term", True) or memory_config.get("enable_long_term", True)
+
+            # Extract system prompt and personality
+            system_prompt = self._build_system_prompt(agent_config)
+
+            # Extract performance settings
+            performance_config = agent_config.get("performance", {})
+            timeout_seconds = performance_config.get("timeout_seconds", 300)
+            max_iterations = performance_config.get("max_iterations", 50)
+
+            # Extract autonomy settings for autonomous agents
+            autonomy_config = self._extract_autonomy_config(agent_config)
+
+            # Create AgentBuilderConfig
+            builder_config = AgentBuilderConfig(
+                name=name,
+                description=description,
+                agent_type=agent_type,
+                llm_config=llm_config,
+                capabilities=capabilities,
+                tools=tools,
+                system_prompt=system_prompt,
+                timeout_seconds=timeout_seconds,
+                max_iterations=max_iterations,
+                enable_memory=enable_memory,
+                memory_type=memory_type,
+                enable_learning=agent_config.get("enable_learning", False),
+                custom_config=autonomy_config
+            )
+
+            logger.info(f"Created AgentBuilderConfig from YAML for agent: {agent_id}")
+            return builder_config
+
+        except Exception as e:
+            logger.error(f"Failed to create builder config from YAML for agent {agent_id}: {str(e)}")
+            raise
+
+    def _create_llm_config_from_yaml(self, llm_config_data: Dict[str, Any]) -> LLMConfig:
+        """Create LLMConfig from YAML data."""
+        try:
+            provider_str = llm_config_data.get("provider", "ollama")
+            provider = ProviderType(provider_str.upper())
+        except ValueError:
+            logger.warning(f"Unknown provider '{provider_str}', defaulting to OLLAMA")
+            provider = ProviderType.OLLAMA
+
+        return LLMConfig(
+            provider=provider,
+            model_id=llm_config_data.get("model_id", "llama3.2:latest"),
+            model_name=llm_config_data.get("model_name", "Default Model"),
+            temperature=llm_config_data.get("temperature", 0.7),
+            max_tokens=llm_config_data.get("max_tokens", 2048),
+            top_p=llm_config_data.get("top_p", 0.95),
+            frequency_penalty=llm_config_data.get("frequency_penalty", 0.0),
+            presence_penalty=llm_config_data.get("presence_penalty", 0.0),
+            timeout_seconds=llm_config_data.get("timeout_seconds", 300),
+            max_retries=llm_config_data.get("max_retries", 3),
+            retry_delay_seconds=llm_config_data.get("retry_delay_seconds", 2),
+            manual_selection=llm_config_data.get("manual_selection", False)
+        )
+
+    def _extract_capabilities(self, agent_config: Dict[str, Any]) -> List[AgentCapability]:
+        """Extract capabilities from agent configuration."""
+        capabilities = []
+
+        # Add capabilities based on agent type
+        agent_type = agent_config.get("agent_type", "react")
+        if agent_type in ["react", "autonomous"]:
+            capabilities.extend([AgentCapability.REASONING, AgentCapability.TOOL_USE])
+
+        # Add memory capability if memory is enabled
+        memory_config = agent_config.get("memory_config", {})
+        if any(memory_config.get(key, False) for key in ["enable_short_term", "enable_long_term", "enable_episodic"]):
+            capabilities.append(AgentCapability.MEMORY)
+
+        # Add learning capability if enabled
+        if agent_config.get("enable_learning", False):
+            capabilities.append(AgentCapability.LEARNING)
+
+        # Add planning capability for autonomous agents
+        if agent_type == "autonomous":
+            capabilities.append(AgentCapability.PLANNING)
+
+        # Add collaboration capability if enabled
+        if agent_config.get("enable_collaboration", False):
+            capabilities.append(AgentCapability.COLLABORATION)
+
+        return capabilities
+
+    def _extract_tools_from_use_cases(self, agent_config: Dict[str, Any]) -> List[str]:
+        """Extract tools based on use cases OR direct tools specification."""
+        # First check for direct tools specification (preferred method)
+        direct_tools = agent_config.get("tools", [])
+        if direct_tools:
+            logger.info(f"Found direct tools specification: {direct_tools}")
+            return direct_tools
+
+        # Fall back to use_cases mapping for backward compatibility
+        use_cases = agent_config.get("use_cases", [])
+        if not use_cases:
+            logger.warning("No tools or use_cases found in agent configuration")
+            return []
+
+        # Map use cases to tools (this would be enhanced with actual tool repository integration)
+        tool_mapping = {
+            "business_analysis": ["business_intelligence", "revolutionary_web_scraper"],
+            "document_generation": ["revolutionary_document_intelligence"],
+            "excel_processing": ["revolutionary_document_intelligence", "business_intelligence"],
+            "financial_analysis": ["business_intelligence", "calculator"],
+            "data_generation": ["business_intelligence"],
+            "web_research": ["revolutionary_web_scraper", "web_search"],
+            "text_processing": ["text_processing_nlp"],
+            "social_media": ["social_media_orchestrator"],
+            "music_composition": ["ai_music_composition"],
+            "image_analysis": ["screenshot_analysis", "image_processing"],
+            "file_operations": ["file_system_operations"],
+            "api_integration": ["api_integration_tool"]
+        }
+
+        tools = set()
+        for use_case in use_cases:
+            if use_case in tool_mapping:
+                tools.update(tool_mapping[use_case])
+
+        logger.info(f"Extracted tools from use_cases {use_cases}: {list(tools)}")
+        return list(tools)
+
+    def _extract_memory_type(self, memory_config: Dict[str, Any]) -> MemoryType:
+        """Extract memory type from configuration."""
+        memory_type_str = memory_config.get("memory_type", "simple")
+
+        try:
+            return MemoryType(memory_type_str.upper())
+        except ValueError:
+            logger.warning(f"Unknown memory type '{memory_type_str}', defaulting to SIMPLE")
+            return MemoryType.SIMPLE
+
+    def _build_system_prompt(self, agent_config: Dict[str, Any]) -> str:
+        """Build system prompt from configuration."""
+        # Get base system prompt
+        base_prompt = agent_config.get("system_prompt", "")
+
+        if base_prompt:
+            return base_prompt
+
+        # Build system prompt from personality and expertise
+        personality = agent_config.get("personality", {})
+        name = agent_config.get("name", "AI Agent")
+        description = agent_config.get("description", "An AI assistant")
+
+        expertise_areas = personality.get("expertise_areas", [])
+        communication_style = personality.get("communication_style", "professional")
+        creativity_level = personality.get("creativity_level", "balanced")
+
+        prompt_parts = [
+            f"You are {name}, {description}.",
+            "",
+            "Your capabilities include:"
+        ]
+
+        if expertise_areas:
+            for area in expertise_areas:
+                prompt_parts.append(f"- Expert knowledge in {area}")
+
+        prompt_parts.extend([
+            "",
+            f"Communication style: {communication_style}",
+            f"Creativity level: {creativity_level}",
+            "",
+            "Always provide helpful, accurate, and relevant responses while maintaining your specified personality and expertise."
+        ])
+
+        return "\n".join(prompt_parts)
+
+    def _extract_autonomy_config(self, agent_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract autonomy configuration for autonomous agents."""
+        autonomy_config = {}
+
+        # Extract autonomy level
+        autonomy_level = agent_config.get("autonomy_level", "reactive")
+        autonomy_config["autonomy_level"] = autonomy_level
+
+        # Extract decision settings
+        autonomy_config["decision_threshold"] = agent_config.get("decision_threshold", 0.6)
+        autonomy_config["decision_confidence"] = agent_config.get("decision_confidence", "medium")
+
+        # Extract learning settings
+        autonomy_config["learning_mode"] = agent_config.get("learning_mode", "passive")
+
+        # Extract proactive behavior settings
+        autonomy_config["enable_proactive_behavior"] = agent_config.get("enable_proactive_behavior", False)
+        autonomy_config["enable_goal_setting"] = agent_config.get("enable_goal_setting", False)
+        autonomy_config["enable_self_improvement"] = agent_config.get("enable_self_improvement", False)
+
+        # Extract RAG configuration
+        rag_config = agent_config.get("rag_config", {})
+        autonomy_config["rag_config"] = rag_config
+
+        return autonomy_config
+
+    def _deep_merge_configs(self, base_config: Dict[str, Any], override_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Deep merge two configuration dictionaries."""
+        result = base_config.copy()
+
+        for key, value in override_config.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = self._deep_merge_configs(result[key], value)
+            else:
+                result[key] = value
+
+        return result
+        agent_config = self.config_manager.get_individual_agent_config(agent_id)
+
+        # Extract required fields
+        name = agent_config.get("name", agent_id)
+        description = agent_config.get("description", f"Agent {agent_id}")
+        agent_type_str = agent_config.get("agent_type", "autonomous")
+
+        # Convert agent type string to enum
+        try:
+            from app.agents.factory import AgentType
+            agent_type = AgentType(agent_type_str)
+        except ValueError:
+            logger.warning(f"Unknown agent type '{agent_type_str}', defaulting to AUTONOMOUS")
+            agent_type = AgentType.AUTONOMOUS
+
+        # Extract LLM configuration
+        llm_config_dict = agent_config.get("llm_config", {})
+        provider_name = llm_config_dict.get("provider", "ollama")
+        provider_type = self._get_provider_type(provider_name)
+
+        llm_config_obj = LLMConfig(
+            provider=provider_type,
+            model_id=llm_config_dict.get("model_id", "llama3.2:latest"),
+            temperature=llm_config_dict.get("temperature", 0.7),
+            max_tokens=llm_config_dict.get("max_tokens", 2048),
+            timeout_seconds=llm_config_dict.get("timeout_seconds", 300)
+        )
+
+        # Extract capabilities
+        capabilities_list = agent_config.get("capabilities", [])
+        capabilities = [AgentCapability(cap) for cap in capabilities_list if hasattr(AgentCapability, cap.upper())]
+
+        # Extract tools (use_cases for dynamic tool selection)
+        use_cases = agent_config.get("use_cases", [])
+        tools = agent_config.get("tools", [])
+
+        # Extract memory configuration
+        memory_config_dict = agent_config.get("memory_config", {})
+        memory_type_str = memory_config_dict.get("memory_type", "simple")
+        memory_type = self._get_memory_type(memory_type_str)
+
+        # Extract execution settings
+        execution_config = agent_config.get("execution", {})
+
+        # Create AgentBuilderConfig
+        config = AgentBuilderConfig(
+            name=name,
+            description=description,
+            agent_type=agent_type,
+            llm_config=llm_config_obj,
+            capabilities=capabilities,
+            tools=tools,
+            system_prompt=agent_config.get("system_prompt", ""),
+            max_iterations=execution_config.get("max_iterations", 50),
+            timeout_seconds=execution_config.get("timeout_seconds", 300),
+            enable_memory=memory_config_dict.get("enable_short_term", True),
+            enable_learning=agent_config.get("enable_continuous_learning", False),
+            enable_collaboration=agent_config.get("enable_peer_learning", False),
+            memory_type=memory_type,
+            memory_config=memory_config_dict,
+            custom_config={
+                "use_cases": use_cases,
+                "autonomy_level": agent_config.get("autonomy_level", "adaptive"),
+                "decision_threshold": agent_config.get("decision_threshold", 0.6),
+                "learning_mode": agent_config.get("learning_mode", "active"),
+                "rag_config": agent_config.get("rag_config", {}),
+                "personality": agent_config.get("personality", {}),
+                "safety_constraints": agent_config.get("safety_constraints", []),
+                "ethical_guidelines": agent_config.get("ethical_guidelines", []),
+                **overrides.get("custom_config", {})
+            }
+        )
+
+        logger.info("Created builder config from individual agent YAML",
+                   agent_id=agent_id, name=name, agent_type=agent_type.value,
+                   provider=provider_name, model=llm_config_obj.model_id)
+
+        return config
+
     def create_builder_config(
         self,
         name: str,

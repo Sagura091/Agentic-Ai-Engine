@@ -37,7 +37,7 @@ logger = structlog.get_logger(__name__)
 
 
 class ToolCategory(str, Enum):
-    """Categories of tools in the repository - ENHANCED WITH AUTOMATION."""
+    """Categories of tools in the repository - ENHANCED WITH AUTOMATION AND TRADING."""
     RAG_ENABLED = "rag_enabled"       # Tools that use RAG system
     COMPUTATION = "computation"       # Calculator, math tools
     COMMUNICATION = "communication"   # Agent communication tools
@@ -48,6 +48,10 @@ class ToolCategory(str, Enum):
     ANALYSIS = "analysis"             # Text processing, NLP, analytics
     SECURITY = "security"             # Password, security, authentication
     AUTOMATION = "automation"         # Browser automation, desktop automation, visual analysis
+    TRADING = "trading"               # Stock trading, financial analysis, market data
+    PRODUCTIVITY = "productivity"     # Document generation, file creation, productivity tools
+    CREATIVE = "creative"             # Music, art, content creation, creative tools
+    SOCIAL_MEDIA = "social_media"     # Social media management, content distribution
 
 
 class ToolAccessLevel(str, Enum):
@@ -244,6 +248,30 @@ class UnifiedToolRepository:
                         tool = self.tools[tool_id]
                         if tool not in selected_tools:
                             selected_tools.append(tool)
+                else:
+                    # Handle new use cases by loading appropriate tools
+                    await self._load_tools_for_new_use_case(use_case)
+
+                    # Retry after loading
+                    if use_case in self.use_case_tools:
+                        for tool_id in self.use_case_tools[use_case]:
+                            metadata = self.tool_metadata[tool_id]
+
+                            # Check if agent can access this tool
+                            if not self._can_agent_access_tool(agent_id, tool_id):
+                                continue
+
+                            # Check RAG requirements
+                            if metadata.requires_rag and not include_rag_tools:
+                                continue
+
+                            if metadata.requires_rag and not profile.rag_enabled:
+                                continue
+
+                            # Add tool if not already added
+                            tool = self.tools[tool_id]
+                            if tool not in selected_tools:
+                                selected_tools.append(tool)
 
             logger.debug(f"Selected {len(selected_tools)} tools for agent {agent_id} with use cases: {use_cases}")
             return selected_tools
@@ -407,8 +435,28 @@ class UnifiedToolRepository:
             logger.error(f"Failed to record tool usage: {str(e)}")
 
     def get_tool(self, tool_id: str) -> Optional[BaseTool]:
-        """Get a tool by ID."""
-        return self.tools.get(tool_id)
+        """Get a tool by ID, loading it on-demand if needed."""
+        # Check if tool is already loaded
+        if tool_id in self.tools:
+            return self.tools[tool_id]
+
+        # Try to load the tool on-demand
+        try:
+            import asyncio
+            # Run the async loading in the current event loop
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If we're in an async context, we can't use run_until_complete
+                # So we'll need to handle this differently
+                logger.warning(f"Tool {tool_id} not loaded yet - consider using async loading")
+                return None
+            else:
+                # Load the tool synchronously
+                loop.run_until_complete(self._load_tool_on_demand(tool_id))
+                return self.tools.get(tool_id)
+        except Exception as e:
+            logger.error(f"Failed to load tool {tool_id} on-demand: {str(e)}")
+            return None
 
     def get_tool_metadata(self, tool_id: str) -> Optional[ToolMetadata]:
         """Get tool metadata by ID."""
@@ -426,6 +474,546 @@ class UnifiedToolRepository:
             "tools_count": len(self.tools),
             "agent_profiles_count": len(self.agent_profiles)
         }
+
+    # ================================
+    # 🚀 ENHANCED TOOL LOADING METHODS
+    # ================================
+
+    async def _load_tools_for_new_use_case(self, use_case: str):
+        """Load tools for a new use case dynamically."""
+        try:
+            # Map use cases to tools - ENHANCED MAPPING
+            use_case_tool_mapping = {
+                'stock_trading': ['advanced_stock_trading'],
+                'financial_analysis': ['advanced_stock_trading', 'general_business_intelligence'],
+                'business_analysis': ['general_business_intelligence'],
+                'document_generation': ['revolutionary_file_generation'],
+                'web_research': ['revolutionary_web_scraper'],
+                'data_analysis': ['calculator'],
+                'risk_management': ['advanced_stock_trading'],
+                'trading': ['advanced_stock_trading'],
+                'market_analysis': ['advanced_stock_trading'],
+                'portfolio_management': ['advanced_stock_trading']
+            }
+
+            if use_case in use_case_tool_mapping:
+                tool_names = use_case_tool_mapping[use_case]
+
+                for tool_name in tool_names:
+                    if tool_name == 'advanced_stock_trading':
+                        await self._load_stock_trading_tool()
+                    elif tool_name == 'revolutionary_file_generation':
+                        await self._load_file_generation_tool()
+                    # Add other tool loading logic here as needed
+
+        except Exception as e:
+            logger.error(f"Failed to load tools for use case {use_case}: {str(e)}")
+
+    async def _load_tool_on_demand(self, tool_id: str) -> bool:
+        """Load a specific tool on-demand."""
+        try:
+            if tool_id == 'advanced_stock_trading':
+                await self._load_stock_trading_tool()
+                return True
+            elif tool_id == 'revolutionary_file_generation':
+                await self._load_file_generation_tool()
+                return True
+            elif tool_id == 'screen_capture':
+                await self._load_screen_capture_tool()
+                return True
+            elif tool_id == 'viral_content_generator':
+                await self._load_viral_content_generator_tool()
+                return True
+            elif tool_id == 'ai_music_composition':
+                await self._load_ai_music_composition_tool()
+                return True
+            elif tool_id == 'ai_lyric_vocal_synthesis':
+                await self._load_ai_lyric_vocal_synthesis_tool()
+                return True
+            elif tool_id == 'meme_generation':
+                await self._load_meme_generation_tool()
+                return True
+            elif tool_id == 'meme_collection':
+                await self._load_meme_collection_tool()
+                return True
+            elif tool_id == 'meme_analysis':
+                await self._load_meme_analysis_tool()
+                return True
+            elif tool_id == 'social_media_orchestrator':
+                await self._load_social_media_orchestrator_tool()
+                return True
+            elif tool_id == 'revolutionary_web_scraper':
+                await self._load_revolutionary_web_scraper_tool()
+                return True
+            elif tool_id == 'calculator':
+                await self._load_calculator_tool()
+                return True
+            elif tool_id == 'text_processing_nlp':
+                await self._load_text_processing_nlp_tool()
+                return True
+            elif tool_id == 'browser_automation':
+                await self._load_browser_automation_tool()
+                return True
+            elif tool_id == 'notification_alert':
+                await self._load_notification_alert_tool()
+                return True
+            else:
+                logger.warning(f"No on-demand loader available for tool: {tool_id}")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to load tool {tool_id} on-demand: {str(e)}")
+            return False
+
+    async def _load_stock_trading_tool(self):
+        """Load the advanced stock trading tool."""
+        try:
+            from app.tools.production.advanced_stock_trading_tool import AdvancedStockTradingTool
+
+            tool_instance = AdvancedStockTradingTool()
+
+            metadata = ToolMetadata(
+                tool_id="advanced_stock_trading",
+                name="Advanced Stock Trading Tool",
+                description="Comprehensive stock trading tool with real-time analysis and decision-making",
+                category=ToolCategory.TRADING,
+                access_level=ToolAccessLevel.PUBLIC,
+                requires_rag=False,
+                use_cases={
+                    "stock_trading",
+                    "financial_analysis",
+                    "trading",
+                    "market_analysis",
+                    "portfolio_management",
+                    "risk_management"
+                }
+            )
+
+            await self.register_tool(tool_instance, metadata)
+            logger.info("Advanced stock trading tool loaded successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to load stock trading tool: {str(e)}")
+
+    async def _load_file_generation_tool(self):
+        """Load the revolutionary file generation tool."""
+        try:
+            from app.tools.production.revolutionary_file_generation_tool import RevolutionaryFileGenerationTool
+
+            tool_instance = RevolutionaryFileGenerationTool()
+
+            metadata = ToolMetadata(
+                tool_id="revolutionary_file_generation",
+                name="Revolutionary File Generation Tool",
+                description="The most powerful document generation system ever created - generates ANY type of file",
+                category=ToolCategory.PRODUCTIVITY,
+                access_level=ToolAccessLevel.PUBLIC,
+                requires_rag=False,
+                use_cases={
+                    "document_generation",
+                    "file_creation",
+                    "report_generation",
+                    "data_export",
+                    "presentation_creation",
+                    "spreadsheet_generation",
+                    "visualization_creation",
+                    "web_development",
+                    "file_modification",
+                    "batch_processing"
+                }
+            )
+
+            await self.register_tool(tool_instance, metadata)
+            logger.info("Revolutionary file generation tool loaded successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to load file generation tool: {str(e)}")
+
+    async def _load_screen_capture_tool(self):
+        """Load screen capture tool on-demand."""
+        try:
+            from app.tools.production.screen_capture_tool import get_screen_capture_tool, SCREEN_CAPTURE_TOOL_METADATA
+
+            tool_instance = get_screen_capture_tool()
+
+            # Register with metadata system
+            from app.tools.metadata import get_global_registry
+            registry = get_global_registry()
+            registry.register_tool(tool_instance)
+
+            await self.register_tool(tool_instance, SCREEN_CAPTURE_TOOL_METADATA)
+            logger.info("✅ Screen capture tool loaded on-demand")
+        except Exception as e:
+            logger.error(f"Failed to load screen capture tool: {str(e)}")
+
+    async def _load_viral_content_generator_tool(self):
+        """Load viral content generator tool on-demand."""
+        try:
+            from app.tools.social_media.viral_content_generator_tool import get_viral_content_generator_tool, VIRAL_CONTENT_GENERATOR_TOOL_METADATA
+
+            tool_instance = get_viral_content_generator_tool()
+
+            # Register with metadata system
+            from app.tools.metadata import get_global_registry
+            registry = get_global_registry()
+            registry.register_tool(tool_instance)
+
+            await self.register_tool(tool_instance, VIRAL_CONTENT_GENERATOR_TOOL_METADATA)
+            logger.info("✅ Viral content generator tool loaded on-demand")
+        except Exception as e:
+            logger.error(f"Failed to load viral content generator tool: {str(e)}")
+
+    async def _load_ai_music_composition_tool(self):
+        """Load AI music composition tool on-demand."""
+        try:
+            from app.tools.production.ai_music_composition_tool import get_ai_music_composition_tool, AI_MUSIC_COMPOSITION_TOOL_METADATA
+
+            tool_instance = get_ai_music_composition_tool()
+
+            # Register with metadata system
+            from app.tools.metadata import get_global_registry
+            registry = get_global_registry()
+            registry.register_tool(tool_instance)
+
+            await self.register_tool(tool_instance, AI_MUSIC_COMPOSITION_TOOL_METADATA)
+            logger.info("✅ AI music composition tool loaded on-demand")
+        except Exception as e:
+            logger.error(f"Failed to load AI music composition tool: {str(e)}")
+
+    async def _load_ai_lyric_vocal_synthesis_tool(self):
+        """Load AI lyric vocal synthesis tool on-demand."""
+        try:
+            from app.tools.production.ai_lyric_vocal_synthesis_tool import get_ai_lyric_vocal_synthesis_tool
+
+            tool_instance = get_ai_lyric_vocal_synthesis_tool()
+
+            # Register with metadata system
+            from app.tools.metadata import get_global_registry
+            registry = get_global_registry()
+            registry.register_tool(tool_instance)
+
+            await self.register_tool(tool_instance, None)  # Metadata handled by registry
+            logger.info("✅ AI lyric vocal synthesis tool loaded on-demand")
+        except Exception as e:
+            logger.error(f"Failed to load AI lyric vocal synthesis tool: {str(e)}")
+
+    # ================================
+    # 🚀 REVOLUTIONARY AUTO-DISCOVERY INTEGRATION
+    # ================================
+
+    async def auto_discover_and_register_tools(self) -> Dict[str, Any]:
+        """
+        Automatically discover and register all tools using the revolutionary auto-discovery system.
+
+        Returns:
+            Comprehensive discovery and registration report
+        """
+        try:
+            logger.info("🔍 Starting revolutionary auto-discovery and registration...")
+
+            # Import auto-discovery systems
+            from app.tools.auto_discovery.tool_scanner import ToolAutoDiscovery
+            from app.tools.auto_discovery.enhanced_registration import EnhancedRegistrationSystem
+
+            # Initialize auto-discovery
+            auto_discovery = ToolAutoDiscovery(self)
+
+            # Discover all tools
+            discovered_tools = await auto_discovery.discover_all_tools()
+            logger.info(f"🔍 Discovered {len(discovered_tools)} tools")
+
+            # Initialize enhanced registration
+            registration_system = EnhancedRegistrationSystem(self)
+
+            # Register discovered tools
+            validated_tools = [
+                tool_info for tool_info in discovered_tools.values()
+                if tool_info.status.value in ['validated', 'discovered']
+            ]
+
+            registration_results = await registration_system.register_tools_batch(validated_tools)
+
+            # Generate comprehensive report
+            discovery_report = auto_discovery.generate_discovery_report()
+            registration_report = registration_system.get_registration_report()
+
+            combined_report = {
+                "auto_discovery_enabled": True,
+                "discovery_results": discovery_report,
+                "registration_results": registration_report,
+                "total_tools_discovered": len(discovered_tools),
+                "total_tools_registered": len([r for r in registration_results.values() if r.value == 'registered']),
+                "system_health": await self._generate_system_health_report(),
+                "recommendations": self._generate_combined_recommendations(discovery_report, registration_report)
+            }
+
+            logger.info("🚀 Revolutionary auto-discovery and registration complete!")
+            return combined_report
+
+        except Exception as e:
+            logger.error(f"Auto-discovery and registration failed: {str(e)}")
+            return {
+                "auto_discovery_enabled": False,
+                "error": str(e),
+                "fallback_mode": True
+            }
+
+    async def test_all_registered_tools(self) -> Dict[str, Any]:
+        """
+        Test all registered tools using the universal testing framework.
+
+        Returns:
+            Comprehensive testing report
+        """
+        try:
+            logger.info("🧪 Starting comprehensive tool testing...")
+
+            from app.tools.testing.universal_tool_tester import UniversalToolTester
+
+            tester = UniversalToolTester()
+            test_results = {}
+
+            for tool_id, tool_instance in self.tools.items():
+                try:
+                    logger.info(f"🧪 Testing tool: {tool_id}")
+                    test_result = await tester.test_tool_comprehensive(tool_instance)
+                    test_results[tool_id] = {
+                        "overall_success": test_result.overall_success,
+                        "quality_score": test_result.quality_score,
+                        "issues_count": len(test_result.issues),
+                        "critical_issues": len([i for i in test_result.issues if i.severity.value == 'critical']),
+                        "execution_time": test_result.metrics.execution_time,
+                        "memory_usage": test_result.metrics.memory_usage,
+                        "recommendations": test_result.recommendations
+                    }
+                except Exception as e:
+                    test_results[tool_id] = {
+                        "overall_success": False,
+                        "error": str(e),
+                        "quality_score": 0.0
+                    }
+
+            # Generate summary
+            successful_tests = sum(1 for r in test_results.values() if r.get("overall_success", False))
+            avg_quality_score = sum(r.get("quality_score", 0) for r in test_results.values()) / len(test_results) if test_results else 0
+
+            testing_report = {
+                "testing_timestamp": datetime.utcnow().isoformat(),
+                "total_tools_tested": len(test_results),
+                "successful_tests": successful_tests,
+                "failed_tests": len(test_results) - successful_tests,
+                "average_quality_score": avg_quality_score,
+                "test_results": test_results,
+                "system_recommendations": self._generate_testing_recommendations(test_results)
+            }
+
+            logger.info(f"🧪 Testing complete: {successful_tests}/{len(test_results)} tools passed")
+            return testing_report
+
+        except Exception as e:
+            logger.error(f"Tool testing failed: {str(e)}")
+            return {
+                "testing_enabled": False,
+                "error": str(e)
+            }
+
+    async def _generate_system_health_report(self) -> Dict[str, Any]:
+        """Generate system health report."""
+        return {
+            "total_tools": len(self.tools),
+            "total_metadata": len(self.tool_metadata),
+            "agent_profiles": len(self.agent_profiles),
+            "use_cases_mapped": len(self.use_case_tools),
+            "repository_initialized": self.is_initialized,
+            "stats": self.stats
+        }
+
+    def _generate_combined_recommendations(self, discovery_report: Dict, registration_report: Dict) -> List[str]:
+        """Generate combined recommendations from discovery and registration reports."""
+        recommendations = []
+
+        # Add discovery recommendations
+        if "recommendations" in discovery_report:
+            recommendations.extend(discovery_report["recommendations"])
+
+        # Add registration recommendations
+        if "recommendations" in registration_report:
+            recommendations.extend(registration_report["recommendations"])
+
+        # Add system-level recommendations
+        if len(self.tools) < 10:
+            recommendations.append("🔧 Consider adding more tools to expand system capabilities")
+
+        if self.stats["rag_enabled_tools"] == 0:
+            recommendations.append("🧠 Consider adding RAG-enabled tools for enhanced knowledge capabilities")
+
+        return list(set(recommendations))  # Remove duplicates
+
+    def _generate_testing_recommendations(self, test_results: Dict) -> List[str]:
+        """Generate recommendations based on testing results."""
+        recommendations = []
+
+        failed_tools = [tool_id for tool_id, result in test_results.items() if not result.get("overall_success", False)]
+        if failed_tools:
+            recommendations.append(f"🔧 Fix {len(failed_tools)} failing tools: {', '.join(failed_tools[:5])}")
+
+        low_quality_tools = [
+            tool_id for tool_id, result in test_results.items()
+            if result.get("quality_score", 0) < 50
+        ]
+        if low_quality_tools:
+            recommendations.append(f"⚡ Improve {len(low_quality_tools)} low-quality tools")
+
+        slow_tools = [
+            tool_id for tool_id, result in test_results.items()
+            if result.get("execution_time", 0) > 5.0
+        ]
+        if slow_tools:
+            recommendations.append(f"🚀 Optimize {len(slow_tools)} slow-performing tools")
+
+        return recommendations
+
+    async def _load_meme_generation_tool(self):
+        """Load meme generation tool on-demand."""
+        try:
+            from app.tools.meme_generation_tool import meme_generation_tool, MEME_GENERATION_TOOL_METADATA
+
+            # Register with metadata system
+            from app.tools.metadata import get_global_registry
+            registry = get_global_registry()
+            registry.register_tool(meme_generation_tool)
+
+            await self.register_tool(meme_generation_tool, MEME_GENERATION_TOOL_METADATA)
+            logger.info("✅ Meme generation tool loaded on-demand")
+        except Exception as e:
+            logger.error(f"Failed to load meme generation tool: {str(e)}")
+
+    async def _load_meme_collection_tool(self):
+        """Load meme collection tool on-demand."""
+        try:
+            from app.tools.meme_collection_tool import meme_collection_tool, MEME_COLLECTION_TOOL_METADATA
+            from app.tools.metadata import get_global_registry
+
+            # Register with metadata system
+            registry = get_global_registry()
+            registry.register_tool(meme_collection_tool)
+
+            await self.register_tool(meme_collection_tool, MEME_COLLECTION_TOOL_METADATA)
+            logger.info("✅ Meme collection tool loaded on-demand")
+        except Exception as e:
+            logger.error(f"Failed to load meme collection tool: {str(e)}")
+
+    async def _load_meme_analysis_tool(self):
+        """Load meme analysis tool on-demand."""
+        try:
+            from app.tools.meme_analysis_tool import meme_analysis_tool, MEME_ANALYSIS_TOOL_METADATA
+            from app.tools.metadata import get_global_registry
+
+            # Register with metadata system
+            registry = get_global_registry()
+            registry.register_tool(meme_analysis_tool)
+
+            await self.register_tool(meme_analysis_tool, MEME_ANALYSIS_TOOL_METADATA)
+            logger.info("✅ Meme analysis tool loaded on-demand")
+        except Exception as e:
+            logger.error(f"Failed to load meme analysis tool: {str(e)}")
+
+    async def _load_social_media_orchestrator_tool(self):
+        """Load social media orchestrator tool on-demand."""
+        try:
+            from app.tools.social_media.social_media_orchestrator_tool import get_social_media_orchestrator_tool, SOCIAL_MEDIA_ORCHESTRATOR_TOOL_METADATA
+
+            tool_instance = get_social_media_orchestrator_tool()
+
+            # Register with metadata system
+            from app.tools.metadata import get_global_registry
+            registry = get_global_registry()
+            registry.register_tool(tool_instance)
+
+            await self.register_tool(tool_instance, SOCIAL_MEDIA_ORCHESTRATOR_TOOL_METADATA)
+            logger.info("✅ Social media orchestrator tool loaded on-demand")
+        except Exception as e:
+            logger.error(f"Failed to load social media orchestrator tool: {str(e)}")
+
+    async def _load_revolutionary_web_scraper_tool(self):
+        """Load revolutionary web scraper tool on-demand."""
+        try:
+            from app.tools.production.revolutionary_web_scraper_tool import get_revolutionary_web_scraper_tool
+            from app.tools.metadata import get_global_registry
+
+            tool_instance = get_revolutionary_web_scraper_tool()
+
+            # Register with metadata system
+            registry = get_global_registry()
+            registry.register_tool(tool_instance)
+
+            await self.register_tool(tool_instance, None)  # Metadata handled by registry
+            logger.info("✅ Revolutionary web scraper tool loaded on-demand")
+        except Exception as e:
+            logger.error(f"Failed to load revolutionary web scraper tool: {str(e)}")
+
+    async def _load_calculator_tool(self):
+        """Load calculator tool on-demand."""
+        try:
+            from app.tools.calculator_tool import calculator_tool, CALCULATOR_TOOL_METADATA
+            from app.tools.metadata import get_global_registry
+
+            # Register with metadata system
+            registry = get_global_registry()
+            registry.register_tool(calculator_tool)
+
+            await self.register_tool(calculator_tool, CALCULATOR_TOOL_METADATA)
+            logger.info("✅ Calculator tool loaded on-demand")
+        except Exception as e:
+            logger.error(f"Failed to load calculator tool: {str(e)}")
+
+    async def _load_text_processing_nlp_tool(self):
+        """Load text processing NLP tool on-demand."""
+        try:
+            from app.tools.production.text_processing_nlp_tool import get_text_processing_nlp_tool, TEXT_PROCESSING_NLP_TOOL_METADATA
+
+            tool_instance = get_text_processing_nlp_tool()
+
+            # Register with metadata system
+            from app.tools.metadata import get_global_registry
+            registry = get_global_registry()
+            registry.register_tool(tool_instance)
+
+            await self.register_tool(tool_instance, TEXT_PROCESSING_NLP_TOOL_METADATA)
+            logger.info("✅ Text processing NLP tool loaded on-demand")
+        except Exception as e:
+            logger.error(f"Failed to load text processing NLP tool: {str(e)}")
+
+    async def _load_browser_automation_tool(self):
+        """Load browser automation tool on-demand."""
+        try:
+            from app.tools.production.browser_automation_tool import get_browser_automation_tool, BROWSER_AUTOMATION_TOOL_METADATA
+            from app.tools.metadata import get_global_registry
+
+            tool_instance = get_browser_automation_tool()
+
+            # Register with metadata system
+            registry = get_global_registry()
+            registry.register_tool(tool_instance)
+
+            await self.register_tool(tool_instance, BROWSER_AUTOMATION_TOOL_METADATA)
+            logger.info("✅ Browser automation tool loaded on-demand")
+        except Exception as e:
+            logger.error(f"Failed to load browser automation tool: {str(e)}")
+
+    async def _load_notification_alert_tool(self):
+        """Load notification alert tool on-demand."""
+        try:
+            from app.tools.production.notification_alert_tool import notification_alert_tool, NOTIFICATION_ALERT_TOOL_METADATA
+            from app.tools.metadata import get_global_registry
+
+            # Register with metadata system
+            registry = get_global_registry()
+            registry.register_tool(notification_alert_tool)
+
+            await self.register_tool(notification_alert_tool, NOTIFICATION_ALERT_TOOL_METADATA)
+            logger.info("✅ Notification alert tool loaded on-demand")
+        except Exception as e:
+            logger.error(f"Failed to load notification alert tool: {str(e)}")
 
 
 # Global instance
@@ -448,4 +1036,6 @@ def get_unified_tool_repository() -> Optional[UnifiedToolRepository]:
             logger.error(f"Failed to get unified tool repository: {e}")
 
     return _unified_tool_repository
+
+
 

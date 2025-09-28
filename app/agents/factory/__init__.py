@@ -224,6 +224,67 @@ class AgentBuilderFactory:
         
         return await self.build_agent(config)
 
+    async def build_agent_from_yaml(self, agent_id: str, **overrides) -> Union[LangGraphAgent, AutonomousLangGraphAgent]:
+        """
+        Build an agent from individual YAML configuration.
+
+        Args:
+            agent_id: Unique agent identifier
+            **overrides: Configuration overrides
+
+        Returns:
+            Configured agent instance
+        """
+        try:
+            from app.config.agent_config_integration import ConfigIntegration
+
+            # Create config integration
+            config_integration = ConfigIntegration()
+
+            # Get the full YAML configuration for metadata-driven decision engine
+            full_yaml_config = config_integration.config_manager.get_individual_agent_config(agent_id)
+
+            # Create builder config from YAML
+            config = config_integration.create_builder_config_from_yaml(agent_id, **overrides)
+
+            # Build the agent using the standard build process, but pass full YAML config for autonomous agents
+            if config.agent_type.value == "autonomous":
+                agent = await self._build_autonomous_agent_with_yaml(config, full_yaml_config)
+            else:
+                agent = await self.build_agent(config)
+
+            logger.info("Agent built from YAML configuration",
+                       agent_id=agent_id,
+                       name=config.name,
+                       type=config.agent_type.value)
+
+            return agent
+
+        except Exception as e:
+            logger.error("Failed to build agent from YAML",
+                        agent_id=agent_id,
+                        error=str(e))
+            raise
+
+            # Create builder config from YAML
+            config = config_integration.create_builder_config_from_yaml(agent_id, **overrides)
+
+            # Build the agent using the standard build process
+            agent = await self.build_agent(config)
+
+            logger.info("Agent built from YAML configuration",
+                       agent_id=agent_id,
+                       name=config.name,
+                       type=config.agent_type.value)
+
+            return agent
+
+        except Exception as e:
+            logger.error("Failed to build agent from YAML",
+                        agent_id=agent_id,
+                        error=str(e))
+            raise
+
     def _determine_memory_type(self, config: AgentBuilderConfig) -> MemoryType:
         """
         Determine the appropriate memory type for an agent.
@@ -504,6 +565,37 @@ class AgentBuilderFactory:
         tools = await self._get_agent_tools(config.tools)
         return AutonomousLangGraphAgent(config=autonomous_config, llm=llm, tools=tools)
 
+    async def _build_autonomous_agent_with_yaml(self, config: AgentBuilderConfig, full_yaml_config: Dict[str, Any]) -> AutonomousLangGraphAgent:
+        """Build an autonomous agent with full YAML configuration for metadata-driven decision engine."""
+        from app.agents.autonomous import AutonomyLevel, LearningMode
+
+        autonomous_config = AutonomousAgentConfig(
+            name=config.name,
+            description=config.description,
+            autonomy_level=AutonomyLevel.AUTONOMOUS,
+            learning_mode=LearningMode.ACTIVE if config.enable_learning else LearningMode.PASSIVE,
+            capabilities=config.capabilities,
+            enable_proactive_behavior=True,
+            enable_goal_setting=True,
+            enable_self_modification=config.enable_learning,
+            safety_constraints=["verify_actions", "respect_boundaries", "maintain_ethics"]
+        )
+
+        # Get optimal LLM configuration
+        optimal_llm_config = await self.llm_manager.get_model_for_agent(config)
+        llm = await self.llm_manager.create_llm_instance(optimal_llm_config)
+
+        # Get tools from the unified tool repository
+        tools = await self._get_agent_tools(config.tools)
+
+        # Create autonomous agent with full YAML config
+        return AutonomousLangGraphAgent(
+            config=autonomous_config,
+            llm=llm,
+            tools=tools,
+            full_yaml_config=full_yaml_config
+        )
+
     async def _get_agent_tools(self, tool_names: List[str]) -> List:
         """
         Get actual tool instances from the unified tool repository.
@@ -529,6 +621,12 @@ class AgentBuilderFactory:
                 logger.info(f"📋 Available tools in repository: {available_tools}")
 
                 for tool_name in tool_names:
+                    # Try to load tool on-demand first
+                    try:
+                        await orchestrator.tool_repository._load_tool_on_demand(tool_name)
+                    except Exception as e:
+                        logger.debug(f"Could not load tool {tool_name} on-demand: {e}")
+
                     # Try to get tool by ID
                     if tool_name in orchestrator.tool_repository.tools:
                         tool_instance = orchestrator.tool_repository.tools[tool_name]
