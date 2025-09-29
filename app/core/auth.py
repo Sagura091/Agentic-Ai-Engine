@@ -8,7 +8,7 @@ for the agentic AI system.
 from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from app.models.user import User
+from app.models.auth import UserDB
 
 # Security scheme
 security = HTTPBearer(auto_error=False)
@@ -16,7 +16,7 @@ security = HTTPBearer(auto_error=False)
 
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
-) -> User:
+) -> UserDB:
     """
     Get the current authenticated user.
     
@@ -27,26 +27,34 @@ async def get_current_user(
     # In production, this would validate the JWT token and return the actual user
     if credentials is None:
         # Allow unauthenticated access for development
-        return User(
-            id="default_user",
+        from uuid import uuid4
+        return UserDB(
+            id=uuid4(),
             username="default_user",
             email="default@example.com",
-            is_active=True
+            name="Default User",
+            hashed_password="mock_hash",
+            is_active=True,
+            user_group="admin"  # Give admin access for first-time setup
         )
     
     # In production, validate the token here
     token = credentials.credentials
     
     # For now, accept any token and return default user
-    return User(
-        id="authenticated_user",
-        username="authenticated_user", 
+    from uuid import uuid4
+    return UserDB(
+        id=uuid4(),
+        username="authenticated_user",
         email="user@example.com",
-        is_active=True
+        name="Authenticated User",
+        hashed_password="mock_hash",
+        is_active=True,
+        user_group="admin"  # Give admin access for first-time setup
     )
 
 
-async def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
+async def get_current_active_user(current_user: UserDB = Depends(get_current_user)) -> UserDB:
     """Get the current active user."""
     if not current_user.is_active:
         raise HTTPException(

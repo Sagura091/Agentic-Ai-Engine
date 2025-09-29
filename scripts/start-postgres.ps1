@@ -75,11 +75,10 @@ Write-Host ""
 $runMigrations = Read-Host "🔄 Do you want to run database migrations now? (y/N)"
 if ($runMigrations -eq "y" -or $runMigrations -eq "Y") {
     Write-Host "🔄 Running database migrations..." -ForegroundColor Blue
-    
+
     try {
-        Set-Location "app/models/database/migrations"
-        python create_autonomous_tables.py
-        
+        python "db/migrations/migrate_database.py" migrate
+
         if ($LASTEXITCODE -eq 0) {
             Write-Host "✅ Database migrations completed successfully!" -ForegroundColor Green
         } else {
@@ -87,14 +86,12 @@ if ($runMigrations -eq "y" -or $runMigrations -eq "Y") {
         }
     } catch {
         Write-Host "❌ Error running migrations: $_" -ForegroundColor Red
-    } finally {
-        Set-Location $projectRoot
     }
 }
 
 Write-Host ""
 Write-Host "🎯 Next Steps:" -ForegroundColor Cyan
-Write-Host "  1. Run database migrations: python app/models/database/migrations/create_autonomous_tables.py" -ForegroundColor White
+Write-Host "  1. Run database migrations: python db/migrations/migrate_database.py migrate" -ForegroundColor White
 Write-Host "  2. Start the Agentic AI backend: python -m app.main" -ForegroundColor White
 Write-Host "  3. Run tests: python -m pytest tests/test_truly_agentic_ai.py -v" -ForegroundColor White
 Write-Host ""

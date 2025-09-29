@@ -18,14 +18,42 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 import structlog
 
-from app.rag.ingestion.pipeline import IngestionPipeline, IngestionConfig
-from app.rag.core.knowledge_base import KnowledgeBase, KnowledgeConfig
-from app.services.rag_service import RAGService
+from app.rag.ingestion import IngestionPipeline, IngestionConfig
+# from app.rag.core.knowledge_base import KnowledgeBase, KnowledgeConfig
+from app.rag.core.collection_based_kb_manager import CollectionBasedKBManager
+# from app.services.rag_service import RAGService
+from app.rag.core.unified_rag_system import UnifiedRAGSystem
 from app.core.dependencies import get_current_user
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/rag/upload", tags=["RAG Upload"])
+
+# Compatibility layer for RAGService
+class RAGService:
+    """Compatibility layer to bridge UnifiedRAGSystem with expected RAGService interface."""
+
+    def __init__(self):
+        self.rag_system = None
+
+    async def initialize(self):
+        """Initialize the RAG system."""
+        if not self.rag_system:
+            self.rag_system = UnifiedRAGSystem()
+            await self.rag_system.initialize()
+
+    async def ingest_document(self, content: str, collection: str = "default", metadata: dict = None):
+        """Ingest a document into the RAG system."""
+        if not self.rag_system:
+            await self.initialize()
+
+        # Use agent_id as collection for compatibility
+        result = await self.rag_system.add_agent_knowledge(
+            agent_id=collection,
+            content=content,
+            metadata=metadata or {}
+        )
+        return {"document_id": result, "status": "success"}
 
 # Global RAG service instance
 rag_service: Optional[RAGService] = None

@@ -210,7 +210,7 @@ async def openwebui_health() -> Dict[str, Any]:
                 "reason": "Pipeline not initialized"
             }
         
-        if not openwebui_pipeline.orchestrator.is_initialized:
+        if not openwebui_pipeline.orchestrator.status.is_initialized:
             return {
                 "status": "unhealthy",
                 "reason": "Orchestrator not initialized"

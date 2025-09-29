@@ -53,19 +53,22 @@ class GoalStatus(str, Enum):
     CANCELLED = "cancelled"     # Cancelled before completion
 
 
-@dataclass
-class GoalMetrics:
+class GoalMetrics(BaseModel):
     """Metrics for goal tracking and evaluation."""
-    progress: float = 0.0           # 0.0 to 1.0
-    effort_invested: float = 0.0    # Resource units invested
-    time_elapsed: float = 0.0       # Time spent in seconds
-    success_probability: float = 0.5 # Estimated success probability
-    value_score: float = 0.5        # Value/importance score
-    difficulty_score: float = 0.5   # Difficulty assessment
+    model_config = {"use_enum_values": True}  # Serialize enums as their values
+
+    progress: float = Field(default=0.0, description="Progress from 0.0 to 1.0")
+    effort_invested: float = Field(default=0.0, description="Resource units invested")
+    time_elapsed: float = Field(default=0.0, description="Time spent in seconds")
+    success_probability: float = Field(default=0.5, description="Estimated success probability")
+    value_score: float = Field(default=0.5, description="Value/importance score")
+    difficulty_score: float = Field(default=0.5, description="Difficulty assessment")
 
 
 class AutonomousGoal(BaseModel):
     """Model for autonomous agent goals."""
+    model_config = {"use_enum_values": True}  # Serialize enums as their values
+
     goal_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -233,6 +236,13 @@ class AutonomousGoalManager:
             logger.error("Failed to update goal stack", error=str(e))
             return current_goals
 
+    async def generate_autonomous_goals(self, context: Dict[str, Any]) -> None:
+        """Generate autonomous goals based on context - public interface method."""
+        try:
+            await self._generate_autonomous_goals(context)
+        except Exception as e:
+            logger.error("Failed to generate autonomous goals", error=str(e))
+
     async def create_autonomous_plan(
         self,
         context: Dict[str, Any],
@@ -262,12 +272,40 @@ class AutonomousGoalManager:
             # Create execution plan
             execution_plan = await self._create_execution_plan(active_goals, context)
             
-            # Prepare plan summary
+            # Prepare plan summary with safe goal serialization
+            goals_data = []
+            for goal in active_goals:  # active_goals contains AutonomousGoal objects, not IDs
+                try:
+                    goal_dict = goal.dict()
+
+                    # Convert timedelta to string for JSON serialization
+                    if goal_dict.get("estimated_duration"):
+                        goal_dict["estimated_duration"] = str(goal_dict["estimated_duration"])
+
+                    # Convert any remaining enum objects to strings
+                    for key, value in goal_dict.items():
+                        if hasattr(value, 'value'):  # Check if it's an enum
+                            goal_dict[key] = value.value
+
+                    goals_data.append(goal_dict)
+                except Exception as e:
+                    # If goal serialization fails, create a safe fallback representation
+                    logger.warning(f"Goal serialization failed for {goal.goal_id}, using fallback", error=str(e))
+                    fallback_goal = {
+                        "goal_id": goal.goal_id,
+                        "title": getattr(goal, 'title', 'Unknown Goal'),
+                        "description": getattr(goal, 'description', 'Goal serialization failed'),
+                        "goal_type": getattr(goal.goal_type, 'value', str(goal.goal_type)) if hasattr(goal, 'goal_type') else 'unknown',
+                        "priority": getattr(goal.priority, 'value', str(goal.priority)) if hasattr(goal, 'priority') else 'medium',
+                        "status": getattr(goal.status, 'value', str(goal.status)) if hasattr(goal, 'status') else 'pending'
+                    }
+                    goals_data.append(fallback_goal)
+
             plan = {
                 "plan_id": str(uuid.uuid4()),
                 "created_at": datetime.utcnow().isoformat(),
                 "autonomy_level": autonomy_level,
-                "goals": [self.goals[goal_id].dict() for goal_id in active_goals],
+                "goals": goals_data,
                 "execution_plan": execution_plan,
                 "summary": f"Autonomous plan with {len(active_goals)} active goals",
                 "complexity": self._assess_plan_complexity(active_goals),
@@ -294,6 +332,55 @@ class AutonomousGoalManager:
                 "summary": "Planning failed, using fallback plan",
                 "complexity": "low"
             }
+
+    def _assess_plan_complexity(self, active_goals: List[AutonomousGoal]) -> str:
+        """Assess the complexity of the execution plan based on active goals."""
+        if not active_goals:
+            return "low"
+
+        goal_count = len(active_goals)
+        high_priority_count = sum(1 for goal in active_goals if goal.priority == GoalPriority.HIGH)
+
+        if goal_count <= 2 and high_priority_count <= 1:
+            return "low"
+        elif goal_count <= 4 and high_priority_count <= 2:
+            return "medium"
+        else:
+            return "high"
+
+    def _estimate_plan_duration(self, active_goals: List[AutonomousGoal]) -> int:
+        """Estimate the duration of the execution plan in minutes."""
+        if not active_goals:
+            return 5
+
+        base_duration = 10  # Base duration per goal in minutes
+        total_duration = len(active_goals) * base_duration
+
+        # Add complexity factor
+        high_priority_goals = sum(1 for goal in active_goals if goal.priority == GoalPriority.HIGH)
+        complexity_factor = 1 + (high_priority_goals * 0.5)
+
+        return int(total_duration * complexity_factor)
+
+    def _estimate_plan_success_rate(self, active_goals: List[AutonomousGoal]) -> float:
+        """Estimate the success probability of the execution plan."""
+        if not active_goals:
+            return 0.8
+
+        # Base success rate
+        base_rate = 0.7
+
+        # Factor in goal metrics
+        avg_success_prob = sum(goal.metrics.success_probability for goal in active_goals) / len(active_goals)
+
+        # Combine base rate with goal-specific probabilities
+        combined_rate = (base_rate + avg_success_prob) / 2
+
+        # Adjust for plan complexity
+        complexity_penalty = len(active_goals) * 0.05  # 5% penalty per additional goal
+        final_rate = max(0.1, combined_rate - complexity_penalty)
+
+        return round(final_rate, 2)
     
     async def pursue_goal(
         self,
@@ -549,8 +636,20 @@ class AutonomousGoalManager:
     async def _select_active_goals(self, context: Dict[str, Any]) -> List[AutonomousGoal]:
         """Select and prioritize active goals based on context and constraints."""
         try:
+            # Ensure active_goals contains only strings (goal IDs), not dictionaries
+            goal_ids = []
+            for item in self.active_goals:
+                if isinstance(item, str):
+                    goal_ids.append(item)
+                elif isinstance(item, dict) and 'goal_id' in item:
+                    goal_ids.append(item['goal_id'])
+                elif hasattr(item, 'goal_id'):
+                    goal_ids.append(item.goal_id)
+                else:
+                    logger.warning(f"Invalid goal item in active_goals: {type(item)}")
+
             # Get all available goals from the goals dict using active goal IDs
-            available_goals = [self.goals[goal_id] for goal_id in self.active_goals if goal_id in self.goals]
+            available_goals = [self.goals[goal_id] for goal_id in goal_ids if goal_id in self.goals]
 
             if not available_goals:
                 # If no active goals, try to get all goals and select the best ones
@@ -561,18 +660,23 @@ class AutonomousGoalManager:
 
             # Sort goals by priority and relevance
             def goal_score(goal: AutonomousGoal) -> float:
-                priority_weight = {"high": 3.0, "medium": 2.0, "low": 1.0}.get(goal.priority, 1.0)
-                status_weight = {"active": 1.0, "paused": 0.5, "completed": 0.0}.get(goal.status, 0.0)
+                # Convert enum values to strings for dictionary lookup
+                priority_str = goal.priority.value if hasattr(goal.priority, 'value') else str(goal.priority)
+                status_str = goal.status.value if hasattr(goal.status, 'value') else str(goal.status)
+                goal_type_str = goal.goal_type.value if hasattr(goal.goal_type, 'value') else str(goal.goal_type)
+
+                priority_weight = {"high": 3.0, "medium": 2.0, "low": 1.0}.get(priority_str, 1.0)
+                status_weight = {"active": 1.0, "paused": 0.5, "completed": 0.0, "pending": 0.8}.get(status_str, 0.0)
 
                 # Consider goal type relevance to current context
                 type_relevance = 1.0
                 if "task" in context:
                     task_lower = context["task"].lower()
-                    if goal.goal_type == "learning" and ("learn" in task_lower or "adapt" in task_lower):
+                    if goal_type_str == "learning" and ("learn" in task_lower or "adapt" in task_lower):
                         type_relevance = 1.5
-                    elif goal.goal_type == "optimization" and ("improve" in task_lower or "optimize" in task_lower):
+                    elif goal_type_str == "optimization" and ("improve" in task_lower or "optimize" in task_lower):
                         type_relevance = 1.5
-                    elif goal.goal_type == "exploration" and ("explore" in task_lower or "discover" in task_lower):
+                    elif goal_type_str == "exploration" and ("explore" in task_lower or "discover" in task_lower):
                         type_relevance = 1.5
 
                 return priority_weight * status_weight * type_relevance

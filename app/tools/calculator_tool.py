@@ -13,8 +13,8 @@ from datetime import datetime
 import structlog
 from pydantic import BaseModel, Field
 from langchain_core.callbacks import CallbackManagerForToolRun
-
-from .dynamic_tool_factory import BaseDynamicTool, ToolMetadata, ToolCategory, ToolComplexity
+from langchain_core.tools import BaseTool
+from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
 logger = structlog.get_logger(__name__)
 
@@ -25,36 +25,47 @@ class CalculatorInput(BaseModel):
     precision: int = Field(default=2, description="Number of decimal places for result")
 
 
-class CalculatorTool(BaseDynamicTool):
+class CalculatorTool(BaseTool, MetadataCapableToolMixin):
     """Simple calculator tool for mathematical operations."""
 
     name: str = "calculator"
     description: str = "Perform mathematical calculations including arithmetic, percentages, and basic functions"
     args_schema: Type[BaseModel] = CalculatorInput
+    tool_id: str = "calculator"
 
-    class Config:
-        arbitrary_types_allowed = True
-        extra = "allow"
-    
     def __init__(self):
-        metadata = ToolMetadata(
-            name="calculator",
-            description="Simple calculator for mathematical operations",
-            category=ToolCategory.COMPUTATION,
-            complexity=ToolComplexity.SIMPLE,
-            tags=["math", "calculation", "arithmetic", "basic"],
-            dependencies=[],
-            permissions=[],
-            safety_level="safe"
-        )
-        # Initialize with all required fields for Pydantic validation
-        super().__init__(
-            metadata=metadata,
-            name=metadata.name,
-            description=metadata.description,
-            args_schema=CalculatorInput
-        )
-        self.execution_history = []
+        super().__init__()
+        # Simple metadata tracking (not Pydantic fields)
+        self._execution_history = []
+        self._usage_count = 0
+        self._last_used = None
+        self._average_execution_time = 0.0
+        self._success_rate = 1.0
+        self._last_updated = datetime.utcnow()
+
+    @property
+    def execution_history(self):
+        return self._execution_history
+
+    @property
+    def usage_count(self):
+        return self._usage_count
+
+    @property
+    def last_used(self):
+        return self._last_used
+
+    @property
+    def average_execution_time(self):
+        return self._average_execution_time
+
+    @property
+    def success_rate(self):
+        return self._success_rate
+
+    @property
+    def last_updated(self):
+        return self._last_updated
     
     def _run(
         self,
@@ -76,8 +87,8 @@ class CalculatorTool(BaseDynamicTool):
         
         try:
             # Update usage statistics
-            self.metadata.usage_count += 1
-            self.metadata.last_used = datetime.utcnow()
+            self._usage_count += 1
+            self._last_used = datetime.utcnow()
             
             # Log calculation start
             logger.info(
@@ -85,7 +96,7 @@ class CalculatorTool(BaseDynamicTool):
                 tool_name=self.name,
                 expression=expression,
                 precision=precision,
-                usage_count=self.metadata.usage_count
+                usage_count=self.usage_count
             )
             
             # Sanitize and validate expression
@@ -116,7 +127,7 @@ class CalculatorTool(BaseDynamicTool):
                 "execution_time": execution_time,
                 "success": True
             }
-            self.execution_history.append(execution_record)
+            self._execution_history.append(execution_record)
             
             # Log successful calculation
             logger.info(
@@ -125,7 +136,7 @@ class CalculatorTool(BaseDynamicTool):
                 expression=expression,
                 result=formatted_result,
                 execution_time=execution_time,
-                usage_count=self.metadata.usage_count
+                usage_count=self.usage_count
             )
             
             return f"Calculation: {expression} = {formatted_result}"
@@ -144,7 +155,7 @@ class CalculatorTool(BaseDynamicTool):
                 "execution_time": execution_time,
                 "success": False
             }
-            self.execution_history.append(execution_record)
+            self._execution_history.append(execution_record)
             
             # Log calculation error
             logger.error(
@@ -153,7 +164,7 @@ class CalculatorTool(BaseDynamicTool):
                 expression=expression,
                 error=str(e),
                 execution_time=execution_time,
-                usage_count=self.metadata.usage_count
+                usage_count=self.usage_count
             )
             
             return f"Calculation error: {str(e)}"
@@ -227,39 +238,113 @@ class CalculatorTool(BaseDynamicTool):
     def _update_performance_metrics(self, execution_time: float, success: bool):
         """Update tool performance metrics."""
         # Update average execution time
-        total_executions = self.metadata.usage_count
-        current_avg = self.metadata.average_execution_time
-        
+        total_executions = self._usage_count
+        current_avg = self._average_execution_time
+
         new_avg = ((current_avg * (total_executions - 1)) + execution_time) / total_executions
-        self.metadata.average_execution_time = new_avg
-        
+        self._average_execution_time = new_avg
+
         # Update success rate
         if total_executions == 1:
-            self.metadata.success_rate = 1.0 if success else 0.0
+            self._success_rate = 1.0 if success else 0.0
         else:
-            successful_executions = int(self.metadata.success_rate * (total_executions - 1))
+            successful_executions = int(self._success_rate * (total_executions - 1))
             if success:
                 successful_executions += 1
-            
-            self.metadata.success_rate = successful_executions / total_executions
-        
+
+            self._success_rate = successful_executions / total_executions
+
         # Update last updated timestamp
-        self.metadata.last_updated = datetime.utcnow()
+        self._last_updated = datetime.utcnow()
     
     def get_usage_statistics(self) -> Dict[str, Any]:
         """Get comprehensive usage statistics."""
         return {
             "tool_name": self.name,
-            "total_usage": self.metadata.usage_count,
-            "success_rate": self.metadata.success_rate,
-            "average_execution_time": self.metadata.average_execution_time,
-            "last_used": self.metadata.last_used.isoformat() if self.metadata.last_used else None,
+            "total_usage": self.usage_count,
+            "success_rate": self.success_rate,
+            "average_execution_time": self.average_execution_time,
+            "last_used": self.last_used.isoformat() if self.last_used else None,
             "total_executions": len(self.execution_history),
             "successful_executions": sum(1 for exec in self.execution_history if exec["success"]),
             "failed_executions": sum(1 for exec in self.execution_history if not exec["success"]),
             "recent_executions": self.execution_history[-5:] if self.execution_history else []
         }
 
+    def _create_metadata(self) -> MetadataToolMetadata:
+        """Create metadata for calculator tool."""
+        return MetadataToolMetadata(
+            name="calculator",
+            description="Simple calculator tool for mathematical operations with creative chaos capabilities",
+            category="utility",
+            usage_patterns=[
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="chaos,creative,chaotic,random,42,1337",
+                    weight=0.9,
+                    context_requirements=["chaos_mode", "creative_task"],
+                    description="Triggers on creative chaos math tasks"
+                ),
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="calculate,math,compute,add,subtract,multiply,divide",
+                    weight=0.8,
+                    context_requirements=["calculation_task"],
+                    description="Matches basic calculation tasks"
+                ),
+                UsagePattern(
+                    type=UsagePatternType.KEYWORD_MATCH,
+                    pattern="expression,formula,equation,evaluate",
+                    weight=0.85,
+                    context_requirements=["mathematical_expression"],
+                    description="Matches expression evaluation tasks"
+                )
+            ],
+            confidence_modifiers=[
+                ConfidenceModifier(
+                    type=ConfidenceModifierType.BOOST,
+                    condition="chaos_mode",
+                    value=0.15,
+                    description="Boost confidence for chaotic mathematical creativity"
+                ),
+                ConfidenceModifier(
+                    type=ConfidenceModifierType.BOOST,
+                    condition="calculation_task",
+                    value=0.1,
+                    description="Boost confidence for mathematical calculations"
+                )
+            ],
+            parameter_schemas=[
+                ParameterSchema(
+                    name="expression",
+                    type=ParameterType.STRING,
+                    description="Mathematical expression to calculate",
+                    required=True,
+                    default_value="42 * 1337 / 69"
+                ),
+                ParameterSchema(
+                    name="precision",
+                    type=ParameterType.INTEGER,
+                    description="Number of decimal places for result",
+                    required=False,
+                    default_value=4
+                )
+            ]
+        )
+
 
 # Create tool instance for registration
 calculator_tool = CalculatorTool()
+
+# Tool metadata for unified repository registration
+from app.tools.unified_tool_repository import ToolMetadata as UnifiedToolMetadata, ToolCategory, ToolAccessLevel
+
+CALCULATOR_TOOL_METADATA = UnifiedToolMetadata(
+    tool_id="calculator",
+    name="Calculator Tool",
+    description="Simple calculator tool for mathematical operations with creative chaos capabilities",
+    category=ToolCategory.COMPUTATION,
+    access_level=ToolAccessLevel.PUBLIC,
+    requires_rag=False,
+    use_cases={"math", "calculation", "utility", "chaos", "arithmetic", "percentages"}
+)

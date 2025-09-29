@@ -53,6 +53,9 @@ class AgentCapability(str, Enum):
     COLLABORATION = "collaboration"
     LEARNING = "learning"
     MULTIMODAL = "multimodal"
+    VISION = "vision"
+    AUDIO = "audio"
+    COORDINATION = "coordination"
 
 
 # LangGraph State Definition
@@ -75,14 +78,33 @@ class AgentGraphState(TypedDict):
     custom_state: Dict[str, Any]
 
 
+class AgentDNA(BaseModel):
+    """Agent DNA configuration for personality and behavior."""
+    identity: Dict[str, Any] = Field(default_factory=dict, description="Identity configuration")
+    cognition: Dict[str, Any] = Field(default_factory=dict, description="Cognitive configuration")
+    behavior: Dict[str, Any] = Field(default_factory=dict, description="Behavioral configuration")
+
+
+class FrameworkConfig(BaseModel):
+    """Framework-specific configuration."""
+    framework_id: str = Field(..., description="Framework identifier")
+    components: List[Dict[str, Any]] = Field(default_factory=list, description="Framework components")
+    settings: Dict[str, Any] = Field(default_factory=dict, description="Framework-specific settings")
+
+
 class AgentConfig(BaseModel):
-    """LangChain/LangGraph-based agent configuration."""
+    """Enhanced LangChain/LangGraph-based agent configuration with multi-framework support."""
 
     # Basic configuration
     name: str = Field(..., description="Agent name")
     description: str = Field(..., description="Agent description")
     version: str = Field(default="1.0.0", description="Agent version")
     agent_type: str = Field(default="basic", description="Agent type")
+    framework: str = Field(default="basic", description="Agent framework (basic, react, bdi, crewai, autogen, swarm)")
+
+    # Agent DNA configuration
+    agent_dna: Optional[AgentDNA] = Field(default=None, description="Agent DNA configuration")
+    framework_config: Optional[FrameworkConfig] = Field(default=None, description="Framework configuration")
 
     # LangChain LLM configuration
     model_name: str = Field(default="llama3.2:latest", description="LLM model to use")
@@ -101,15 +123,19 @@ class AgentConfig(BaseModel):
 
     # LangChain prompt configuration
     system_prompt: str = Field(
-        default="""You are an AI assistant with access to tools. When you need to perform calculations, analysis, or data retrieval, you MUST use the appropriate tools by calling them.
+        default="""You are an intelligent AI agent with access to powerful tools to help solve problems.
 
-IMPORTANT: Always use tools when:
-- Mathematical calculations are needed
-- Business analysis is required
-- Data processing is necessary
-- The task explicitly asks you to use tools
+AVAILABLE TOOLS: {tools}
 
-Use the function calling format to invoke tools. Do not attempt to solve problems manually when tools are available.""",
+You have access to these tools and should use them naturally when they would be helpful for the task. Analyze the user's request and determine which tools would be most appropriate to provide accurate, comprehensive answers.
+
+Guidelines:
+- Use tools when they would provide better, more accurate, or more current information than your training data
+- For research tasks, web search tools can provide the latest information
+- For calculations, use computational tools for accuracy
+- Choose tools based on what would best serve the user's needs
+
+Think through the task and use the most appropriate tools to provide the best possible response.""",
         description="System prompt for the agent"
     )
 
@@ -208,26 +234,86 @@ class LangGraphAgent(ABC):
         self.compiled_graph: Optional[Runnable] = None
         self.tool_node: Optional[ToolNode] = None
 
-        # CRITICAL: Bind tools to LLM for proper tool calling
-        # Handle different LLM types - some may not support bind_tools
+        # CRITICAL: Handle tool calling - try bind_tools first for automatic tool usage
         if self.tools:
+            # Convert tools to LangChain format for bind_tools
+            langchain_tools = list(self.tools.values())
+
+            # Check if model supports tool calling by testing bind_tools
+            tool_calling_supported = False
             try:
-                self.llm_with_tools = self.llm.bind_tools(list(self.tools.values()))
-                self.supports_tool_calling = True
-                logger.info(
-                    "LLM bound with tools",
-                    agent_id=self.agent_id,
-                    tools_bound=list(self.tools.keys())
-                )
-            except (AttributeError, NotImplementedError) as e:
-                # LLM doesn't support bind_tools - use manual tool calling approach
+                # Test bind_tools without tool_choice first
+                test_llm = self.llm.bind_tools(langchain_tools)
+                tool_calling_supported = True
+
+            except Exception as e:
+                # If bind_tools or test call fails, model doesn't support tool calling
+                error_msg = str(e).lower()
+                if "does not support tools" in error_msg or "tool" in error_msg:
+                    logger.info(
+                        "Model does not support tool calling, using manual tool calling",
+                        agent_id=self.agent_id,
+                        model=type(self.llm).__name__,
+                        error=str(e)[:100]
+                    )
+                else:
+                    logger.warning(
+                        "Tool calling test failed, using manual tool calling",
+                        agent_id=self.agent_id,
+                        error=str(e)[:100]
+                    )
+
+            if tool_calling_supported:
+                try:
+                    # FORCE automatic tool usage with tool_choice="any"
+                    self.llm_with_tools = self.llm.bind_tools(
+                        langchain_tools,
+                        tool_choice="any"  # Forces LLM to use at least one tool
+                    )
+                    self.supports_tool_calling = True
+
+                    logger.info(
+                        "Using automatic tool calling with FORCED tool usage",
+                        agent_id=self.agent_id,
+                        tools_available=list(self.tools.keys()),
+                        llm_type=type(self.llm).__name__,
+                        tool_choice="any"
+                    )
+
+                except Exception as e:
+                    # Even if basic bind_tools worked, tool_choice might not be supported
+                    logger.warning(
+                        "tool_choice='any' not supported, trying without tool_choice",
+                        agent_id=self.agent_id,
+                        error=str(e)[:100]
+                    )
+                    try:
+                        self.llm_with_tools = self.llm.bind_tools(langchain_tools)
+                        self.supports_tool_calling = True
+                        logger.info(
+                            "Using automatic tool calling without forced tool usage",
+                            agent_id=self.agent_id,
+                            tools_available=list(self.tools.keys()),
+                            llm_type=type(self.llm).__name__
+                        )
+                    except Exception as e2:
+                        # Complete fallback to manual tool calling
+                        self.llm_with_tools = self.llm
+                        self.supports_tool_calling = False
+                        logger.warning(
+                            "All automatic tool calling failed, using manual tool calling",
+                            agent_id=self.agent_id,
+                            error=str(e2)[:100]
+                        )
+            else:
+                # Use manual tool calling
                 self.llm_with_tools = self.llm
                 self.supports_tool_calling = False
-                logger.warning(
-                    "LLM doesn't support bind_tools, using manual tool calling",
+                logger.info(
+                    "Using manual tool calling for maximum compatibility",
                     agent_id=self.agent_id,
-                    llm_type=type(self.llm).__name__,
-                    error=str(e)
+                    tools_available=list(self.tools.keys()),
+                    llm_type=type(self.llm).__name__
                 )
         else:
             self.llm_with_tools = self.llm
@@ -236,6 +322,11 @@ class LangGraphAgent(ABC):
         # State management
         self.current_state: Optional[AgentGraphState] = None
         self._execution_lock = asyncio.Lock()
+
+        # Memory system (assigned by AgentBuilderFactory)
+        self.memory_system: Optional[Any] = None
+        self.memory_collection: Optional[Any] = None
+        self.memory_type: Optional[str] = None
 
         # Initialize the agent graph
         self._build_agent_graph()
@@ -267,6 +358,69 @@ class LangGraphAgent(ABC):
     def is_busy(self) -> bool:
         """Check if agent is currently executing."""
         return self.state.status == AgentStatus.RUNNING
+
+    @property
+    def has_memory(self) -> bool:
+        """Check if agent has a memory system assigned."""
+        return self.memory_system is not None
+
+    async def add_memory(self, content: str, memory_type: str = "short_term", metadata: Optional[Dict[str, Any]] = None):
+        """
+        Add a memory to the agent's memory system.
+
+        Args:
+            content: Memory content
+            memory_type: Type of memory (short_term, long_term, episodic, semantic, etc.)
+            metadata: Additional metadata
+        """
+        if not self.has_memory:
+            logger.warning("No memory system assigned to agent", agent_id=self.agent_id)
+            return
+
+        try:
+            if self.memory_type == "simple":
+                # UnifiedMemorySystem
+                from app.memory.memory_models import MemoryType as UnifiedMemoryType
+                unified_type = UnifiedMemoryType.SHORT_TERM if memory_type == "short_term" else UnifiedMemoryType.LONG_TERM
+                await self.memory_system.add_memory(self.agent_id, unified_type, content, metadata)
+            elif self.memory_type == "advanced":
+                # PersistentMemorySystem
+                from app.agents.autonomous.persistent_memory import MemoryType as PersistentMemoryType, MemoryImportance
+                persistent_type = getattr(PersistentMemoryType, memory_type.upper(), PersistentMemoryType.EPISODIC)
+                await self.memory_system.store_memory(content, persistent_type, MemoryImportance.MEDIUM, metadata=metadata)
+
+            logger.debug("Memory added successfully", agent_id=self.agent_id, memory_type=memory_type)
+        except Exception as e:
+            logger.error("Failed to add memory", agent_id=self.agent_id, error=str(e))
+
+    async def retrieve_memories(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Retrieve memories from the agent's memory system.
+
+        Args:
+            query: Search query
+            limit: Maximum number of memories to retrieve
+
+        Returns:
+            List of memory entries
+        """
+        if not self.has_memory:
+            logger.warning("No memory system assigned to agent", agent_id=self.agent_id)
+            return []
+
+        try:
+            if self.memory_type == "simple":
+                # UnifiedMemorySystem retrieval
+                memories = await self.memory_system.search_memories(self.agent_id, query, limit)
+                return [{"content": m.content, "metadata": m.metadata, "created_at": m.created_at} for m in memories]
+            elif self.memory_type == "advanced":
+                # PersistentMemorySystem retrieval
+                memories = await self.memory_system.retrieve_memories(query, limit)
+                return [{"content": m.content, "metadata": m.metadata, "created_at": m.created_at} for m in memories]
+
+        except Exception as e:
+            logger.error("Failed to retrieve memories", agent_id=self.agent_id, error=str(e))
+            return []
     
     def _build_agent_graph(self) -> None:
         """
@@ -527,6 +681,11 @@ class LangGraphAgent(ABC):
         """
         LangGraph reasoning node - where the agent thinks and plans.
 
+        🚀 HYBRID RAG IMPLEMENTATION:
+        - Model-level RAG: Automatic KB context injection for RAG agents
+        - Agent-level RAG: Explicit tools for advanced operations
+        - Best of both worlds: Reliability + Flexibility
+
         Args:
             state: Current graph state
 
@@ -556,18 +715,27 @@ class LangGraphAgent(ABC):
                 }
             )
 
-            # Create the prompt template
+            # 🚀 HYBRID RAG: Model-level automatic KB context injection
+            kb_context = ""
+            if hasattr(self.config, 'agent_type') and self.config.agent_type == "rag":
+                kb_context = await self._inject_knowledge_base_context(state["current_task"])
+
+            # Create the prompt template with tools information
+            tools_description = ", ".join(self.tools.keys()) if self.tools else "None"
+            formatted_system_prompt = self.config.system_prompt.format(tools=tools_description)
+
+            # Inject KB context if available (model-level RAG)
+            if kb_context:
+                formatted_system_prompt += f"\n\n🧠 RELEVANT KNOWLEDGE BASE CONTEXT:\n{kb_context}"
+
             prompt = ChatPromptTemplate.from_messages([
-                ("system", self.config.system_prompt),
+                ("system", formatted_system_prompt),
                 MessagesPlaceholder(variable_name="messages"),
-                ("human", "Available tools: {tools}\nCurrent task: {task}")
+                ("human", "Current task: {task}")
             ])
 
             # CRITICAL: Use the tool-bound LLM for proper tool calling
             chain = prompt | self.llm_with_tools
-
-            # Prepare input
-            tools_description = ", ".join(self.tools.keys()) if self.tools else "None"
 
             # Log LLM invocation
             backend_logger.debug(
@@ -585,7 +753,6 @@ class LangGraphAgent(ABC):
             # Get response from LLM
             response = await chain.ainvoke({
                 "messages": state["messages"],
-                "tools": tools_description,
                 "task": state["current_task"]
             })
 
@@ -1071,85 +1238,213 @@ class LangGraphAgent(ABC):
     async def _handle_manual_tool_calling(self, response: AIMessage, state: AgentGraphState) -> AIMessage:
         """
         Handle manual tool calling for LLMs that don't support bind_tools.
-        Parse the response for tool usage requests and create tool calls.
+        Parse the response for explicit tool usage requests and create tool calls.
         """
         try:
-            content = response.content.lower()
-
-            # Look for explicit tool usage requests
+            import re
+            import time
+            content = response.content
             tool_calls = []
 
-            # Check for calculator tool usage
-            if "calculator" in self.tools and any(phrase in content for phrase in [
-                "calculate", "computation", "math", "arithmetic", "formula", "calculator"
-            ]):
-                # Extract mathematical expression
-                import re
-                # Look for mathematical expressions in the content
-                math_patterns = [
-                    r'(\d+(?:\.\d+)?\s*[+\-*/]\s*\d+(?:\.\d+)?(?:\s*[+\-*/]\s*\d+(?:\.\d+)?)*)',
-                    r'calculate[:\s]+([^.]+)',
-                    r'compute[:\s]+([^.]+)'
+            # Look for natural tool usage patterns - more flexible detection
+            tool_usage_patterns = [
+                # Explicit tool mentions
+                r'I will use the (\w+) tool',
+                r'I\'ll use the (\w+) tool',
+                r'Using the (\w+) tool',
+                r'Let me use the (\w+) tool',
+                r'I need to use the (\w+) tool',
+                # Natural language patterns
+                r'I need to search for',
+                r'Let me search for',
+                r'I should search for',
+                r'I\'ll search for',
+                r'Let me find information about',
+                r'I need to find information about',
+                r'I should look up',
+                r'Let me look up',
+                r'I need to research',
+                r'Let me research',
+                r'I should research',
+                r'I\'ll research',
+                # Calculation patterns
+                r'I need to calculate',
+                r'Let me calculate',
+                r'I should calculate',
+                r'I\'ll calculate',
+                r'I need to compute',
+                r'Let me compute'
+            ]
+
+            # Check for explicit tool name patterns first
+            explicit_patterns = [
+                r'I will use the (\w+) tool',
+                r'I\'ll use the (\w+) tool',
+                r'Using the (\w+) tool',
+                r'Let me use the (\w+) tool',
+                r'I need to use the (\w+) tool'
+            ]
+
+            for pattern in explicit_patterns:
+                matches = re.findall(pattern, content, re.IGNORECASE)
+                for match in matches:
+                    tool_name = match.lower()
+                    if tool_name in self.tools:
+                        tool_call = await self._create_tool_call(tool_name, state)
+                        if tool_call:
+                            tool_calls.append(tool_call)
+                            logger.info(f"🔧 Detected explicit tool usage: {tool_name}")
+
+            # If no explicit tool usage found, check for natural language patterns
+            if not tool_calls:
+                # Check for research/search patterns
+                search_patterns = [
+                    r'I need to search for',
+                    r'Let me search for',
+                    r'I should search for',
+                    r'I\'ll search for',
+                    r'Let me find information about',
+                    r'I need to find information about',
+                    r'I should look up',
+                    r'Let me look up',
+                    r'I need to research',
+                    r'Let me research',
+                    r'I should research',
+                    r'I\'ll research'
                 ]
 
-                for pattern in math_patterns:
-                    matches = re.findall(pattern, response.content, re.IGNORECASE)
-                    if matches:
-                        expression = matches[0].strip()
-                        tool_calls.append({
-                            "name": "calculator",
-                            "args": {"expression": expression, "precision": 2},
-                            "id": f"call_{len(tool_calls)}"
-                        })
-                        break
+                for pattern in search_patterns:
+                    if re.search(pattern, content, re.IGNORECASE):
+                        if 'web_research' in self.tools:
+                            tool_call = await self._create_tool_call('web_research', state)
+                            if tool_call:
+                                tool_calls.append(tool_call)
+                                logger.info(f"🔧 Detected natural research intent, using web_research tool")
+                                break
 
-                # If no specific expression found, use the one from the test
-                if not tool_calls and "75000 * 1.5 - 45000" in response.content:
-                    tool_calls.append({
-                        "name": "calculator",
-                        "args": {"expression": "(75000 * 1.5 - 45000) / 75000 * 100", "precision": 2},
-                        "id": f"call_{len(tool_calls)}"
-                    })
+                # Check for calculation patterns
+                if not tool_calls:
+                    calc_patterns = [
+                        r'I need to calculate',
+                        r'Let me calculate',
+                        r'I should calculate',
+                        r'I\'ll calculate',
+                        r'I need to compute',
+                        r'Let me compute'
+                    ]
 
-            # Check for business intelligence tool usage
-            if "business_intelligence" in self.tools and any(phrase in content for phrase in [
-                "business analysis", "financial analysis", "market analysis", "intelligence", "business_intelligence"
-            ]):
-                # Create business intelligence call
-                tool_calls.append({
-                    "name": "business_intelligence",
-                    "args": {
-                        "analysis_type": "financial",
-                        "context": {
-                            "revenue": 50000,
-                            "expenses": 45000,
-                            "cash": 100000,
-                            "industry": "Technology",
-                            "target_market": "SMB"
-                        },
-                        "focus_areas": ["profitability", "growth"],
-                        "time_horizon": "6_months",
-                        "include_recommendations": True,
-                        "detail_level": "comprehensive"
-                    },
-                    "id": f"call_{len(tool_calls)}"
-                })
+                    for pattern in calc_patterns:
+                        if re.search(pattern, content, re.IGNORECASE):
+                            if 'calculator' in self.tools:
+                                tool_call = await self._create_tool_call('calculator', state)
+                                if tool_call:
+                                    tool_calls.append(tool_call)
+                                    logger.info(f"🔧 Detected natural calculation intent, using calculator tool")
+                                    break
 
-            # If we found tool calls, add them to the response
+            # If tool calls were detected, create a new response with tool calls
             if tool_calls:
                 response.tool_calls = tool_calls
-                logger.info(
-                    "Manual tool calls detected and added",
-                    agent_id=self.agent_id,
-                    tool_calls=len(tool_calls),
-                    tools=[call["name"] for call in tool_calls]
-                )
+                logger.info(f"✅ Created {len(tool_calls)} tool calls")
 
             return response
 
         except Exception as e:
-            logger.error("Manual tool calling failed", agent_id=self.agent_id, error=str(e))
+            logger.error(f"Error in manual tool calling: {e}")
             return response
+
+    async def _create_tool_call(self, tool_name: str, state: AgentGraphState) -> Optional[Dict]:
+        """
+        Create a tool call with appropriate arguments based on the tool type and context.
+        """
+        try:
+            import re
+            import time
+            current_task = state.get("current_task", "")
+
+            if tool_name == "calculator":
+                # Extract mathematical expression from the task
+                math_patterns = [
+                    r'(\d+(?:\.\d+)?\s*[+\-*/]\s*\d+(?:\.\d+)?(?:\s*[+\-*/]\s*\d+(?:\.\d+)?)*)',
+                    r'calculate[:\s]+([^.!?]+)',
+                    r'compute[:\s]+([^.!?]+)'
+                ]
+
+                for pattern in math_patterns:
+                    matches = re.findall(pattern, current_task, re.IGNORECASE)
+                    if matches:
+                        expression = matches[0].strip()
+                        # Clean up the expression
+                        expression = re.sub(r'[^\d+\-*/().\s]', '', expression).strip()
+                        if expression and any(op in expression for op in ['+', '-', '*', '/']):
+                            return {
+                                "name": "calculator",
+                                "args": {"expression": expression, "precision": 2},
+                                "id": f"call_calculator_{int(time.time())}"
+                            }
+
+            elif tool_name == "web_search":
+                # Extract search query from task
+                return {
+                    "name": "web_search",
+                    "args": {"query": current_task, "num_results": 5},
+                    "id": f"call_web_search_{int(time.time())}"
+                }
+
+            elif tool_name == "business_intelligence":
+                # Create business analysis call
+                return {
+                    "name": "business_intelligence",
+                    "args": {"analysis_type": "general", "data": current_task},
+                    "id": f"call_business_intelligence_{int(time.time())}"
+                }
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error creating tool call for {tool_name}: {e}")
+            return None
+
+    async def _inject_knowledge_base_context(self, query: str) -> str:
+        """
+        🚀 HYBRID RAG: Model-level automatic knowledge base context injection.
+
+        This method automatically searches the agent's knowledge base and injects
+        relevant context into the prompt, providing OpenWebUI-style automatic RAG
+        while maintaining agent flexibility.
+
+        Args:
+            query: The user's query to search for relevant context
+
+        Returns:
+            Formatted knowledge base context string
+        """
+        try:
+            # Use the hybrid RAG integration system
+            from app.rag.integration import get_hybrid_rag_integration
+
+            hybrid_rag = await get_hybrid_rag_integration()
+            if not hybrid_rag or not hybrid_rag.is_initialized:
+                logger.debug("Hybrid RAG integration not available")
+                return ""
+
+            # Get knowledge base context using the hybrid system
+            context = await hybrid_rag.get_knowledge_base_context(
+                agent_id=self.agent_id,
+                query=query,
+                max_results=3  # Limit to top 3 results for prompt efficiency
+            )
+
+            if context:
+                logger.debug(f"🧠 Injected knowledge base context for agent {self.agent_id}")
+                return context
+            else:
+                logger.debug(f"No knowledge base context found for query: {query[:50]}...")
+                return ""
+
+        except Exception as e:
+            logger.warning(f"⚠️ Error injecting knowledge base context: {e}")
+            return ""
 
 
 class AgentInterface(ABC):

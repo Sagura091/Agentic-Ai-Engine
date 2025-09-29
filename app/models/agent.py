@@ -62,7 +62,7 @@ class Agent(Base):
     average_response_time = Column(Float, default=0.0)
     
     # Relationships
-    conversations = relationship("Conversation", back_populates="agent", cascade="all, delete-orphan")
+    conversations = relationship("ConversationDB", back_populates="agent", cascade="all, delete-orphan")
     task_executions = relationship("TaskExecution", back_populates="agent", cascade="all, delete-orphan")
     autonomous_states = relationship("AutonomousAgentState", back_populates="agent", cascade="all, delete-orphan")
     
@@ -97,71 +97,10 @@ class Agent(Base):
         }
 
 
-class Conversation(Base):
-    """Conversation model for storing chat history with agents."""
-
-    __tablename__ = "conversations"
-    __table_args__ = {'extend_existing': True}
-    
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    
-    # Foreign key to agent
-    agent_id = Column(UUID(as_uuid=True), ForeignKey("agents.id"), nullable=False, index=True)
-    
-    # Conversation metadata
-    title = Column(String(255))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    
-    # Session information
-    session_id = Column(String(255), index=True)
-    user_id = Column(String(255), index=True)
-    
-    # Conversation state
-    is_active = Column(Boolean, default=True)
-    message_count = Column(Integer, default=0)
-    
-    # Metadata
-    conversation_metadata = Column(JSON, default=dict)
-    
-    # Relationships
-    agent = relationship("Agent", back_populates="conversations")
-    messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")
-    
-    def __repr__(self):
-        return f"<Conversation(id={self.id}, agent_id={self.agent_id}, title='{self.title}')>"
+# Conversation class removed - now using ConversationDB from app.models.auth to avoid conflicts
 
 
-class Message(Base):
-    """Message model for storing individual messages in conversations."""
-
-    __tablename__ = "messages"
-    __table_args__ = {'extend_existing': True}
-    
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    
-    # Foreign key to conversation
-    conversation_id = Column(UUID(as_uuid=True), ForeignKey("conversations.id"), nullable=False, index=True)
-    
-    # Message content
-    content = Column(Text, nullable=False)
-    role = Column(String(50), nullable=False)  # 'user', 'assistant', 'system'
-    
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    # Message metadata
-    token_count = Column(Integer)
-    response_time_ms = Column(Float)
-    message_metadata = Column(JSON, default=dict)
-    
-    # Relationships
-    conversation = relationship("Conversation", back_populates="messages")
-    
-    def __repr__(self):
-        return f"<Message(id={self.id}, role='{self.role}', conversation_id={self.conversation_id})>"
+# Message class removed - now using MessageDB from app.models.auth to avoid conflicts
 
 
 class TaskExecution(Base):

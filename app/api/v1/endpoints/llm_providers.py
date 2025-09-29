@@ -269,7 +269,18 @@ async def test_llm_config(
         }
         
     except Exception as e:
-        logger.error("Failed to test LLM config", config=request.dict(), error=str(e))
+        request_dict = {}
+        try:
+            if hasattr(request, 'dict'):
+                request_dict = request.dict()
+            elif hasattr(request, '__dict__'):
+                request_dict = request.__dict__
+            else:
+                request_dict = {"type": str(type(request))}
+        except Exception:
+            request_dict = {"error": "Could not serialize request"}
+
+        logger.error("Failed to test LLM config", config=request_dict, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid LLM configuration: {str(e)}"
@@ -283,17 +294,234 @@ async def get_default_config(current_user: Optional[str] = Depends(get_current_u
         llm_service = get_llm_service()
         if not llm_service._is_initialized:
             await llm_service.initialize()
-        
+
         config = await llm_service.get_default_model_config()
-        
+
         return {
             "success": True,
             "default_config": config
         }
-        
+
     except Exception as e:
         logger.error("Failed to get default config", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get default config: {str(e)}"
+        )
+
+
+@router.post("/ollama/pull", summary="Download Ollama model")
+async def pull_ollama_model(
+    model_name: str,
+    current_user: Optional[str] = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """Download/pull a model from Ollama."""
+    try:
+        llm_service = get_llm_service()
+        if not llm_service._is_initialized:
+            await llm_service.initialize()
+
+        # Get Ollama provider
+        ollama_provider = await llm_service.get_provider("ollama")
+        if not ollama_provider:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ollama provider not available"
+            )
+
+        # Pull the model
+        success = await ollama_provider.pull_model(model_name)
+
+        if success:
+            return {
+                "success": True,
+                "message": f"Model {model_name} downloaded successfully",
+                "model_name": model_name
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to download model {model_name}"
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to pull Ollama model", model=model_name, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to download model: {str(e)}"
+        )
+
+
+@router.get("/ollama/available", summary="Get available Ollama models for download")
+async def get_available_ollama_models(current_user: Optional[str] = Depends(get_current_user)) -> Dict[str, Any]:
+    """Get list of available Ollama models that can be downloaded."""
+    try:
+        # Popular Ollama models categorized by use case
+        available_models = {
+            "recommended": [
+                {
+                    "name": "llama3.2:latest",
+                    "size": "2.0GB",
+                    "description": "Latest Llama 3.2 model with excellent tool calling support",
+                    "capabilities": ["text", "tools", "conversation"],
+                    "recommended": True
+                },
+                {
+                    "name": "llama3.1:8b",
+                    "size": "4.7GB",
+                    "description": "Llama 3.1 8B with superior tool calling capabilities",
+                    "capabilities": ["text", "tools", "conversation"],
+                    "recommended": True
+                },
+                {
+                    "name": "qwen2.5:latest",
+                    "size": "4.4GB",
+                    "description": "Qwen 2.5 with strong reasoning and tool support",
+                    "capabilities": ["text", "tools", "conversation", "reasoning"],
+                    "recommended": True
+                }
+            ],
+            "code": [
+                {
+                    "name": "codellama:latest",
+                    "size": "3.8GB",
+                    "description": "Code Llama for programming tasks",
+                    "capabilities": ["code", "text"],
+                    "recommended": False
+                },
+                {
+                    "name": "deepseek-coder:latest",
+                    "size": "3.7GB",
+                    "description": "DeepSeek Coder for advanced programming",
+                    "capabilities": ["code", "text"],
+                    "recommended": False
+                }
+            ],
+            "lightweight": [
+                {
+                    "name": "llama3.2:3b",
+                    "size": "2.0GB",
+                    "description": "Lightweight Llama 3.2 3B model",
+                    "capabilities": ["text", "conversation"],
+                    "recommended": False
+                },
+                {
+                    "name": "phi3:latest",
+                    "size": "2.3GB",
+                    "description": "Microsoft Phi-3 lightweight model",
+                    "capabilities": ["text", "conversation"],
+                    "recommended": False
+                }
+            ],
+            "specialized": [
+                {
+                    "name": "mistral:latest",
+                    "size": "4.1GB",
+                    "description": "Mistral 7B for general tasks",
+                    "capabilities": ["text", "conversation"],
+                    "recommended": False
+                },
+                {
+                    "name": "gemma2:latest",
+                    "size": "5.4GB",
+                    "description": "Google Gemma 2 model",
+                    "capabilities": ["text", "conversation"],
+                    "recommended": False
+                }
+            ]
+        }
+
+        return {
+            "success": True,
+            "available_models": available_models
+        }
+
+    except Exception as e:
+        logger.error("Failed to get available Ollama models", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get available models: {str(e)}"
+        )
+
+
+@router.get("/provider-templates", summary="Get LLM provider configuration templates")
+async def get_provider_templates(current_user: Optional[str] = Depends(get_current_user)) -> Dict[str, Any]:
+    """Get pre-configured templates for different LLM provider setups."""
+    try:
+        templates = {
+            "local_development": {
+                "name": "Local Development",
+                "description": "Optimized for local development with Ollama",
+                "settings": {
+                    "enable_ollama": True,
+                    "enable_openai": False,
+                    "enable_anthropic": False,
+                    "enable_google": False,
+                    "ollama_base_url": "http://localhost:11434",
+                    "ollama_timeout": 120,
+                    "ollama_max_concurrent_requests": 5,
+                    "default_provider": "ollama",
+                    "default_model": "llama3.2:latest"
+                }
+            },
+            "production_hybrid": {
+                "name": "Production Hybrid",
+                "description": "Balanced setup with local and cloud providers",
+                "settings": {
+                    "enable_ollama": True,
+                    "enable_openai": True,
+                    "enable_anthropic": False,
+                    "enable_google": False,
+                    "ollama_base_url": "http://localhost:11434",
+                    "ollama_timeout": 60,
+                    "ollama_max_concurrent_requests": 10,
+                    "openai_timeout": 30,
+                    "openai_max_retries": 3,
+                    "default_provider": "openai",
+                    "fallback_provider": "ollama"
+                }
+            },
+            "cloud_only": {
+                "name": "Cloud Only",
+                "description": "Cloud-based providers for maximum performance",
+                "settings": {
+                    "enable_ollama": False,
+                    "enable_openai": True,
+                    "enable_anthropic": True,
+                    "enable_google": True,
+                    "openai_timeout": 30,
+                    "anthropic_timeout": 30,
+                    "google_timeout": 30,
+                    "default_provider": "openai",
+                    "fallback_provider": "anthropic"
+                }
+            },
+            "high_performance": {
+                "name": "High Performance",
+                "description": "Optimized for high-throughput applications",
+                "settings": {
+                    "enable_ollama": True,
+                    "enable_openai": True,
+                    "ollama_max_concurrent_requests": 20,
+                    "ollama_connection_pool_size": 10,
+                    "openai_max_retries": 5,
+                    "request_timeout": 120,
+                    "enable_load_balancing": True,
+                    "enable_failover": True
+                }
+            }
+        }
+
+        return {
+            "success": True,
+            "templates": templates
+        }
+
+    except Exception as e:
+        logger.error("Failed to get provider templates", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get provider templates: {str(e)}"
         )

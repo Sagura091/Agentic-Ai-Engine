@@ -1,0 +1,55 @@
+agent_types:
+  autonomous:
+    default_temperature: 0.7
+    enable_memory: true
+    framework: autonomous
+    max_iterations: 100
+    memory_type: advanced
+    timeout_seconds: 1200
+  react:
+    default_temperature: 0.7
+    enable_memory: true
+    framework: react
+    max_iterations: 50
+    memory_type: simple
+    timeout_seconds: 300
+infrastructure:
+  cache_ttl_seconds: 300
+  connection_pool_size: 50     # INCREASED from 10 for better performance
+  health_check_interval_seconds: 60
+  max_retries: 5
+  retry_delays_seconds:
+  - 1
+  - 2
+  - 4
+  - 8
+  - 16
+llm_providers:
+  default_provider: ollama
+  ollama:
+    default_model: llama3.2:latest
+    max_tokens: 2048
+    temperature: 0.7
+    timeout_seconds: 300
+memory_systems:
+  advanced:
+    consolidation_threshold: 5
+    max_episodic_memory: 10000
+    max_semantic_memory: 5000
+    max_working_memory: 20
+performance:
+  default_decision_threshold: 0.6
+  max_concurrent_agents: 50
+  max_execution_time_seconds: 3600
+  max_iterations_hard_limit: 200
+  max_memory_per_agent_mb: 1024
+security:
+  allowed_file_types:
+  - .txt
+  - .pdf
+  - .docx
+  - .md
+  - .json
+  - .yaml
+  max_file_size_mb: 100
+  requests_per_minute: 60

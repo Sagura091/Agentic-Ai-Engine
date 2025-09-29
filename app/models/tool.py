@@ -40,6 +40,15 @@ class Tool(Base):
     author = Column(String(255))
     complexity = Column(String(50), default='simple')  # simple, moderate, complex
     safety_level = Column(String(50), default='safe')  # safe, caution, restricted
+
+    # Upload and validation metadata
+    source_type = Column(String(50), default='generated')  # generated, uploaded, template
+    original_filename = Column(String(255))  # Original uploaded filename
+    file_hash = Column(String(255))  # SHA256 hash of uploaded file
+    validation_status = Column(String(50), default='pending')  # pending, validated, rejected
+    validation_score = Column(Float, default=0.0)  # Security/quality score (0-1)
+    validation_issues = Column(JSON, default=list)  # List of validation issues
+    validation_warnings = Column(JSON, default=list)  # List of validation warnings
     
     # Dependencies and requirements
     dependencies = Column(JSON, default=list)  # List of required packages
@@ -49,6 +58,8 @@ class Tool(Base):
     status = Column(String(50), default='active', index=True)  # active, deprecated, disabled
     is_global = Column(Boolean, default=False)  # Available to all agents
     is_verified = Column(Boolean, default=False)  # Verified by system admin
+    is_public = Column(Boolean, default=False)  # Available in public marketplace
+    requires_approval = Column(Boolean, default=True)  # Requires admin approval for public use
     
     # Usage statistics
     usage_count = Column(Integer, default=0)
@@ -90,11 +101,19 @@ class Tool(Base):
             "author": self.author,
             "complexity": self.complexity,
             "safety_level": self.safety_level,
+            "source_type": self.source_type,
+            "original_filename": self.original_filename,
+            "validation_status": self.validation_status,
+            "validation_score": self.validation_score,
+            "validation_issues": self.validation_issues,
+            "validation_warnings": self.validation_warnings,
             "dependencies": self.dependencies,
             "system_requirements": self.system_requirements,
             "status": self.status,
             "is_global": self.is_global,
             "is_verified": self.is_verified,
+            "is_public": self.is_public,
+            "requires_approval": self.requires_approval,
             "usage_count": self.usage_count,
             "success_count": self.success_count,
             "failure_count": self.failure_count,

@@ -29,16 +29,10 @@ async def get_database_session() -> AsyncGenerator[AsyncSession, None]:
     """
     # Import here to avoid circular imports
     from app.models.database.base import get_database_session as get_db_session
-    
-    async with get_db_session() as session:
-        try:
-            yield session
-        except Exception as e:
-            logger.error("Database session error", error=str(e))
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+
+    # get_db_session is already an async generator that manages the session
+    async for session in get_db_session():
+        yield session
 
 
 async def get_current_user(
@@ -148,8 +142,8 @@ async def get_orchestrator():
     Returns:
         Agent orchestrator instance
     """
-    from app.orchestration.orchestrator import orchestrator
-    return orchestrator
+    from app.core.unified_system_orchestrator import get_orchestrator_with_compatibility
+    return get_orchestrator_with_compatibility()
 
 
 async def get_websocket_manager():

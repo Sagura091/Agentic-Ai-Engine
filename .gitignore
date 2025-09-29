@@ -1,0 +1,329 @@
+# ===================================
+# PYTHON
+# ===================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ===================================
+# VIRTUAL ENVIRONMENTS
+# ===================================
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.conda/
+
+# ===================================
+# ENVIRONMENT & CONFIG FILES
+# ===================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+config.local.json
+secrets.json
+
+# ===================================
+# DATA & CACHE DIRECTORIES
+# ===================================
+data/cache/
+data/chroma/
+data/vector_databases/
+data/models/
+data/embedding_models/
+data/checkpoints/
+data/workflows/
+
+# Database files (but preserve db/ directory structure)
+*.db
+*.sqlite
+*.sqlite3
+# Keep db/ directory and migration files
+!db/
+!db/**/*.sql
+!db/**/*.py
+!db/**/*.md
+# But ignore Python cache in db/
+db/**/__pycache__/
+
+# ===================================
+# LOGS & TEMPORARY FILES
+# ===================================
+logs/
+*.log
+data/logs/
+*.tmp
+*.temp
+temp/
+tmp/
+
+# ===================================
+# NODE.JS & FRONTEND
+# ===================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/out/
+frontend/.nuxt/
+frontend/.vuepress/dist/
+
+# ===================================
+# IDE & EDITOR FILES
+# ===================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ===================================
+# DOCKER & CONTAINERS
+# ===================================
+.dockerignore
+docker-compose.override.yml
+
+# ===================================
+# TESTING & COVERAGE
+# ===================================
+.coverage
+.pytest_cache/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+htmlcov/
+
+# ===================================
+# JUPYTER NOTEBOOKS
+# ===================================
+.ipynb_checkpoints
+
+# ===================================
+# MYPY
+# ===================================
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ===================================
+# PYRE TYPE CHECKER
+# ===================================
+.pyre/
+
+# ===================================
+# PYTYPE STATIC TYPE ANALYZER
+# ===================================
+.pytype/
+
+# ===================================
+# CELERY
+# ===================================
+celerybeat-schedule
+celerybeat.pid
+
+# ===================================
+# SPYDER
+# ===================================
+.spyderproject
+.spyproject
+
+# ===================================
+# ROPE
+# ===================================
+.ropeproject
+
+# ===================================
+# MKDOCS
+# ===================================
+/site
+
+# ===================================
+# CUSTOM PROJECT SPECIFIC
+# ===================================
+# Backup files
+*.bak
+*.backup
+restore_after_transfer.ps1
+
+# Model files (too large for git)
+*.bin
+*.safetensors
+*.onnx
+*.pt
+*.pth
+
+# Vector database files
+*.faiss
+*.index
+
+# Large data files
+*.csv.gz
+*.json.gz
+*.parquet
+
+# Test result files
+*test_results.json
+*test_report.txt
+*_test_results.json
+*_results.json
+performance_test*.html
+
+# Test files and directories
+test_*
+*_test_*
+*_test.*
+test/
+tests/
+tests/**
+
+# Demo and simple files
+demo_*
+*_demo_*
+*_demo.*
+simple_*
+*_simple_*
+*_simple.*
+
+# ===================================
+# IMAGE & MEDIA FILES
+# ===================================
+# Common image formats
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.tif
+*.webp
+*.svg
+*.ico
+*.psd
+*.ai
+*.eps
+*.raw
+*.cr2
+*.nef
+*.orf
+*.sr2
+
+# Video formats
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.mkv
+*.m4v
+
+# Audio formats
+*.mp3
+*.wav
+*.flac
+*.aac
+*.ogg
+*.wma
+*.m4a
+
+# Generated meme files (keeping existing specific patterns)
+generated_*.png
+google_meme_*.png
+
+# Temporary batch files
+start_backend_temp.bat
+launch_*.bat
+
+# Additional data patterns
+data/meme_analysis_cache/
+data/cache/embedding/
+data/chroma/*/
+data/vector_databases/
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Auto-generated directories (backend creates these)
+data/uploads/
+data/session_documents/
+data/temp/
+data/downloads/
+data/autonomous/
+data/agent_files/
+
+# Auto-generated config files
+data/rag_config.json
+data/knowledge_bases.json
+
+# User/generated content
+data/harvested_content/
+data/memes/generated/
+data/screenshots/
+
+# Test and analysis files
+data/hybrid_rag_test_results.json
+data/rag_test_report.txt
+data/meme_analysis_cache/
+
+# Generated agent files
+agent_files/test_*.txt
+agent_files/integration_*.txt
+
+# Test data files
+data/test_*
+data/*/test_*
+data/*_test*
+test_data/
+
+# Demo and simple data files
+data/demo_*
+data/*/demo_*
+data/*_demo*
+data/simple_*
+data/*/simple_*
+data/*_simple*
+demo_data/
+simple_data/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

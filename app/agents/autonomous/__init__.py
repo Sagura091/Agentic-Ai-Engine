@@ -170,6 +170,9 @@ def create_autonomous_agent(
     Returns:
         Configured AutonomousLangGraphAgent
     """
+    # Extract agent_id from kwargs if provided
+    agent_id = kwargs.pop('agent_id', None)
+
     # Create configuration
     config_dict = DEFAULT_AUTONOMOUS_CONFIG.copy()
     config_dict.update({
@@ -179,14 +182,15 @@ def create_autonomous_agent(
         "learning_mode": LearningMode(learning_mode),
         **kwargs
     })
-    
+
     config = AutonomousAgentConfig(**config_dict)
-    
-    # Create and return agent
+
+    # Create and return agent with optional agent_id
     return AutonomousLangGraphAgent(
         config=config,
         llm=llm,
-        tools=tools or []
+        tools=tools or [],
+        agent_id=agent_id
     )
 
 def create_research_agent(llm, tools=None) -> AutonomousLangGraphAgent:

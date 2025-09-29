@@ -1,0 +1,4 @@
+risk_management:
+  max_risk: 2%
+  position_size: 10%
+system: Revolutionary AI Trader

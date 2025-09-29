@@ -76,7 +76,14 @@ class LLMConfig(BaseModel):
     # Provider-specific settings
     credentials: Optional[ProviderCredentials] = None
     additional_params: Dict[str, Any] = Field(default_factory=dict)
-    
+
+    # Manual selection enhancements
+    manual_selection: bool = Field(default=False, description="Whether this model was manually selected by user")
+    selection_reason: Optional[str] = Field(default=None, description="Reason for model selection")
+    user_preferences: Dict[str, Any] = Field(default_factory=dict, description="User-specific preferences")
+    auto_optimize: bool = Field(default=True, description="Allow automatic optimization of parameters")
+    recommended_for: List[str] = Field(default_factory=list, description="Tasks this model is recommended for")
+
     @validator('temperature')
     def validate_temperature(cls, v):
         if not 0.0 <= v <= 2.0:

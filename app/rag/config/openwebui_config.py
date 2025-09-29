@@ -66,17 +66,17 @@ class RAGConfig(BaseModel):
     """Comprehensive RAG configuration."""
     
     # Data directories
-    data_dir: str = Field(default="data", description="Base data directory")
-    vector_db_dir: str = Field(default="data/vector_databases", description="Vector database directory")
-    uploads_dir: str = Field(default="data/uploads", description="File uploads directory")
-    cache_dir: str = Field(default="data/cache", description="Cache directory")
-    models_dir: str = Field(default="data/models", description="Models directory")
-    
+    data_dir: str = Field(default="./data", description="Base data directory")
+    vector_db_dir: str = Field(default="./data/chroma", description="Vector database directory")
+    uploads_dir: str = Field(default="./data/uploads", description="File uploads directory")
+    cache_dir: str = Field(default="./data/cache", description="Cache directory")
+    models_dir: str = Field(default="./data/models", description="Models directory")
+
     # Vector Database Configuration
     vector_db: str = Field(default="chroma", description="Vector database type")
-    
+
     # ChromaDB Configuration
-    chroma_data_path: str = Field(default="data/vector_databases/chroma", description="ChromaDB data path")
+    chroma_data_path: str = Field(default="./data/chroma", description="ChromaDB data path")
     chroma_http_host: str = Field(default="", description="ChromaDB HTTP host")
     chroma_http_port: int = Field(default=8000, description="ChromaDB HTTP port")
     chroma_http_ssl: bool = Field(default=False, description="ChromaDB HTTP SSL")
@@ -203,7 +203,7 @@ class OpenWebUIRAGConfig:
         # Create default configuration
         config = RAGConfig(
             data_dir=str(self.data_dir),
-            vector_db_dir=str(self.data_dir / "vector_databases"),
+            vector_db_dir=str(self.data_dir / "chroma"),
             uploads_dir=str(self.data_dir / "uploads"),
             cache_dir=str(self.data_dir / "cache"),
             models_dir=str(self.data_dir / "models"),

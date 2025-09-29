@@ -1,0 +1,342 @@
+"""
+Master Migration Runner for All Database Migrations.
+
+This script runs all database migrations in the correct order:
+1. Database initialization (SQL)
+2. Autonomous agent tables
+3. Authentication tables
+4. Enhanced platform tables
+5. Document storage tables
+6. Knowledge base data migration (JSON to database)
+
+Location: db/migrations/run_all_migrations.py
+Usage: python db/migrations/run_all_migrations.py
+"""
+
+import asyncio
+import sys
+import importlib.util
+from pathlib import Path
+from typing import Dict, Any, List
+
+import structlog
+
+# Add the project root to the path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+# Also add to PYTHONPATH for submodule imports
+import os
+os.environ['PYTHONPATH'] = str(project_root) + os.pathsep + os.environ.get('PYTHONPATH', '')
+
+# Import migration classes using importlib (numeric filenames)
+migrations_dir = Path(__file__).parent
+
+# Load autonomous tables migration
+spec_autonomous = importlib.util.spec_from_file_location(
+    "autonomous_migration", migrations_dir / "002_create_autonomous_tables.py"
+)
+autonomous_module = importlib.util.module_from_spec(spec_autonomous)
+spec_autonomous.loader.exec_module(autonomous_module)
+DatabaseMigrationManager = autonomous_module.DatabaseMigrationManager
+
+# Load enhanced tables migration
+spec_enhanced = importlib.util.spec_from_file_location(
+    "enhanced_migration", migrations_dir / "004_create_enhanced_tables.py"
+)
+enhanced_module = importlib.util.module_from_spec(spec_enhanced)
+spec_enhanced.loader.exec_module(enhanced_module)
+EnhancedTablesMigration = enhanced_module.EnhancedTablesMigration
+
+# Import knowledge base service
+sys.path.insert(0, str(project_root))
+from app.services.knowledge_base_migration_service import knowledge_base_migration_service
+
+logger = structlog.get_logger(__name__)
+
+
+class MasterMigrationRunner:
+    """Master migration runner for all database migrations."""
+    
+    def __init__(self):
+        """Initialize the master migration runner."""
+        self.migrations = [
+            {
+                "name": "autonomous_tables",
+                "description": "Create autonomous agent tables",
+                "runner": self._run_autonomous_tables_migration
+            },
+            {
+                "name": "enhanced_tables", 
+                "description": "Create enhanced platform tables",
+                "runner": self._run_enhanced_tables_migration
+            },
+            {
+                "name": "knowledge_base_data",
+                "description": "Migrate knowledge base data from JSON to database",
+                "runner": self._run_knowledge_base_migration
+            },
+            {
+                "name": "admin_settings_tables",
+                "description": "Create admin settings management tables",
+                "runner": self._run_admin_settings_migration
+            }
+        ]
+    
+    async def run_all_migrations(self) -> Dict[str, Any]:
+        """
+        Run all migrations in order.
+        
+        Returns:
+            Dict containing overall migration results
+        """
+        logger.info("🚀 Starting master migration process")
+        
+        results = {
+            "success": True,
+            "total_migrations": len(self.migrations),
+            "completed_migrations": 0,
+            "failed_migrations": 0,
+            "migration_results": {},
+            "errors": []
+        }
+        
+        for migration in self.migrations:
+            migration_name = migration["name"]
+            migration_description = migration["description"]
+            
+            logger.info(f"📋 Running migration: {migration_name}", description=migration_description)
+            
+            try:
+                migration_result = await migration["runner"]()
+                results["migration_results"][migration_name] = migration_result
+                
+                if migration_result.get("success", False):
+                    results["completed_migrations"] += 1
+                    logger.info(f"✅ Migration completed: {migration_name}")
+                else:
+                    results["failed_migrations"] += 1
+                    results["success"] = False
+                    error_msg = f"Migration failed: {migration_name} - {migration_result.get('message', 'Unknown error')}"
+                    results["errors"].append(error_msg)
+                    logger.error(f"❌ Migration failed: {migration_name}", error=migration_result.get('message'))
+                    
+            except Exception as e:
+                results["failed_migrations"] += 1
+                results["success"] = False
+                error_msg = f"Migration exception: {migration_name} - {str(e)}"
+                results["errors"].append(error_msg)
+                logger.error(f"💥 Migration exception: {migration_name}", error=str(e))
+        
+        # Summary
+        if results["success"]:
+            logger.info(f"🎉 All migrations completed successfully! ({results['completed_migrations']}/{results['total_migrations']})")
+        else:
+            logger.error(f"💔 Migration process failed. Completed: {results['completed_migrations']}, Failed: {results['failed_migrations']}")
+        
+        return results
+    
+    async def _run_autonomous_tables_migration(self) -> Dict[str, Any]:
+        """Run autonomous tables migration."""
+        try:
+            migration = AutonomousTablesMigration()
+            success = await migration.create_autonomous_tables()
+            
+            return {
+                "success": success,
+                "message": "Autonomous tables migration completed" if success else "Autonomous tables migration failed"
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Autonomous tables migration failed: {str(e)}"
+            }
+    
+    async def _run_enhanced_tables_migration(self) -> Dict[str, Any]:
+        """Run enhanced tables migration."""
+        try:
+            migration = EnhancedTablesMigration()
+            success = await migration.create_enhanced_tables()
+            
+            return {
+                "success": success,
+                "message": "Enhanced tables migration completed" if success else "Enhanced tables migration failed"
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Enhanced tables migration failed: {str(e)}"
+            }
+    
+    async def _run_knowledge_base_migration(self) -> Dict[str, Any]:
+        """Run knowledge base data migration."""
+        try:
+            result = await knowledge_base_migration_service.migrate_from_json()
+            return result
+
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Knowledge base migration failed: {str(e)}"
+            }
+
+    async def _run_admin_settings_migration(self) -> Dict[str, Any]:
+        """Run admin settings tables migration."""
+        try:
+            logger.info("🔧 Running admin settings tables migration...")
+
+            # Import and run the migration
+            import sys
+            from pathlib import Path
+
+            # Add migrations directory to path
+            migrations_dir = Path(__file__).parent
+            sys.path.insert(0, str(migrations_dir))
+
+            # Import the migration module
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "admin_migration",
+                migrations_dir / "006_add_admin_settings_tables.py"
+            )
+            admin_migration = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(admin_migration)
+
+            # Run the upgrade function
+            admin_migration.upgrade()
+
+            # Insert default settings
+            admin_migration.insert_default_settings()
+
+            logger.info("✅ Admin settings tables migration completed successfully")
+
+            return {
+                "success": True,
+                "message": "Admin settings tables created successfully with default data",
+                "tables_created": ["admin_settings", "admin_setting_history", "system_configuration_cache"],
+                "default_settings_inserted": True
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Admin settings migration failed: {str(e)}")
+            return {
+                "success": False,
+                "message": f"Admin settings migration failed: {str(e)}"
+            }
+    
+    async def get_migration_status(self) -> Dict[str, Any]:
+        """Get status of all migrations."""
+        try:
+            # Check autonomous tables
+            autonomous_migration = AutonomousTablesMigration()
+            autonomous_applied = await autonomous_migration.is_migration_applied("create_autonomous_tables_v1")
+            
+            # Check enhanced tables
+            enhanced_migration = EnhancedTablesMigration()
+            enhanced_applied = await enhanced_migration.is_migration_applied("create_enhanced_tables_v1")
+            
+            # Check knowledge base migration
+            kb_status = await knowledge_base_migration_service.get_migration_status()
+            
+            return {
+                "autonomous_tables": {
+                    "applied": autonomous_applied,
+                    "status": "completed" if autonomous_applied else "pending"
+                },
+                "enhanced_tables": {
+                    "applied": enhanced_applied,
+                    "status": "completed" if enhanced_applied else "pending"
+                },
+                "knowledge_base_data": kb_status,
+                "overall_status": "completed" if (autonomous_applied and enhanced_applied and kb_status.get("status") == "completed") else "pending"
+            }
+            
+        except Exception as e:
+            logger.error("Failed to get migration status", error=str(e))
+            return {
+                "error": str(e),
+                "overall_status": "error"
+            }
+    
+    async def rollback_migration(self, migration_name: str) -> Dict[str, Any]:
+        """
+        Rollback a specific migration (if supported).
+        
+        Args:
+            migration_name: Name of migration to rollback
+            
+        Returns:
+            Dict containing rollback results
+        """
+        logger.warning(f"Rollback requested for migration: {migration_name}")
+        
+        # For now, rollback is not implemented as it's complex and dangerous
+        # In production, you would implement proper rollback scripts
+        return {
+            "success": False,
+            "message": f"Rollback not implemented for migration: {migration_name}. Manual intervention required.",
+            "migration_name": migration_name
+        }
+
+
+async def main():
+    """Main function to run all migrations."""
+    try:
+        logger.info("🎯 Master Database Migration Runner")
+        logger.info("=" * 50)
+        
+        runner = MasterMigrationRunner()
+        results = await runner.run_all_migrations()
+        
+        logger.info("=" * 50)
+        logger.info("📊 Migration Summary:")
+        logger.info(f"   Total Migrations: {results['total_migrations']}")
+        logger.info(f"   Completed: {results['completed_migrations']}")
+        logger.info(f"   Failed: {results['failed_migrations']}")
+        logger.info(f"   Overall Success: {results['success']}")
+        
+        if results["errors"]:
+            logger.info("❌ Errors:")
+            for error in results["errors"]:
+                logger.info(f"   - {error}")
+        
+        logger.info("=" * 50)
+        
+        if results["success"]:
+            logger.info("🎉 All migrations completed successfully!")
+            return 0
+        else:
+            logger.error("💔 Some migrations failed. Check logs for details.")
+            return 1
+            
+    except Exception as e:
+        logger.error(f"💥 Master migration failed: {str(e)}")
+        return 1
+
+
+if __name__ == "__main__":
+    # Configure logging
+    import structlog
+    structlog.configure(
+        processors=[
+            structlog.stdlib.filter_by_level,
+            structlog.stdlib.add_logger_name,
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.PositionalArgumentsFormatter(),
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.UnicodeDecoder(),
+            structlog.processors.JSONRenderer()
+        ],
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
+    
+    # Run migrations
+    exit_code = asyncio.run(main())
+    sys.exit(exit_code)

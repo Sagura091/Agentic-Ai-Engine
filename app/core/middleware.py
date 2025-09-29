@@ -221,10 +221,10 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self' localhost:*; "
-            "script-src 'self' 'unsafe-inline' localhost:*; "
-            "style-src 'self' 'unsafe-inline' localhost:*; "
+            "script-src 'self' 'unsafe-inline' localhost:* https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' localhost:* https://cdn.jsdelivr.net; "
             "img-src 'self' data: https: localhost:*; "
-            "font-src 'self' data: localhost:*; "
+            "font-src 'self' data: localhost:* https://cdn.jsdelivr.net; "
             "connect-src 'self' ws: wss: localhost:* ws://localhost:* wss://localhost:*; "
             "frame-ancestors 'none';"
         )

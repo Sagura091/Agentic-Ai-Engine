@@ -16,7 +16,8 @@ from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from ..core.collection_based_kb_manager import CollectionBasedKBManager
-from ..ingestion.pipeline import IngestionPipeline
+from ..core.unified_rag_system import UnifiedRAGSystem, Document
+from ..ingestion.pipeline import RevolutionaryIngestionPipeline
 
 logger = structlog.get_logger(__name__)
 
@@ -52,6 +53,13 @@ class SynthesisInput(BaseModel):
     max_sources: int = Field(default=20, ge=5, le=100, description="Maximum sources to consider")
 
 
+class KnowledgeManagementInput(BaseModel):
+    """Input schema for knowledge management tool."""
+    operation: str = Field(..., description="Management operation to perform")
+    collection: Optional[str] = Field(default=None, description="Collection name for operation")
+    name: Optional[str] = Field(default=None, description="Name for new collection")
+
+
 class KnowledgeSearchTool(BaseTool):
     """
     Advanced knowledge search tool for agents.
@@ -77,10 +85,11 @@ class KnowledgeSearchTool(BaseTool):
     - Relevance scoring
     """
     args_schema: Type[BaseModel] = KnowledgeSearchInput
-    
-    def __init__(self, knowledge_base: KnowledgeBase):
-        super().__init__()
-        self.knowledge_base = knowledge_base
+    rag_system: UnifiedRAGSystem = Field(default=None, exclude=True)
+    agent_id: Optional[str] = Field(default=None, exclude=True)
+
+    def __init__(self, rag_system: UnifiedRAGSystem, agent_id: str = None, **kwargs):
+        super().__init__(rag_system=rag_system, agent_id=agent_id, **kwargs)
     
     def _run(self, **kwargs) -> str:
         """Synchronous wrapper for async search."""
@@ -91,36 +100,36 @@ class KnowledgeSearchTool(BaseTool):
         try:
             # Parse input
             search_input = KnowledgeSearchInput(**kwargs)
-            
-            # Create knowledge query
-            query = KnowledgeQuery(
+
+            # Execute search using UnifiedRAGSystem
+            results = await self.rag_system.search_documents(
+                agent_id=self.agent_id or search_input.collection or "default",
                 query=search_input.query,
-                collection=search_input.collection,
+                collection_type="knowledge",
                 top_k=search_input.top_k,
                 filters=search_input.filters
             )
             
-            # Execute search
-            result = await self.knowledge_base.search(query)
-            
             # Format results
-            if not result.results:
+            if not results:
                 return json.dumps({
                     "success": True,
                     "message": "No relevant information found",
                     "query": search_input.query,
                     "results": []
                 })
-            
+
             # Prepare response
             formatted_results = []
-            for i, search_result in enumerate(result.results):
+            for i, search_result in enumerate(results):
+                content = search_result.get('content', '')
+                metadata = search_result.get('metadata', {})
                 formatted_results.append({
                     "rank": i + 1,
-                    "content": search_result.content[:500] + "..." if len(search_result.content) > 500 else search_result.content,
-                    "score": round(search_result.score, 3),
-                    "metadata": search_result.metadata,
-                    "source": search_result.metadata.get("document_title", "Unknown")
+                    "content": content[:500] + "..." if len(content) > 500 else content,
+                    "score": round(search_result.get('score', 0.0), 3),
+                    "metadata": metadata,
+                    "source": metadata.get("source_text", metadata.get("source_image", "Unknown"))
                 })
             
             response = {
@@ -168,10 +177,11 @@ class DocumentIngestTool(BaseTool):
     - Make it searchable immediately
     """
     args_schema: Type[BaseModel] = DocumentIngestInput
-    
-    def __init__(self, knowledge_base: KnowledgeBase):
-        super().__init__()
-        self.knowledge_base = knowledge_base
+    rag_system: UnifiedRAGSystem = Field(default=None, exclude=True)
+    agent_id: Optional[str] = Field(default=None, exclude=True)
+
+    def __init__(self, rag_system: UnifiedRAGSystem, agent_id: str = None, **kwargs):
+        super().__init__(rag_system=rag_system, agent_id=agent_id, **kwargs)
     
     def _run(self, **kwargs) -> str:
         """Synchronous wrapper for async ingestion."""
@@ -185,30 +195,31 @@ class DocumentIngestTool(BaseTool):
             
             # Create document
             document = Document(
-                title=ingest_input.title,
-                content=ingest_input.content,
+                id=f"agent_ingest_{datetime.utcnow().timestamp()}",
+                content=f"TITLE: {ingest_input.title}\n\nCONTENT: {ingest_input.content}",
                 metadata={
                     **ingest_input.metadata,
+                    "title": ingest_input.title,
+                    "document_type": ingest_input.document_type,
                     "ingested_by": "agent",
-                    "ingested_at": datetime.utcnow().isoformat()
-                },
-                document_type=ingest_input.document_type,
-                source="agent_ingestion"
+                    "ingested_at": datetime.utcnow().isoformat(),
+                    "source": "agent_ingestion"
+                }
             )
-            
+
             # Add to knowledge base
-            document_id = await self.knowledge_base.add_document(
-                document,
-                collection=ingest_input.collection
+            success = await self.rag_system.add_documents(
+                agent_id=self.agent_id or ingest_input.collection or "default",
+                documents=[document],
+                collection_type="knowledge"
             )
             
             response = {
-                "success": True,
-                "message": "Document successfully added to knowledge base",
-                "document_id": document_id,
+                "success": success,
+                "message": "Document successfully added to knowledge base" if success else "Failed to add document",
+                "document_id": document.id,
                 "title": ingest_input.title,
-                "collection": ingest_input.collection or self.knowledge_base.config.default_collection,
-                "chunks_created": document.chunk_count,
+                "collection": ingest_input.collection or "default",
                 "content_length": len(ingest_input.content)
             }
             
@@ -248,10 +259,11 @@ class FactCheckTool(BaseTool):
     - Return supporting evidence
     """
     args_schema: Type[BaseModel] = FactCheckInput
-    
-    def __init__(self, knowledge_base: KnowledgeBase):
-        super().__init__()
-        self.knowledge_base = knowledge_base
+    rag_system: UnifiedRAGSystem = Field(default=None, exclude=True)
+    agent_id: Optional[str] = Field(default=None, exclude=True)
+
+    def __init__(self, rag_system: UnifiedRAGSystem, agent_id: str = None, **kwargs):
+        super().__init__(rag_system=rag_system, agent_id=agent_id, **kwargs)
     
     def _run(self, **kwargs) -> str:
         """Synchronous wrapper for async fact checking."""
@@ -264,15 +276,15 @@ class FactCheckTool(BaseTool):
             fact_input = FactCheckInput(**kwargs)
             
             # Search for relevant information
-            query = KnowledgeQuery(
+            results = await self.rag_system.search_documents(
+                agent_id=self.agent_id or fact_input.collection or "default",
                 query=fact_input.statement,
-                collection=fact_input.collection,
-                top_k=10
+                collection_type="knowledge",
+                top_k=10,
+                filters={}
             )
-            
-            result = await self.knowledge_base.search(query)
-            
-            if not result.results:
+
+            if not results:
                 return json.dumps({
                     "success": True,
                     "statement": fact_input.statement,
@@ -285,11 +297,13 @@ class FactCheckTool(BaseTool):
             # Analyze results for fact checking
             supporting_evidence = []
             contradicting_evidence = []
-            
-            for search_result in result.results:
-                if search_result.score >= fact_input.confidence_threshold:
+
+            for search_result in results:
+                score = search_result.get('score', 0.0)
+                if score >= fact_input.confidence_threshold:
                     # Simple keyword-based analysis (can be enhanced with NLP)
-                    content_lower = search_result.content.lower()
+                    content = search_result.get('content', '')
+                    content_lower = content.lower()
                     statement_lower = fact_input.statement.lower()
                     
                     # Extract key terms from statement
@@ -298,10 +312,11 @@ class FactCheckTool(BaseTool):
                     
                     overlap = len(statement_words.intersection(content_words))
                     
+                    metadata = search_result.get('metadata', {})
                     evidence_item = {
-                        "content": search_result.content[:300] + "..." if len(search_result.content) > 300 else search_result.content,
-                        "score": round(search_result.score, 3),
-                        "source": search_result.metadata.get("document_title", "Unknown"),
+                        "content": content[:300] + "..." if len(content) > 300 else content,
+                        "score": round(score, 3),
+                        "source": metadata.get("source_text", metadata.get("source_image", "Unknown")),
                         "overlap_score": overlap / len(statement_words) if statement_words else 0
                     }
                     
@@ -362,10 +377,11 @@ class SynthesisTool(BaseTool):
     - Provide synthesized summary
     """
     args_schema: Type[BaseModel] = SynthesisInput
-    
-    def __init__(self, knowledge_base: KnowledgeBase):
-        super().__init__()
-        self.knowledge_base = knowledge_base
+    rag_system: UnifiedRAGSystem = Field(default=None, exclude=True)
+    agent_id: Optional[str] = Field(default=None, exclude=True)
+
+    def __init__(self, rag_system: UnifiedRAGSystem, agent_id: str = None, **kwargs):
+        super().__init__(rag_system=rag_system, agent_id=agent_id, **kwargs)
     
     def _run(self, **kwargs) -> str:
         """Synchronous wrapper for async synthesis."""
@@ -377,23 +393,15 @@ class SynthesisTool(BaseTool):
             # Parse input
             synthesis_input = SynthesisInput(**kwargs)
             
-            # Determine collections to search
-            collections = synthesis_input.collections
-            if not collections:
-                collections = [self.knowledge_base.config.default_collection]
-            
-            # Search across collections
-            all_results = []
-            for collection in collections:
-                query = KnowledgeQuery(
-                    query=synthesis_input.topic,
-                    collection=collection,
-                    top_k=synthesis_input.max_sources // len(collections)
-                )
-                
-                result = await self.knowledge_base.search(query)
-                all_results.extend(result.results)
-            
+            # Search for comprehensive information
+            all_results = await self.rag_system.search_documents(
+                agent_id=self.agent_id or "default",
+                query=synthesis_input.topic,
+                collection_type="knowledge",
+                top_k=synthesis_input.max_sources,
+                filters={}
+            )
+
             if not all_results:
                 return json.dumps({
                     "success": True,
@@ -404,30 +412,31 @@ class SynthesisTool(BaseTool):
                 })
             
             # Sort by relevance
-            all_results.sort(key=lambda x: x.score, reverse=True)
+            all_results.sort(key=lambda x: x.get('score', 0.0), reverse=True)
             top_results = all_results[:synthesis_input.max_sources]
-            
+
             # Synthesize information
             synthesis = {
                 "topic": synthesis_input.topic,
                 "total_sources": len(top_results),
-                "collections_searched": collections,
                 "key_sources": [],
                 "themes": [],
                 "summary": ""
             }
-            
+
             # Extract key sources
             for i, result in enumerate(top_results[:10]):
+                content = result.get('content', '')
+                metadata = result.get('metadata', {})
                 synthesis["key_sources"].append({
                     "rank": i + 1,
-                    "content": result.content[:200] + "..." if len(result.content) > 200 else result.content,
-                    "score": round(result.score, 3),
-                    "source": result.metadata.get("document_title", "Unknown")
+                    "content": content[:200] + "..." if len(content) > 200 else content,
+                    "score": round(result.get('score', 0.0), 3),
+                    "source": metadata.get("source_text", metadata.get("source_image", "Unknown"))
                 })
-            
+
             # Simple theme extraction (can be enhanced with NLP)
-            all_content = " ".join([r.content for r in top_results])
+            all_content = " ".join([r.get('content', '') for r in top_results])
             words = all_content.lower().split()
             word_freq = {}
             
@@ -482,10 +491,12 @@ class KnowledgeManagementTool(BaseTool):
     - create_collection: Create a new collection
     - collection_stats: Get statistics for a specific collection
     """
-    
-    def __init__(self, knowledge_base: KnowledgeBase):
-        super().__init__()
-        self.knowledge_base = knowledge_base
+    args_schema: Type[BaseModel] = KnowledgeManagementInput
+    rag_system: UnifiedRAGSystem = Field(default=None, exclude=True)
+    agent_id: Optional[str] = Field(default=None, exclude=True)
+
+    def __init__(self, rag_system: UnifiedRAGSystem, agent_id: str = None, **kwargs):
+        super().__init__(rag_system=rag_system, agent_id=agent_id, **kwargs)
     
     def _run(self, operation: str, **kwargs) -> str:
         """Synchronous wrapper for async management operations."""
@@ -495,16 +506,17 @@ class KnowledgeManagementTool(BaseTool):
         """Execute knowledge management operations."""
         try:
             if operation == "list_collections":
-                collections = await self.knowledge_base.get_collections()
+                # Get basic collection info from RAG system
+                stats = self.rag_system.get_stats()
                 return json.dumps({
                     "success": True,
                     "operation": "list_collections",
-                    "collections": collections,
-                    "total": len(collections)
+                    "collections": list(stats.get("collections", {}).keys()),
+                    "total": len(stats.get("collections", {}))
                 }, indent=2)
-            
+
             elif operation == "get_stats":
-                stats = await self.knowledge_base.get_stats()
+                stats = self.rag_system.get_stats()
                 return json.dumps({
                     "success": True,
                     "operation": "get_stats",
@@ -515,23 +527,24 @@ class KnowledgeManagementTool(BaseTool):
                 collection_name = kwargs.get("name")
                 if not collection_name:
                     raise ValueError("Collection name is required")
-                
-                await self.knowledge_base.create_collection(collection_name)
+
+                # Collections are created automatically in UnifiedRAGSystem
                 return json.dumps({
                     "success": True,
                     "operation": "create_collection",
                     "collection": collection_name,
-                    "message": f"Collection '{collection_name}' created successfully"
+                    "message": f"Collection '{collection_name}' will be created automatically when documents are added"
                 }, indent=2)
-            
+
             elif operation == "collection_stats":
                 collection_name = kwargs.get("collection")
-                stats = await self.knowledge_base.vector_store.get_collection_stats(collection_name)
+                stats = self.rag_system.get_stats()
+                collection_stats = stats.get("collections", {}).get(collection_name, {})
                 return json.dumps({
                     "success": True,
                     "operation": "collection_stats",
                     "collection": collection_name,
-                    "stats": stats
+                    "stats": collection_stats
                 }, indent=2)
             
             else:

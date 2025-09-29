@@ -1,141 +1,254 @@
 """
-Security utilities for the Agentic AI Microservice.
-
-This module provides authentication, authorization, and security utilities
-including JWT token handling and password management.
+Security system for the Agentic AI platform.
 """
 
+import hashlib
+import secrets
+import time
+from typing import Dict, Any, Optional, List, Set
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
-
+from dataclasses import dataclass
+from collections import defaultdict, deque
 import structlog
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+from functools import wraps
+import re
+import html
 
 logger = structlog.get_logger(__name__)
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+@dataclass
+class SecurityEvent:
+    """Security event record."""
+    event_type: str
+    severity: str
+    user_id: Optional[str]
+    ip_address: str
+    user_agent: str
+    timestamp: datetime
+    details: Dict[str, Any]
 
 
-def create_access_token(
-    data: Dict[str, Any],
-    secret_key: str,
-    algorithm: str = "HS256",
-    expires_delta: Optional[timedelta] = None
-) -> str:
-    """
-    Create a JWT access token.
+class InputSanitizer:
+    """Sanitizes and validates user inputs."""
     
-    Args:
-        data: Data to encode in the token
-        secret_key: Secret key for signing
-        algorithm: JWT algorithm to use
-        expires_delta: Token expiration time
+    DANGEROUS_PATTERNS = [
+        r'<script[^>]*>.*?</script>',
+        r'javascript:',
+        r'vbscript:',
+        r'on\w+\s*=',
+        r'<iframe[^>]*>',
+        r'<object[^>]*>',
+        r'<embed[^>]*>',
+        r'<form[^>]*>',
+        r'<input[^>]*>',
+        r'<textarea[^>]*>',
+        r'<select[^>]*>',
+        r'<option[^>]*>',
+        r'<button[^>]*>',
+        r'<link[^>]*>',
+        r'<meta[^>]*>',
+        r'<style[^>]*>',
+        r'<base[^>]*>',
+        r'<applet[^>]*>',
+        r'<param[^>]*>',
+    ]
+    
+    def __init__(self):
+        self.dangerous_patterns = [re.compile(pattern, re.IGNORECASE) for pattern in self.DANGEROUS_PATTERNS]
+    
+    def sanitize_string(self, input_str: str, max_length: int = 1000) -> str:
+        """Sanitize a string input."""
+        if not isinstance(input_str, str):
+            return str(input_str)
         
-    Returns:
-        Encoded JWT token
-    """
-    to_encode = data.copy()
-    
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    
-    to_encode.update({"exp": expire})
-    
-    try:
-        encoded_jwt = jwt.encode(to_encode, secret_key, algorithm=algorithm)
-        logger.info("Access token created", user_id=data.get("sub"))
-        return encoded_jwt
-    except Exception as e:
-        logger.error("Failed to create access token", error=str(e))
-        raise
-
-
-def decode_access_token(
-    token: str,
-    secret_key: str,
-    algorithm: str = "HS256"
-) -> Dict[str, Any]:
-    """
-    Decode and validate a JWT access token.
-    
-    Args:
-        token: JWT token to decode
-        secret_key: Secret key for verification
-        algorithm: JWT algorithm used
+        if len(input_str) > max_length:
+            input_str = input_str[:max_length]
         
-    Returns:
-        Decoded token payload
+        sanitized = html.escape(input_str, quote=True)
         
-    Raises:
-        JWTError: If token is invalid or expired
-    """
-    try:
-        payload = jwt.decode(token, secret_key, algorithms=[algorithm])
-        return payload
-    except JWTError as e:
-        logger.warning("Invalid token", error=str(e))
-        raise
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """
-    Verify a password against its hash.
+        for pattern in self.dangerous_patterns:
+            sanitized = pattern.sub('', sanitized)
+        
+        return sanitized.strip()
     
-    Args:
-        plain_password: Plain text password
-        hashed_password: Hashed password
+    def validate_input(self, input_str: str) -> bool:
+        """Validate input against security rules."""
+        if not isinstance(input_str, str):
+            return False
         
-    Returns:
-        True if password matches, False otherwise
-    """
-    try:
-        return pwd_context.verify(plain_password, hashed_password)
-    except Exception as e:
-        logger.error("Password verification error", error=str(e))
+        for pattern in self.dangerous_patterns:
+            if pattern.search(input_str):
+                return False
+        
+        return True
+
+
+class RateLimiter:
+    """Rate limiting implementation."""
+    
+    def __init__(self):
+        self.requests: Dict[str, deque] = defaultdict(lambda: deque())
+        self.blocked_ips: Set[str] = set()
+        self.blocked_users: Set[str] = set()
+    
+    def is_rate_limited(self, identifier: str, limit: int, window_seconds: int) -> bool:
+        """Check if identifier is rate limited."""
+        now = time.time()
+        window_start = now - window_seconds
+        
+        requests = self.requests[identifier]
+        while requests and requests[0] < window_start:
+            requests.popleft()
+        
+        if len(requests) >= limit:
+            return True
+        
+        requests.append(now)
         return False
 
 
-def get_password_hash(password: str) -> str:
-    """
-    Hash a password.
+class SecurityManager:
+    """Main security manager."""
     
-    Args:
-        password: Plain text password
+    def __init__(self):
+        self.input_sanitizer = InputSanitizer()
+        self.rate_limiter = RateLimiter()
+        self.security_events: List[SecurityEvent] = []
+        self.failed_attempts: Dict[str, int] = defaultdict(int)
+        self.blocked_ips: Set[str] = set()
+        self.blocked_users: Set[str] = set()
         
-    Returns:
-        Hashed password
-    """
-    try:
-        return pwd_context.hash(password)
-    except Exception as e:
-        logger.error("Password hashing error", error=str(e))
-        raise
-
-
-def generate_api_key() -> str:
-    """
-    Generate a secure API key.
+        self.max_failed_attempts = 5
+        self.lockout_duration = 3600
+        self.rate_limit_requests = 100
+        self.rate_limit_window = 3600
+        self.max_input_length = 10000
     
-    Returns:
-        Generated API key
-    """
-    import secrets
-    return secrets.token_urlsafe(32)
-
-
-def validate_api_key(api_key: str, valid_keys: list) -> bool:
-    """
-    Validate an API key.
-    
-    Args:
-        api_key: API key to validate
-        valid_keys: List of valid API keys
+    def record_security_event(self, event_type: str, severity: str, user_id: Optional[str], 
+                           ip_address: str, user_agent: str, details: Dict[str, Any]):
+        """Record a security event."""
+        event = SecurityEvent(
+            event_type=event_type,
+            severity=severity,
+            user_id=user_id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            timestamp=datetime.utcnow(),
+            details=details
+        )
+        self.security_events.append(event)
         
-    Returns:
-        True if valid, False otherwise
-    """
-    return api_key in valid_keys
+        logger.warning(
+            f"Security event: {event_type}",
+            severity=severity,
+            user_id=user_id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            details=details
+        )
+    
+    def check_security(self, user_id: Optional[str], ip_address: str, user_agent: str) -> bool:
+        """Check if request is allowed."""
+        if ip_address in self.blocked_ips:
+            return False
+        
+        if user_id and user_id in self.blocked_users:
+            return False
+        
+        if self.rate_limiter.is_rate_limited(f"ip:{ip_address}", self.rate_limit_requests, self.rate_limit_window):
+            return False
+        
+        if user_id and self.rate_limiter.is_rate_limited(f"user:{user_id}", self.rate_limit_requests, self.rate_limit_window):
+            return False
+        
+        return True
+    
+    def sanitize_input(self, input_data: Any) -> Any:
+        """Sanitize input data."""
+        if isinstance(input_data, str):
+            return self.input_sanitizer.sanitize_string(input_data, self.max_input_length)
+        elif isinstance(input_data, dict):
+            return {key: self.sanitize_input(value) for key, value in input_data.items()}
+        elif isinstance(input_data, list):
+            return [self.sanitize_input(item) for item in input_data]
+        else:
+            return input_data
+    
+    def validate_input(self, input_data: Any) -> bool:
+        """Validate input data."""
+        if isinstance(input_data, str):
+            return self.input_sanitizer.validate_input(input_data)
+        elif isinstance(input_data, dict):
+            return all(self.validate_input(value) for value in input_data.values())
+        elif isinstance(input_data, list):
+            return all(self.validate_input(item) for item in input_data)
+        else:
+            return True
+
+
+# Global security manager instance
+security_manager = SecurityManager()
+
+
+# Security decorators
+def require_security_check(func):
+    """Decorator for security checks."""
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        request = kwargs.get('request')
+        if not request:
+            raise ValueError("Request object required for security check")
+        
+        user_id = getattr(request.state, 'user_id', None)
+        ip_address = request.client.host
+        user_agent = request.headers.get('user-agent', '')
+        
+        if not security_manager.check_security(user_id, ip_address, user_agent):
+            raise PermissionError("Security check failed")
+        
+        return await func(*args, **kwargs)
+    return wrapper
+
+
+def sanitize_inputs(func):
+    """Decorator for input sanitization."""
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        for key, value in kwargs.items():
+            if isinstance(value, (str, dict, list)):
+                kwargs[key] = security_manager.sanitize_input(value)
+        
+        return await func(*args, **kwargs)
+    return wrapper
+
+
+def rate_limit(requests_per_minute: int = 60):
+    """Decorator for rate limiting."""
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            request = kwargs.get('request')
+            if not request:
+                raise ValueError("Request object required for rate limiting")
+            
+            user_id = getattr(request.state, 'user_id', None)
+            ip_address = request.client.host
+            
+            if user_id:
+                identifier = f"user:{user_id}"
+            else:
+                identifier = f"ip:{ip_address}"
+            
+            if security_manager.rate_limiter.is_rate_limited(identifier, requests_per_minute, 60):
+                raise PermissionError("Rate limit exceeded")
+            
+            return await func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+__all__ = [
+    "SecurityEvent", "InputSanitizer", "RateLimiter", "SecurityManager",
+    "security_manager", "require_security_check", "sanitize_inputs", "rate_limit"
+]

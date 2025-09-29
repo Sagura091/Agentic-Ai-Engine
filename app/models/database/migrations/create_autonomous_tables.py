@@ -167,21 +167,13 @@ class DatabaseMigrationManager:
 
             logger.info("Starting autonomous tables migration", migration=migration_name)
 
-            async with self.session_factory() as session:
-                async with session.begin():
-                    # Create all tables using SQLAlchemy metadata
-                    await session.run_sync(Base.metadata.create_all, self.engine)
+            # Create tables using engine directly
+            async with self.engine.begin() as conn:
+                def create_tables(connection):
+                    Base.metadata.create_all(connection)
 
-                    # Create performance indices
-                    await self._create_performance_indices(session)
-
-                    # Create full-text search indices
-                    await self._create_fulltext_indices(session)
-
-                    # Create additional constraints
-                    await self._create_additional_constraints(session)
-
-                    logger.info("All autonomous tables created successfully")
+                await conn.run_sync(create_tables)
+                logger.info("All autonomous tables created successfully")
 
             # Record successful migration
             execution_time = int((datetime.now() - start_time).total_seconds() * 1000)

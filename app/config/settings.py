@@ -31,27 +31,41 @@ class Settings(BaseSettings):
     HOST: str = Field(default="0.0.0.0", description="Server host")
     PORT: int = Field(default=8888, description="Server port")
     WORKERS: int = Field(default=1, description="Number of worker processes")
+    BASE_URL: str = Field(default="http://localhost:8888", description="Base URL for callbacks")
 
     # Agent settings
     MAX_AGENTS: int = Field(default=100, description="Maximum number of agents")
-    DEFAULT_AGENT_MODEL: str = Field(default="llama3.2:latest", description="Default agent model")
+    DEFAULT_AGENT_MODEL: str = Field(default="llama3.1:8b", description="Default agent model")
     
     # Security settings
     SECRET_KEY: str = Field(default="your-secret-key-change-this", description="Secret key for JWT tokens")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, description="Access token expiration in minutes")
     ALGORITHM: str = Field(default="HS256", description="JWT algorithm")
-    
+
+    # SSO/Keycloak settings (disabled by default)
+    SSO_ENABLED: bool = Field(default=False, description="Enable SSO authentication")
+    KEYCLOAK_ENABLED: bool = Field(default=False, description="Enable Keycloak SSO integration")
+    KEYCLOAK_SERVER_URL: Optional[str] = Field(default=None, description="Keycloak server URL")
+    KEYCLOAK_REALM: Optional[str] = Field(default=None, description="Keycloak realm name")
+    KEYCLOAK_CLIENT_ID: Optional[str] = Field(default=None, description="Keycloak client ID")
+    KEYCLOAK_CLIENT_SECRET: Optional[str] = Field(default=None, description="Keycloak client secret")
+    KEYCLOAK_REDIRECT_URI: Optional[str] = Field(default=None, description="OAuth2 redirect URI")
+    KEYCLOAK_AUTO_CREATE_USERS: bool = Field(default=True, description="Auto-create users from SSO")
+    KEYCLOAK_DEFAULT_USER_GROUP: str = Field(default="user", description="Default group for SSO users")
+
     # CORS settings
     CORS_ORIGINS: List[str] = Field(
         default=["http://localhost:3000", "http://localhost:8080", "http://localhost:5173", "http://localhost:8001", "*"],
         description="Allowed CORS origins"
     )
 
-    # Logging settings
-    LOG_LEVEL: str = Field(default="INFO", description="Logging level")
+    # Logging settings - Show important info, reduce spam
+    LOG_LEVEL: str = Field(default="INFO", description="Console logging level (INFO shows agent reasoning)")
+    LOG_FILE_LEVEL: str = Field(default="DEBUG", description="File logging level (detailed for review)")
     LOG_TO_FILE: bool = Field(default=True, description="Enable file logging")
     LOG_TO_CONSOLE: bool = Field(default=True, description="Enable console logging")
-    LOG_JSON_FORMAT: bool = Field(default=True, description="Use JSON log format")
+    LOG_JSON_FORMAT: bool = Field(default=True, description="Use JSON log format for files")
+    LOG_CONSOLE_FORMAT: str = Field(default="simple", description="Console format: simple, json, or structured")
     LOG_RETENTION_DAYS: int = Field(default=30, description="Log retention period in days")
     LOG_MAX_FILE_SIZE_MB: int = Field(default=100, description="Maximum log file size in MB")
     LOG_MAX_FILES: int = Field(default=10, description="Maximum number of log files to keep")
@@ -62,14 +76,14 @@ class Settings(BaseSettings):
         description="Paths to exclude from logging"
     )
     
-    # Database settings
+    # Database settings - OPTIMIZED for higher performance
     DATABASE_URL: str = Field(
         default="postgresql://agentic_user:agentic_secure_password_2024@localhost:5432/agentic_ai",
         description="Database connection URL",
         env="AGENTIC_DATABASE_URL"
     )
-    DATABASE_POOL_SIZE: int = Field(default=10, description="Database connection pool size")
-    DATABASE_POOL_MAX_OVERFLOW: int = Field(default=5, description="Database pool max overflow")
+    DATABASE_POOL_SIZE: int = Field(default=50, description="Database connection pool size - INCREASED from 10")
+    DATABASE_POOL_MAX_OVERFLOW: int = Field(default=20, description="Database pool max overflow - INCREASED from 5")
     DATABASE_POOL_TIMEOUT: int = Field(default=30, description="Database pool timeout")
     DATABASE_POOL_RECYCLE: int = Field(default=3600, description="Database pool recycle time")
 
@@ -90,12 +104,44 @@ class Settings(BaseSettings):
     # Redis settings
     REDIS_URL: str = Field(default="redis://localhost:6379/0", description="Redis connection URL")
     REDIS_POOL_SIZE: int = Field(default=10, description="Redis connection pool size")
+
+    # Distributed Architecture Settings
+    ENABLE_DISTRIBUTED_MODE: bool = Field(default=False, description="Enable distributed agent registry")
+    NODE_ID: Optional[str] = Field(default=None, description="Unique node identifier")
+    CLUSTER_NAME: str = Field(default="agent_builder_cluster", description="Cluster name for node discovery")
+    HEARTBEAT_INTERVAL: int = Field(default=30, description="Node heartbeat interval in seconds")
+
+    # Async Processing Configuration - OPTIMIZED for higher throughput
+    ASYNC_WORKER_COUNT: int = Field(default=16, description="Number of async worker tasks - INCREASED from 4")
+    ASYNC_TASK_TIMEOUT: int = Field(default=300, description="Async task timeout in seconds")
+    ENABLE_ASYNC_PROCESSING: bool = Field(default=True, description="Enable async task processing")
+    TASK_RESULT_TTL: int = Field(default=3600, description="Task result cache TTL in seconds")
+
+    # Enhanced Document Processing
+    MAX_FILE_SIZE_MB: int = Field(default=100, description="Maximum file size for processing")
+    SUPPORTED_FILE_EXTENSIONS: List[str] = Field(
+        default=[
+            ".pdf", ".docx", ".txt", ".md", ".html", ".csv", ".json",
+            ".xlsx", ".pptx", ".rtf", ".odt", ".epub", ".xml", ".yaml", ".yml",
+            ".xls", ".ppt", ".zip", ".tar", ".gz"
+        ],
+        description="Supported file extensions for document processing"
+    )
+    ENABLE_PARALLEL_PROCESSING: bool = Field(default=True, description="Enable parallel document processing")
+    DOCUMENT_PROCESSING_WORKERS: int = Field(default=8, description="Number of document processing workers - INCREASED from 3")
+
+    # Agent Builder UI Configuration
+    ENABLE_VISUAL_BUILDER: bool = Field(default=True, description="Enable visual agent builder")
+    COMPONENT_CACHE_TTL: int = Field(default=3600, description="Component cache TTL in seconds")
+    MAX_CUSTOM_COMPONENTS: int = Field(default=100, description="Maximum custom components per user")
+    ENABLE_TEMPLATE_SHARING: bool = Field(default=True, description="Enable template sharing between users")
     
     # LLM Integration settings - Multi-Provider Support
     # Ollama settings
     OLLAMA_BASE_URL: str = Field(default="http://localhost:11434", description="Ollama base URL")
     OLLAMA_TIMEOUT: int = Field(default=120, description="Ollama request timeout in seconds")
     OLLAMA_RETRY_ATTEMPTS: int = Field(default=3, description="Number of retry attempts for Ollama")
+    OLLAMA_KEEP_ALIVE: str = Field(default="30m", description="How long to keep models loaded in memory (e.g., '30m', '1h', '-1' for indefinite)")
 
     # OpenAI settings
     OPENAI_API_KEY: str = Field(default="", description="OpenAI API key")
@@ -114,18 +160,20 @@ class Settings(BaseSettings):
     GOOGLE_BASE_URL: str = Field(default="https://generativelanguage.googleapis.com/v1beta", description="Google base URL")
     GOOGLE_TIMEOUT: int = Field(default=60, description="Google request timeout in seconds")
 
-    # Available Ollama Models for Agents
+    # Available Ollama Models for Agents (prioritized by tool calling support)
     AVAILABLE_OLLAMA_MODELS: List[str] = Field(
         default=[
-            "llama3.2:latest",
-            "llama3.1:latest",
-            "qwen2.5:latest",
-            "mistral:latest",
-            "codellama:latest",
-            "llama3.2:3b",
-            "phi3:latest"
+            "llama3.1:8b",        # Primary: Excellent tool calling support
+            "llama3.2:latest",    # Secondary: Good tool calling support
+            "llama3.1:latest",    # Tertiary: Good tool calling support
+            "qwen2.5:latest",     # Alternative: May support tools
+            "mistral:latest",     # Alternative: May support tools
+            "codellama:latest",   # Code-focused: Limited tool support
+            "llama3.2:3b",        # Lightweight: Basic tool support
+            "phi4:latest",        # Available but limited tool support in Ollama
+            "phi3:latest"         # Legacy: Limited tool support
         ],
-        description="Available Ollama models for agents"
+        description="Available Ollama models for agents (prioritized by tool calling capability)"
     )
 
     # OpenWebUI Integration settings (OPTIONAL - can be disabled)
@@ -136,12 +184,12 @@ class Settings(BaseSettings):
         description="Integration mode: 'optional', 'required', 'disabled'"
     )
 
-    # Agent settings - Multi-Provider Support
-    MAX_CONCURRENT_AGENTS: int = Field(default=10, description="Maximum concurrent agents")
+    # Agent settings - Multi-Provider Support - OPTIMIZED for higher concurrency
+    MAX_CONCURRENT_AGENTS: int = Field(default=100, description="Maximum concurrent agents - INCREASED from 10")
     AGENT_TIMEOUT_SECONDS: int = Field(default=300, description="Agent execution timeout")
-    DEFAULT_AGENT_MODEL: str = Field(default="llama3.2:latest", description="Default LLM model for agents")
+    DEFAULT_AGENT_MODEL: str = Field(default="llama3.1:8b", description="Default LLM model for agents")
     DEFAULT_AGENT_PROVIDER: str = Field(default="ollama", description="Default LLM provider for agents")
-    BACKUP_AGENT_MODEL: str = Field(default="llama3.1:latest", description="Backup LLM model if default fails")
+    BACKUP_AGENT_MODEL: str = Field(default="llama3.2:latest", description="Backup LLM model if default fails")
     BACKUP_AGENT_PROVIDER: str = Field(default="ollama", description="Backup LLM provider if default fails")
 
     # LLM Provider preferences
@@ -204,26 +252,26 @@ class Settings(BaseSettings):
         description="Maximum memory for ChromaDB in MB"
     )
     CHROMA_CONNECTION_POOL_SIZE: int = Field(
-        default=20,
-        description="ChromaDB connection pool size"
+        default=50,
+        description="ChromaDB connection pool size - INCREASED from 20"
     )
     METRICS_PORT: int = Field(default=9090, description="Metrics server port")
     
-    # Logging settings
-    LOG_LEVEL: str = Field(default="INFO", description="Logging level")
-    LOG_FORMAT: str = Field(default="json", description="Log format (json, text)")
+    # Logging settings (duplicate - using settings above)
+    # LOG_LEVEL: str = Field(default="WARNING", description="Console logging level")
+    # LOG_FORMAT: str = Field(default="simple", description="Console log format")
     
     # File storage settings
-    DATA_DIR: str = Field(default="/app/data", description="Data directory path")
-    AGENTS_DIR: str = Field(default="/app/data/agents", description="Agents storage directory")
-    WORKFLOWS_DIR: str = Field(default="/app/data/workflows", description="Workflows storage directory")
-    CHECKPOINTS_DIR: str = Field(default="/app/data/checkpoints", description="Checkpoints storage directory")
-    LOGS_DIR: str = Field(default="/app/data/logs", description="Logs storage directory")
+    DATA_DIR: str = Field(default="./data", description="Data directory path")
+    AGENTS_DIR: str = Field(default="./data/agents", description="Agents storage directory")
+    WORKFLOWS_DIR: str = Field(default="./data/workflows", description="Workflows storage directory")
+    CHECKPOINTS_DIR: str = Field(default="./data/checkpoints", description="Checkpoints storage directory")
+    LOGS_DIR: str = Field(default="./data/logs", description="Logs storage directory")
     
     # Performance settings
     MAX_REQUEST_SIZE: int = Field(default=16 * 1024 * 1024, description="Maximum request size in bytes")
     REQUEST_TIMEOUT_SECONDS: int = Field(default=60, description="Request timeout in seconds")
-    WORKER_CONNECTIONS: int = Field(default=1000, description="Worker connections")
+    WORKER_CONNECTIONS: int = Field(default=2000, description="Worker connections - INCREASED from 1000")
     
     # GPU settings
     ENABLE_GPU: bool = Field(default=False, description="Enable GPU acceleration")

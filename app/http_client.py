@@ -299,7 +299,16 @@ class SimpleHTTPClient:
             # Get the response with timeout handling
             try:
                 response = conn.getresponse()
-                raw_data = response.read().decode('utf-8')
+                # Handle encoding issues properly
+                raw_bytes = response.read()
+                try:
+                    raw_data = raw_bytes.decode('utf-8')
+                except UnicodeDecodeError:
+                    # Fallback to bytes with error handling
+                    raw_data = raw_bytes.decode('utf-8', errors='ignore')
+                except Exception:
+                    # Last resort - try latin-1 encoding
+                    raw_data = raw_bytes.decode('latin-1', errors='ignore')
 
                 # Log response time
                 elapsed = time.time() - start_time

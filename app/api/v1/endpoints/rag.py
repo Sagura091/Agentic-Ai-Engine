@@ -12,12 +12,278 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Q
 from pydantic import BaseModel, Field
 
 import structlog
-from app.services.rag_service import get_rag_service, RAGService
-from app.services.knowledge_base_service import get_knowledge_base_service, KnowledgeBaseService
+import json
+import uuid
+from datetime import datetime
+# from app.services.rag_service import get_rag_service, RAGService
+# from app.services.knowledge_base_service import get_knowledge_base_service, KnowledgeBaseService
+from app.rag.core.unified_rag_system import UnifiedRAGSystem, Document
+from app.rag.core.collection_based_kb_manager import CollectionBasedKBManager, AccessLevel
 from app.core.auth import get_current_user
 from app.models.user import User
 
 logger = structlog.get_logger(__name__)
+
+# Global instances
+_rag_system: Optional[UnifiedRAGSystem] = None
+_kb_manager: Optional[CollectionBasedKBManager] = None
+
+# Compatibility layer for RAGService
+class RAGServiceCompatibility:
+    """Compatibility layer to bridge UnifiedRAGSystem with expected RAGService interface."""
+
+    def __init__(self):
+        self.rag_system = None
+        self.kb_manager = None
+
+    async def initialize(self):
+        """Initialize the RAG system."""
+        if not self.rag_system:
+            self.rag_system = UnifiedRAGSystem()
+            await self.rag_system.initialize()
+
+        if not self.kb_manager:
+            self.kb_manager = CollectionBasedKBManager()
+            await self.kb_manager.initialize()
+
+    async def search(self, query: str, collection: str = "default", top_k: int = 10):
+        """Search documents in the RAG system."""
+        if not self.rag_system:
+            await self.initialize()
+
+        # Use agent_id as collection for compatibility
+        results = await self.rag_system.search_agent_knowledge(
+            agent_id=collection,
+            query=query,
+            top_k=top_k
+        )
+        return results
+
+    async def get_stats(self):
+        """Get RAG system statistics."""
+        if not self.rag_system:
+            await self.initialize()
+
+        return {
+            "total_agents": self.rag_system.stats.get("total_agents", 0),
+            "total_collections": self.rag_system.stats.get("total_collections", 0),
+            "total_queries": self.rag_system.stats.get("total_queries", 0),
+            "total_documents": self.rag_system.stats.get("total_documents", 0)
+        }
+
+    async def get_ingestion_status(self, job_id: str):
+        """Get ingestion status (mock implementation)."""
+        return {
+            "job_id": job_id,
+            "status": "completed",
+            "progress": 100,
+            "message": "Processing completed"
+        }
+
+# Compatibility functions
+async def get_rag_service() -> RAGServiceCompatibility:
+    """Get or create RAG service instance."""
+    global _rag_system
+    if _rag_system is None:
+        _rag_system = RAGServiceCompatibility()
+        await _rag_system.initialize()
+    return _rag_system
+
+# Enhanced Knowledge Base Service Adapter
+class KnowledgeBaseServiceAdapter:
+    """Adapter to bridge CollectionBasedKBManager with expected API interface."""
+
+    def __init__(self):
+        self.kb_manager = None
+        self.unified_rag = None
+
+    async def initialize(self):
+        """Initialize the knowledge base service."""
+        if not self.unified_rag:
+            self.unified_rag = UnifiedRAGSystem()
+            await self.unified_rag.initialize()
+
+        if not self.kb_manager:
+            self.kb_manager = CollectionBasedKBManager(self.unified_rag)
+            await self.kb_manager.initialize()
+
+    async def create_knowledge_base(
+        self,
+        name: str,
+        description: str = "",
+        use_case: str = "general",
+        tags: List[str] = None,
+        is_public: bool = False,
+        created_by: str = "system"
+    ) -> str:
+        """Create a knowledge base with API-compatible interface."""
+        if not self.kb_manager:
+            await self.initialize()
+
+        # Use created_by as owner_agent_id
+        access_level = AccessLevel.PUBLIC if is_public else AccessLevel.PRIVATE
+
+        # Create the knowledge base
+        kb_id = await self.kb_manager.create_knowledge_base(
+            name=name,
+            description=description,
+            owner_agent_id=created_by,
+            access_level=access_level
+        )
+
+        # Store additional metadata (use a simple in-memory store for now)
+        if not hasattr(self, '_kb_metadata'):
+            self._kb_metadata = {}
+
+        self._kb_metadata[kb_id] = {
+            'use_case': use_case,
+            'tags': tags or [],
+            'is_public': is_public,
+            'created_by': created_by
+        }
+
+        return kb_id
+
+    async def list_knowledge_bases(self) -> List[Dict[str, Any]]:
+        """List all knowledge bases with API-compatible format."""
+        if not self.kb_manager:
+            await self.initialize()
+
+        knowledge_bases = []
+
+        # Get all knowledge bases from the manager
+        for kb_id, kb_info in self.kb_manager.knowledge_bases.items():
+            # Get additional metadata
+            metadata = getattr(self, '_kb_metadata', {}).get(kb_id, {})
+
+            kb_data = {
+                'id': kb_id,
+                'name': kb_info.name,
+                'description': kb_info.description,
+                'use_case': metadata.get('use_case', 'general'),
+                'tags': metadata.get('tags', []),
+                'is_public': kb_info.access_level == AccessLevel.PUBLIC,
+                'created_by': kb_info.owner_agent_id,
+                'created_at': kb_info.created_at.isoformat(),
+                'updated_at': kb_info.last_updated.isoformat(),
+                'document_count': kb_info.document_count,
+                'chunk_count': 0,  # TODO: Get from unified RAG
+                'size_mb': 0.0,    # TODO: Calculate actual size
+                'status': 'active'
+            }
+            knowledge_bases.append(kb_data)
+
+        return knowledge_bases
+
+    async def get_documents(self, kb_id: str, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+        """Get documents for a knowledge base."""
+        if not self.kb_manager:
+            await self.initialize()
+
+        # For now, return empty list - this would need to be implemented
+        # by querying the unified RAG system for documents in the KB's collection
+        return []
+
+    async def delete_knowledge_base(self, kb_id: str) -> bool:
+        """Delete a knowledge base."""
+        if not self.kb_manager:
+            await self.initialize()
+
+        success = await self.kb_manager.delete_knowledge_base(kb_id)
+
+        # Clean up metadata
+        if hasattr(self, '_kb_metadata') and kb_id in self._kb_metadata:
+            del self._kb_metadata[kb_id]
+
+        return success
+
+    async def search_knowledge_base(
+        self,
+        kb_id: str,
+        query: str,
+        top_k: int = 5
+    ) -> Dict[str, Any]:
+        """Search within a knowledge base."""
+        if not self.kb_manager:
+            await self.initialize()
+
+        # Get KB info to find owner
+        kb_info = await self.kb_manager.get_knowledge_base(kb_id)
+        if not kb_info:
+            raise ValueError(f"Knowledge base {kb_id} not found")
+
+        # Perform search
+        results = await self.kb_manager.search_knowledge_base(
+            kb_id=kb_id,
+            query=query,
+            agent_id=kb_info.owner_agent_id,
+            top_k=top_k
+        )
+
+        return {
+            'success': True,
+            'results': [
+                {
+                    'content': doc.content,
+                    'metadata': doc.metadata,
+                    'score': getattr(doc, 'score', 0.0)
+                }
+                for doc in results
+            ],
+            'total': len(results)
+        }
+
+    async def upload_document(
+        self,
+        kb_id: str,
+        content: bytes,
+        filename: str,
+        title: str = None,
+        metadata: Dict[str, Any] = None
+    ) -> str:
+        """Upload a document to a knowledge base."""
+        if not self.kb_manager:
+            await self.initialize()
+
+        # Get KB info
+        kb_info = await self.kb_manager.get_knowledge_base(kb_id)
+        if not kb_info:
+            raise ValueError(f"Knowledge base {kb_id} not found")
+
+        # Create document object
+        document = Document(
+            id=str(uuid.uuid4()),
+            content=content.decode('utf-8') if isinstance(content, bytes) else str(content),
+            metadata={
+                'filename': filename,
+                'title': title or filename,
+                'kb_id': kb_id,
+                'uploaded_at': datetime.utcnow().isoformat(),
+                **(metadata or {})
+            }
+        )
+
+        # Add document to knowledge base
+        doc_id = await self.kb_manager.add_document_to_kb(
+            kb_id=kb_id,
+            document=document,
+            agent_id=kb_info.owner_agent_id
+        )
+
+        # Return job_id (for compatibility with endpoint expectation)
+        return f"job_{doc_id}"
+
+async def get_knowledge_base_service() -> KnowledgeBaseServiceAdapter:
+    """Get or create knowledge base service instance."""
+    global _kb_manager
+    if _kb_manager is None:
+        _kb_manager = KnowledgeBaseServiceAdapter()
+        await _kb_manager.initialize()
+    return _kb_manager
+
+# Type aliases for compatibility
+RAGService = RAGServiceCompatibility
+KnowledgeBaseService = KnowledgeBaseServiceAdapter
 
 router = APIRouter(prefix="/rag", tags=["RAG"])
 

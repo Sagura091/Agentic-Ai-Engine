@@ -90,10 +90,11 @@ class EnhancedKnowledgeSearchTool(BaseTool):
     - Multi-scope search capabilities
     """
     args_schema: Type[BaseModel] = EnhancedKnowledgeSearchInput
-    
-    def __init__(self, rag_service: EnhancedRAGService):
-        super().__init__()
-        self.rag_service = rag_service
+    rag_system: UnifiedRAGSystem = Field(default=None, exclude=True)
+    agent_id: Optional[str] = Field(default=None, exclude=True)
+
+    def __init__(self, rag_system: UnifiedRAGSystem, agent_id: str = None, **kwargs):
+        super().__init__(rag_system=rag_system, agent_id=agent_id, **kwargs)
     
     def _run(self, **kwargs) -> str:
         """Synchronous wrapper for async search."""
@@ -193,10 +194,11 @@ class AgentDocumentIngestTool(BaseTool):
     - Collection organization
     """
     args_schema: Type[BaseModel] = AgentDocumentIngestInput
-    
-    def __init__(self, rag_service: EnhancedRAGService):
-        super().__init__()
-        self.rag_service = rag_service
+    rag_system: UnifiedRAGSystem = Field(default=None, exclude=True)
+    agent_id: Optional[str] = Field(default=None, exclude=True)
+
+    def __init__(self, rag_system: UnifiedRAGSystem, agent_id: str = None, **kwargs):
+        super().__init__(rag_system=rag_system, agent_id=agent_id, **kwargs)
     
     def _run(self, **kwargs) -> str:
         """Synchronous wrapper for async ingestion."""
@@ -284,10 +286,11 @@ class AgentMemoryTool(BaseTool):
     - Automatic expiration management
     """
     args_schema: Type[BaseModel] = AgentMemoryInput
-    
-    def __init__(self, rag_service: EnhancedRAGService):
-        super().__init__()
-        self.rag_service = rag_service
+    rag_system: UnifiedRAGSystem = Field(default=None, exclude=True)
+    agent_id: Optional[str] = Field(default=None, exclude=True)
+
+    def __init__(self, rag_system: UnifiedRAGSystem, agent_id: str = None, **kwargs):
+        super().__init__(rag_system=rag_system, agent_id=agent_id, **kwargs)
     
     def _run(self, **kwargs) -> str:
         """Synchronous wrapper for async memory creation."""

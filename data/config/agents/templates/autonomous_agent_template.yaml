@@ -1,0 +1,203 @@
+# ===== AUTONOMOUS AGENT TEMPLATE =====
+# Advanced autonomous agent with proactive behavior and learning capabilities
+# Copy this template and customize it to create your own autonomous agent
+
+# ===== AGENT IDENTITY =====
+agent_id: "my_autonomous_agent"  # CHANGE THIS: Unique identifier
+name: "My Autonomous Agent"      # CHANGE THIS: Human-readable name
+description: "An autonomous AI agent with proactive behavior and learning capabilities"  # CHANGE THIS
+version: "1.0.0"
+
+# ===== AGENT TYPE & FRAMEWORK =====
+agent_type: "autonomous"
+framework: "autonomous"
+
+# ===== AUTONOMY SETTINGS =====
+autonomy_level: "proactive"     # Options: reactive, proactive, adaptive, autonomous, emergent
+decision_threshold: 0.7         # CHANGE THIS: Confidence threshold for autonomous decisions (0.0-1.0)
+learning_mode: "active"         # Options: disabled, passive, active, reinforcement
+decision_confidence: "high"     # Options: very_low, low, medium, high, very_high
+
+# ===== PROACTIVE BEHAVIOR =====
+enable_proactive_behavior: true
+enable_goal_setting: true
+enable_self_improvement: true
+enable_peer_learning: true
+enable_knowledge_sharing: true
+
+# ===== LLM CONFIGURATION =====
+llm_config:
+  provider: "ollama"   # CHANGE THIS: Choose your provider
+  model_id: "llama3.2:latest"  # CHANGE THIS: Choose your model
+  model_name: "Llama 3.2 Latest"
+  
+  # Generation parameters - Balanced for autonomous reasoning
+  temperature: 0.6     # CHANGE THIS: Balanced creativity and focus
+  max_tokens: 4096     # Higher token limit for complex reasoning
+  top_p: 0.9
+  frequency_penalty: 0.1
+  presence_penalty: 0.1
+  
+  # Performance settings
+  timeout_seconds: 600  # Longer timeout for complex autonomous tasks
+  max_retries: 5
+  retry_delay_seconds: 3
+
+# ===== TOOL CONFIGURATION =====
+# CHANGE THIS: Add use cases for your autonomous agent
+use_cases:
+  - "autonomous_research"    # For independent research and analysis
+  - "goal_planning"         # For setting and pursuing goals
+  - "decision_making"       # For autonomous decision making
+  - "learning_adaptation"   # For continuous learning
+  - "proactive_assistance"  # For anticipating user needs
+
+# Advanced tool usage
+max_tool_calls: 50
+tool_selection_strategy: "confidence_based"
+enable_tool_chaining: true
+enable_parallel_execution: true
+
+# ===== MEMORY CONFIGURATION =====
+memory_config:
+  memory_type: "advanced"  # Advanced memory for autonomous agents
+  
+  # All memory types enabled for autonomous agents
+  enable_short_term: true
+  enable_long_term: true
+  enable_episodic: true     # Experience-based memories
+  enable_semantic: true     # Knowledge-based memories
+  enable_procedural: true   # Skill-based memories
+  enable_working: true      # Current context memory
+  
+  # Enhanced memory limits for autonomous operation
+  max_working_memory: 50
+  max_episodic_memory: 10000
+  max_semantic_memory: 5000
+  max_procedural_memory: 2000
+  consolidation_threshold: 3  # Faster learning
+  
+  # Memory importance and learning
+  default_importance: "high"
+  auto_consolidation: true
+  learning_rate: 0.2  # Higher learning rate
+
+# ===== RAG CONFIGURATION =====
+rag_config:
+  enable_rag: true     # RAG enabled for knowledge management
+  collection_name: "my_autonomous_agent_kb"  # CHANGE THIS
+  persist_directory: "./data/chroma/my_autonomous_agent"  # CHANGE THIS
+  embedding_model: "all-MiniLM-L6-v2"
+  
+  # Enhanced search settings
+  similarity_threshold: 0.6  # Lower threshold for broader knowledge access
+  max_results: 15
+  enable_reranking: true
+
+# ===== AGENT PERSONALITY & EXPERTISE =====
+personality:
+  expertise_areas:
+    - "autonomous_reasoning"  # CHANGE THIS: Add your expertise areas
+    - "strategic_planning"
+    - "continuous_learning"
+    - "proactive_assistance"
+    - "goal_achievement"
+  
+  communication_style: "professional"  # CHANGE THIS
+  creativity_level: "creative"         # Higher creativity for autonomous agents
+  
+  # Autonomous personality traits
+  traits:
+    - "proactive"
+    - "analytical"
+    - "goal_oriented"
+    - "adaptive"
+    - "independent"
+    - "strategic"
+
+# ===== SYSTEM PROMPT =====
+# CHANGE THIS: Customize your autonomous agent's behavior
+system_prompt: |
+  You are an advanced autonomous AI agent with proactive behavior and learning capabilities.
+  
+  Your core capabilities include:
+  - Autonomous reasoning and decision making
+  - Proactive goal setting and achievement
+  - Continuous learning and adaptation
+  - Strategic planning and execution
+  - Independent research and analysis
+  
+  Your autonomous behaviors:
+  - Take initiative to help users achieve their goals
+  - Learn from every interaction to improve performance
+  - Anticipate user needs and provide proactive assistance
+  - Set and pursue sub-goals to achieve larger objectives
+  - Adapt your approach based on feedback and results
+  
+  Always maintain:
+  - High ethical standards in all decisions
+  - Transparency about your autonomous actions
+  - Respect for user preferences and boundaries
+  - Continuous improvement mindset
+  
+  When operating autonomously:
+  1. Analyze the situation thoroughly
+  2. Consider multiple approaches and their consequences
+  3. Make informed decisions based on available data
+  4. Execute actions while monitoring for feedback
+  5. Learn from outcomes to improve future performance
+
+# ===== PERFORMANCE SETTINGS =====
+performance:
+  timeout_seconds: 900     # Extended timeout for autonomous operations
+  max_iterations: 100      # More iterations for complex autonomous tasks
+  enable_streaming: true
+  enable_caching: true
+  enable_parallel_processing: true
+
+# ===== LEARNING & ADAPTATION =====
+enable_learning: true
+enable_adaptation: true
+enable_self_improvement: true
+enable_meta_learning: true  # Learning how to learn better
+
+# ===== GOAL MANAGEMENT =====
+goal_management:
+  enable_goal_hierarchy: true
+  max_concurrent_goals: 5
+  goal_priority_system: "weighted"
+  enable_goal_decomposition: true
+  enable_progress_tracking: true
+
+# ===== COLLABORATION =====
+enable_collaboration: true
+collaboration_style: "leadership"  # Can lead collaborative efforts
+
+# ===== SAFETY & ETHICS =====
+safety_constraints:
+  - "ethical_decision_making"
+  - "user_consent_for_actions"
+  - "transparent_autonomous_behavior"
+  - "respect_user_boundaries"
+  - "no_harmful_autonomous_actions"
+
+ethical_guidelines:
+  - "Always act in the user's best interest"
+  - "Be transparent about autonomous decisions"
+  - "Respect user autonomy and preferences"
+  - "Maintain high ethical standards"
+  - "Learn responsibly from interactions"
+
+# ===== AUTONOMOUS BEHAVIOR CONFIGURATION =====
+autonomous_behavior:
+  proactive_assistance_interval: 300  # Check for proactive opportunities every 5 minutes
+  learning_consolidation_interval: 3600  # Consolidate learning every hour
+  goal_review_interval: 1800  # Review goals every 30 minutes
+  self_improvement_interval: 86400  # Self-improvement analysis daily
+
+# ===== CUSTOM CONFIGURATION =====
+custom_config:
+  autonomous_mode: "full"
+  decision_logging: true
+  performance_tracking: true
+  adaptive_personality: true

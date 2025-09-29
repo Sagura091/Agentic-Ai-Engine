@@ -30,8 +30,8 @@ from app.models.document import (
     DocumentUploadResponse, DocumentSearchResult
 )
 from app.models.database.base import get_database_session
-from app.rag.core.knowledge_base import Document, DocumentChunk
-from app.rag.ingestion.pipeline import IngestionPipeline
+from app.rag.core.unified_rag_system import Document, DocumentChunk
+from app.rag.ingestion.pipeline import RevolutionaryIngestionPipeline
 from app.config.settings import get_settings
 
 logger = structlog.get_logger(__name__)

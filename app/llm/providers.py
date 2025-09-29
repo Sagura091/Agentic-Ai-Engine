@@ -193,14 +193,19 @@ class OllamaProvider(LLMProvider):
             # Test basic connectivity
             await production_provider._test_basic_connectivity()
 
-            # Get available models
-            models = await production_provider.get_available_models()
+            # Get available models with error handling
+            try:
+                models = await production_provider.get_available_models()
+                status.available_models = [model.id for model in models]
+            except Exception as model_error:
+                logger.warning(f"Failed to get Ollama models during connection test: {str(model_error)}")
+                # Still mark as available if basic connectivity works
+                status.available_models = []
 
             response_time = (time.time() - start_time) * 1000
 
             status.is_available = True
             status.is_authenticated = True  # Ollama doesn't require auth
-            status.available_models = [model.id for model in models]
             status.response_time_ms = response_time
 
         except Exception as e:

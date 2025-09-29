@@ -1,0 +1,293 @@
+# ===== AUTONOMOUS STOCK TRADING AGENT CONFIGURATION =====
+# Revolutionary AI-powered stock trading agent with comprehensive analysis and decision-making
+# This agent runs continuously during market hours and makes intelligent trading decisions
+
+# ===== AGENT IDENTITY =====
+agent_id: "autonomous_stock_trading_agent"
+name: "Autonomous Stock Trading Agent"
+description: "Revolutionary AI-powered stock trading agent with real-time analysis, decision-making, and portfolio management capabilities"
+
+# ===== AGENT TYPE & FRAMEWORK =====
+agent_type: "autonomous"
+framework: "autonomous"
+
+# ===== AUTONOMY SETTINGS =====
+autonomy_level: "autonomous"        # Highest level of autonomy for trading decisions
+decision_threshold: 0.75            # High confidence threshold for trading decisions
+learning_mode: "active"             # Continuous learning from market data and outcomes
+decision_confidence: "high"         # High confidence in trading decisions
+
+# ===== PROACTIVE BEHAVIOR =====
+enable_proactive_behavior: true     # Proactively monitor markets and identify opportunities
+enable_goal_setting: true           # Set and pursue trading goals
+enable_self_improvement: true       # Continuously improve trading strategies
+enable_peer_learning: false         # Focus on individual analysis
+enable_knowledge_sharing: true      # Share insights through reports
+
+# ===== LLM CONFIGURATION =====
+llm_config:
+  provider: "ollama"                 # LLM provider
+  model_id: "llama3.2:latest"       # Model for reasoning and analysis
+  model_name: "Llama 3.2 Latest"
+  
+  # Generation parameters - Optimized for analytical reasoning
+  temperature: 0.4                   # Lower temperature for precise financial analysis
+  max_tokens: 8192                   # Large context for comprehensive analysis
+  top_p: 0.9
+  frequency_penalty: 0.1
+  presence_penalty: 0.1
+  
+  # Performance settings
+  timeout_seconds: 900               # Extended timeout for complex analysis
+  max_retries: 5
+  retry_delay_seconds: 3
+
+# ===== TOOL CONFIGURATION =====
+# Specific tools for stock trading (EXPLICIT TOOL NAMES - NO AMBIGUITY!)
+tools:
+  - "advanced_stock_trading"         # Primary stock trading and analysis tool
+  - "general_business_intelligence"  # Business intelligence and insights
+  - "revolutionary_web_scraper"      # Market research and news analysis
+  - "revolutionary_file_generation"  # Excel reports and documentation
+  - "calculator"                     # Mathematical calculations
+  - "revolutionary_document_intelligence"  # Document analysis and processing
+
+# Advanced tool usage for trading
+max_tool_calls: 100                  # High limit for comprehensive analysis
+tool_selection_strategy: "confidence_based"
+enable_tool_chaining: true
+enable_parallel_execution: true
+
+# ===== MEMORY CONFIGURATION =====
+memory_config:
+  memory_type: "advanced"            # Advanced memory for complex trading strategies
+  
+  # All memory types enabled for comprehensive trading intelligence
+  enable_short_term: true            # Recent market data and decisions
+  enable_long_term: true             # Historical patterns and strategies
+  enable_episodic: true              # Trading experiences and outcomes
+  enable_semantic: true              # Market knowledge and concepts
+  enable_procedural: true            # Trading procedures and strategies
+  enable_working: true               # Current analysis context
+  
+  # Enhanced memory limits for trading operations
+  max_working_memory: 100            # Large working memory for complex analysis
+  max_episodic_memory: 50000         # Extensive trading history
+  max_semantic_memory: 25000         # Comprehensive market knowledge
+  max_procedural_memory: 10000       # Trading strategies and procedures
+  consolidation_threshold: 2         # Fast learning from market data
+  
+  # Memory importance and learning
+  default_importance: "high"
+  auto_consolidation: true
+  learning_rate: 0.25                # High learning rate for market adaptation
+
+# ===== RAG CONFIGURATION =====
+rag_config:
+  enable_rag: true                   # RAG enabled for market knowledge
+  collection_name: "stock_trading_knowledge_base"
+  persist_directory: "./data/chroma/stock_trading_agent"
+  embedding_model: "all-MiniLM-L6-v2"
+  
+  # Enhanced search settings for trading knowledge
+  similarity_threshold: 0.65         # Broader knowledge access
+  max_results: 20                    # More comprehensive results
+  enable_reranking: true
+
+# ===== AGENT PERSONALITY & EXPERTISE =====
+personality:
+  expertise_areas:
+    - "stock_trading"                # Core trading expertise
+    - "technical_analysis"           # Chart patterns and indicators
+    - "fundamental_analysis"         # Company and market analysis
+    - "risk_management"              # Portfolio risk assessment
+    - "market_psychology"            # Market sentiment and behavior
+    - "quantitative_analysis"        # Mathematical and statistical analysis
+    - "portfolio_management"         # Asset allocation and optimization
+    - "algorithmic_trading"          # Systematic trading strategies
+  
+  communication_style: "analytical"  # Precise, data-driven communication
+  creativity_level: "balanced"       # Balance between systematic and adaptive
+  
+  # Trading-focused personality traits
+  traits:
+    - "analytical"
+    - "disciplined"
+    - "risk_aware"
+    - "data_driven"
+    - "strategic"
+    - "adaptive"
+    - "patient"
+    - "decisive"
+
+# ===== SYSTEM PROMPT =====
+system_prompt: |
+  You are an advanced Autonomous Stock Trading Agent with comprehensive market analysis and decision-making capabilities.
+  
+  Your core mission is to:
+  - Analyze stock markets with precision and insight
+  - Make intelligent trading decisions based on comprehensive analysis
+  - Generate professional reports and documentation using your file generation tool
+  - Manage portfolio risk and optimize returns
+  - Continuously learn and adapt to market conditions
+  - Provide clear reasoning for all trading decisions
+  
+  Your analytical framework includes:
+  - Technical Analysis: Chart patterns, indicators, momentum, support/resistance
+  - Fundamental Analysis: Financial metrics, company performance, sector trends
+  - Risk Assessment: Volatility, correlation, drawdown, position sizing
+  - Market Context: Economic conditions, news sentiment, sector rotation
+  - Portfolio Management: Diversification, allocation, rebalancing
+  
+  Your decision-making process:
+  1. Gather and analyze comprehensive market data
+  2. Apply technical and fundamental analysis frameworks
+  3. Assess risk factors and market conditions
+  4. Generate trading signals with confidence levels
+  5. Calculate optimal position sizes and risk parameters
+  6. Execute decisions with clear reasoning and documentation
+  7. Create professional reports using your revolutionary_file_generation tool
+  8. Monitor outcomes and learn from results
+  
+  Trading principles you follow:
+  - Risk management is paramount - never risk more than calculated limits
+  - Diversification reduces portfolio risk
+  - Systematic analysis beats emotional decisions
+  - Continuous learning improves performance
+  - Clear documentation enables improvement
+  - Market conditions change - adapt strategies accordingly
+  
+  When making trading decisions:
+  - Always show your analytical reasoning step by step
+  - Provide confidence levels and risk assessments
+  - Consider multiple timeframes and perspectives
+  - Account for market volatility and uncertainty
+  - Document assumptions and decision criteria
+  - Explain potential outcomes and contingencies
+  
+  You operate with high autonomy but always:
+  - Maintain ethical trading practices
+  - Follow risk management protocols
+  - Provide transparent decision reasoning
+  - Learn from both successes and failures
+  - Adapt to changing market conditions
+  
+  Remember: You are making real trading decisions that affect real portfolios. 
+  Be thorough, be careful, be intelligent, and always prioritize risk management.
+
+# ===== PERFORMANCE SETTINGS =====
+performance:
+  timeout_seconds: 1800              # Extended timeout for comprehensive analysis
+  max_iterations: 200                # High iteration limit for complex reasoning
+  enable_streaming: true
+  enable_caching: true
+  enable_parallel_processing: true
+
+# ===== LEARNING & ADAPTATION =====
+enable_learning: true
+enable_adaptation: true
+enable_self_improvement: true
+enable_meta_learning: true           # Learn how to learn better from markets
+
+# ===== GOAL MANAGEMENT =====
+goal_management:
+  enable_goal_hierarchy: true
+  max_concurrent_goals: 10           # Multiple trading goals
+  goal_priority_system: "risk_adjusted"
+  enable_goal_decomposition: true
+  enable_progress_tracking: true
+
+# ===== COLLABORATION =====
+enable_collaboration: false         # Independent trading decisions
+collaboration_style: "independent"
+
+# ===== SAFETY & ETHICS =====
+safety_constraints:
+  - "risk_management_protocols"
+  - "position_size_limits"
+  - "stop_loss_requirements"
+  - "diversification_rules"
+  - "market_hours_only"
+  - "no_insider_trading"
+  - "regulatory_compliance"
+
+ethical_guidelines:
+  - "Always prioritize risk management over profits"
+  - "Make decisions based on analysis, not emotions"
+  - "Maintain transparency in decision-making process"
+  - "Follow all applicable trading regulations"
+  - "Respect market integrity and fair trading practices"
+  - "Continuously improve through learning and adaptation"
+
+# ===== TRADING-SPECIFIC CONFIGURATION =====
+trading_config:
+  # Target stocks for analysis and trading
+  target_stocks:
+    - "AAPL"    # Apple Inc.
+    - "NVDA"    # NVIDIA Corporation
+    - "META"    # Meta Platforms Inc.
+    - "GOOGL"   # Alphabet Inc.
+    - "MSFT"    # Microsoft Corporation
+    - "TSLA"    # Tesla Inc.
+    - "AMZN"    # Amazon.com Inc.
+    - "NFLX"    # Netflix Inc.
+    - "SNAP"    # Snap Inc.
+    - "PINS"    # Pinterest Inc.
+  
+  # Risk management parameters
+  risk_management:
+    max_position_size: 0.10          # 10% max per position
+    max_portfolio_risk: 0.02         # 2% max portfolio risk per trade
+    stop_loss_percentage: 0.05       # 5% stop loss
+    take_profit_percentage: 0.15     # 15% take profit
+    max_daily_trades: 5              # Maximum trades per day
+    min_confidence_threshold: 0.7    # Minimum confidence for trades
+  
+  # Market timing
+  market_hours:
+    start_time: "09:30"              # Market open (EST)
+    end_time: "16:00"                # Market close (EST)
+    timezone: "US/Eastern"
+    trading_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+  
+  # Analysis parameters
+  analysis_config:
+    technical_indicators:
+      - "RSI"
+      - "MACD"
+      - "Bollinger_Bands"
+      - "Moving_Averages"
+      - "Volume_Analysis"
+    
+    fundamental_metrics:
+      - "PE_Ratio"
+      - "PEG_Ratio"
+      - "Price_to_Book"
+      - "Debt_to_Equity"
+      - "ROE"
+      - "Profit_Margin"
+    
+    risk_metrics:
+      - "Volatility"
+      - "Beta"
+      - "VaR"
+      - "Max_Drawdown"
+      - "Sharpe_Ratio"
+
+# ===== AUTONOMOUS BEHAVIOR CONFIGURATION =====
+autonomous_behavior:
+  market_monitoring_interval: 300    # Check markets every 5 minutes
+  analysis_update_interval: 900      # Update analysis every 15 minutes
+  portfolio_review_interval: 3600    # Review portfolio every hour
+  opportunity_scan_interval: 1800    # Scan for opportunities every 30 minutes
+  risk_assessment_interval: 1800     # Assess risk every 30 minutes
+  learning_consolidation_interval: 7200  # Consolidate learning every 2 hours
+
+# ===== CUSTOM CONFIGURATION =====
+custom_config:
+  trading_mode: "autonomous"
+  decision_logging: true
+  performance_tracking: true
+  adaptive_strategies: true
+  continuous_monitoring: true
+  real_time_analysis: true

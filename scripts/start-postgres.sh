@@ -69,14 +69,12 @@ echo ""
 read -p "🔄 Do you want to run database migrations now? (y/N): " run_migrations
 if [[ $run_migrations =~ ^[Yy]$ ]]; then
     echo "🔄 Running database migrations..."
-    
-    cd app/models/database/migrations
-    if python create_autonomous_tables.py; then
+
+    if python db/migrations/migrate_database.py migrate; then
         echo "✅ Database migrations completed successfully!"
     else
         echo "❌ Database migrations failed"
     fi
-    cd - >/dev/null
 fi
 
 echo ""

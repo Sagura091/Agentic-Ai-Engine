@@ -179,8 +179,8 @@ class AutonomousExecutionEngine:
             "resource_efficiency": 0.0
         }
         
-        # Thread pool for CPU-intensive tasks
-        self.thread_pool = ThreadPoolExecutor(max_workers=4)
+        # Thread pool for CPU-intensive tasks - OPTIMIZED
+        self.thread_pool = ThreadPoolExecutor(max_workers=16)  # INCREASED from 4
         
         logger.info(
             "Autonomous execution engine initialized",

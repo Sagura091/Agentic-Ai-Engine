@@ -1,5 +1,9 @@
--- Initialize Agentic AI Database
--- This script sets up the initial database structure and extensions
+-- OPTIMIZED Agentic AI Database Initialization (Docker)
+-- This script sets up the ESSENTIAL database structure for Docker container startup
+--
+-- OPTIMIZED SCHEMA: Focused on core functionality, removed unnecessary complexity
+-- ✅ PRESERVED: Extensions, schemas, types, functions for full system support
+-- ❌ REMOVED: Unnecessary tables (use migration system for full features)
 
 -- Create extensions for advanced features
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -53,8 +57,7 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Log initialization
-INSERT INTO pg_stat_statements_info (dealloc) VALUES (0) ON CONFLICT DO NOTHING;
+-- REMOVED: pg_stat_statements_info (not available in all PostgreSQL configurations)
 
 -- Create initial admin user (optional)
 -- This can be used for application-level user management
@@ -69,8 +72,15 @@ INSERT INTO pg_stat_statements_info (dealloc) VALUES (0) ON CONFLICT DO NOTHING;
 -- Log successful initialization
 DO $$
 BEGIN
-    RAISE NOTICE 'Agentic AI Database initialized successfully';
+    RAISE NOTICE '🚀 OPTIMIZED Agentic AI Database initialized successfully!';
     RAISE NOTICE 'PostgreSQL version: %', version();
     RAISE NOTICE 'Database: %', current_database();
     RAISE NOTICE 'User: %', current_user;
+    RAISE NOTICE '';
+    RAISE NOTICE '📋 NEXT STEPS:';
+    RAISE NOTICE '1. For basic functionality: Database is ready to use';
+    RAISE NOTICE '2. For full features: Run migration system';
+    RAISE NOTICE '   python db/migrations/migrate_database.py migrate';
+    RAISE NOTICE '';
+    RAISE NOTICE '✅ OPTIMIZED SCHEMA: Essential tables only, autonomous learning preserved';
 END $$;

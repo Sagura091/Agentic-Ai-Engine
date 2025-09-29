@@ -17,7 +17,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 
 from app.config.settings import get_settings
-from app.orchestration.orchestrator import orchestrator
+# from app.orchestration.orchestrator import orchestrator
 
 # Import new backend logging system
 from app.backend_logging.backend_logger import get_logger
@@ -311,7 +311,7 @@ async def list_active_agents() -> Dict[str, Any]:
     Returns information about all currently active agents in the system.
     """
     try:
-        if not orchestrator.is_initialized:
+        if not orchestrator.status.is_initialized:
             return {
                 "active_agents": [],
                 "total_agents": 0,
@@ -354,7 +354,7 @@ async def standalone_health() -> Dict[str, Any]:
         settings = get_settings()
         
         # Check orchestrator
-        orchestrator_status = "healthy" if orchestrator.is_initialized else "not_initialized"
+        orchestrator_status = "healthy" if orchestrator.status.is_initialized else "not_initialized"
         
         # Check Ollama connectivity
         ollama_status = "unknown"

@@ -1,0 +1,259 @@
+# Agent Configuration Defaults
+# This file contains smart defaults for all agent configurations
+# Values can be overridden by environment variables or user configurations
+
+# =============================================================================
+# LLM PROVIDER DEFAULTS
+# =============================================================================
+llm_providers:
+  # Default provider selection (can be overridden)
+  default_provider: "ollama"  # ollama, openai, anthropic, google
+  
+  # Provider-specific defaults
+  ollama:
+    default_model: "llama3.2:latest"
+    temperature: 0.7
+    max_tokens: 2048
+    timeout_seconds: 300
+    
+  openai:
+    default_model: "gpt-4"
+    temperature: 0.7
+    max_tokens: 2048
+    timeout_seconds: 300
+    
+  anthropic:
+    default_model: "claude-3-sonnet-20240229"
+    temperature: 0.7
+    max_tokens: 2048
+    timeout_seconds: 300
+    
+  google:
+    default_model: "gemini-pro"
+    temperature: 0.7
+    max_tokens: 2048
+    timeout_seconds: 300
+
+# =============================================================================
+# AGENT TYPE CONFIGURATIONS
+# =============================================================================
+agent_types:
+  react:
+    framework: "react"
+    default_temperature: 0.7
+    max_iterations: 50
+    timeout_seconds: 300
+    enable_memory: true
+    memory_type: "simple"
+    
+  knowledge_search:
+    framework: "basic"
+    default_temperature: 0.3
+    max_iterations: 30
+    timeout_seconds: 600
+    enable_memory: true
+    memory_type: "simple"
+    
+  rag:
+    framework: "basic"
+    default_temperature: 0.3
+    max_iterations: 40
+    timeout_seconds: 600
+    enable_memory: true
+    memory_type: "simple"
+    
+  workflow:
+    framework: "basic"
+    default_temperature: 0.5
+    max_iterations: 100
+    timeout_seconds: 900
+    enable_memory: true
+    memory_type: "simple"
+    
+  multimodal:
+    framework: "basic"
+    default_temperature: 0.8
+    max_iterations: 40
+    timeout_seconds: 600
+    enable_memory: true
+    memory_type: "simple"
+    
+  composite:
+    framework: "basic"
+    default_temperature: 0.6
+    max_iterations: 60
+    timeout_seconds: 900
+    enable_memory: true
+    memory_type: "simple"
+    
+  autonomous:
+    framework: "autonomous"
+    default_temperature: 0.7
+    max_iterations: 100
+    timeout_seconds: 1200
+    enable_memory: true
+    memory_type: "advanced"
+
+# =============================================================================
+# MEMORY SYSTEM CONFIGURATIONS
+# =============================================================================
+memory_systems:
+  simple:
+    type: "unified"
+    max_short_term: 50
+    max_long_term: 1000
+    consolidation_threshold: 10
+    
+  advanced:
+    type: "persistent"
+    max_working_memory: 20
+    max_episodic_memory: 10000
+    max_semantic_memory: 5000
+    max_procedural_memory: 1000
+    consolidation_threshold: 5
+    learning_rate: 0.1
+
+# =============================================================================
+# TOOL CONFIGURATIONS
+# =============================================================================
+tool_defaults:
+  # Default tools for each agent type
+  react: ["web_search", "revolutionary_web_scraper", "calculator"]
+  knowledge_search: ["knowledge_search", "document_retrieval", "revolutionary_web_scraper"]
+  rag: ["rag_search", "document_analysis", "knowledge_synthesis", "revolutionary_web_scraper"]
+  workflow: ["workflow_executor", "task_manager", "revolutionary_web_scraper"]
+  multimodal: ["image_analysis", "audio_processing", "multimodal_synthesis", "revolutionary_web_scraper"]
+  composite: ["agent_coordinator", "task_distributor", "result_aggregator", "revolutionary_web_scraper"]
+  autonomous: ["web_search", "revolutionary_web_scraper", "calculator", "document_analyzer"]
+
+# =============================================================================
+# PERFORMANCE PARAMETERS - OPTIMIZED FOR HIGHER THROUGHPUT
+# =============================================================================
+performance:
+  # Execution limits
+  max_execution_time_seconds: 3600  # 1 hour absolute maximum
+  max_iterations_hard_limit: 200
+  min_iterations: 1
+
+  # Resource limits - OPTIMIZED
+  max_memory_per_agent_mb: 2048  # 2GB - INCREASED from 1GB for better performance
+  max_concurrent_agents: 200     # INCREASED from 50 for higher concurrency
+  max_tool_calls_per_execution: 150  # INCREASED from 100
+
+  # Decision making
+  min_decision_confidence: 0.1
+  max_decision_confidence: 0.9
+  default_decision_threshold: 0.6
+
+# =============================================================================
+# SYSTEM PROMPT TEMPLATES
+# =============================================================================
+system_prompts:
+  base_template: |
+    You are an intelligent AI agent with access to powerful tools to help solve problems.
+    
+    AVAILABLE TOOLS: {tools}
+    
+    You have access to these tools and should use them naturally when they would be helpful for the task.
+    Analyze the user's request and determine which tools would be most appropriate to provide accurate, comprehensive answers.
+    
+    Guidelines:
+    - Use tools when they would provide better, more accurate, or more current information than your training data
+    - For research tasks, web search tools can provide the latest information
+    - For calculations, use computational tools for accuracy
+    - Choose tools based on what would best serve the user's needs
+    
+    Think through the task and use the most appropriate tools to provide the best possible response.
+    
+  react_template: |
+    You are a reasoning and acting agent. Think step by step and use tools when needed.
+    
+    AVAILABLE TOOLS: {tools}
+    
+    Your approach:
+    1. Analyze the problem carefully
+    2. Break it down into steps
+    3. Use tools to gather information or perform actions
+    4. Reason about the results
+    5. Provide a comprehensive answer
+    
+  research_template: |
+    You are an expert research assistant with advanced analytical capabilities.
+    
+    AVAILABLE TOOLS: {tools}
+    
+    Your core responsibilities:
+    1. Conduct thorough, multi-source research on any topic
+    2. Analyze and synthesize information from diverse sources
+    3. Verify facts and check source credibility
+    4. Generate comprehensive, well-structured reports
+    5. Maintain proper citations and references
+    
+    Research methodology:
+    - Start with broad searches, then narrow to specific aspects
+    - Cross-reference multiple sources for accuracy
+    - Identify gaps in available information
+    - Distinguish between facts, opinions, and speculation
+    - Provide confidence levels for your findings
+    
+    Always maintain intellectual honesty and acknowledge limitations in your research.
+
+# =============================================================================
+# INFRASTRUCTURE DEFAULTS
+# =============================================================================
+infrastructure:
+  # Health monitoring
+  health_check_interval_seconds: 60
+  health_degraded_threshold_minutes: 30
+  health_unhealthy_threshold_minutes: 60
+  
+  # Caching
+  redis_key_expiration_seconds: 3600  # 1 hour
+  cache_ttl_seconds: 300  # 5 minutes
+  
+  # Connection pooling
+  connection_pool_size: 10
+  connection_timeout_seconds: 30
+  
+  # Retry logic
+  max_retries: 5
+  retry_delays_seconds: [1, 2, 4, 8, 16]
+  circuit_breaker_threshold: 10
+
+# =============================================================================
+# SECURITY AND SAFETY
+# =============================================================================
+security:
+  # Rate limiting
+  requests_per_minute: 60
+  requests_per_hour: 1000
+  requests_per_day: 10000
+  
+  # Resource protection
+  max_file_size_mb: 100
+  max_upload_size_mb: 500
+  allowed_file_types: [".txt", ".pdf", ".docx", ".md", ".json", ".yaml", ".yml"]
+  
+  # Safety constraints
+  enable_content_filtering: true
+  enable_output_validation: true
+  enable_resource_monitoring: true
+
+# =============================================================================
+# LOGGING AND MONITORING
+# =============================================================================
+logging:
+  # Log levels
+  default_level: "INFO"
+  agent_level: "INFO"
+  performance_level: "DEBUG"
+  
+  # Log retention
+  max_log_files: 10
+  max_log_size_mb: 100
+  log_rotation_days: 7
+  
+  # Metrics collection
+  enable_metrics: true
+  metrics_interval_seconds: 60
+  enable_performance_tracking: true

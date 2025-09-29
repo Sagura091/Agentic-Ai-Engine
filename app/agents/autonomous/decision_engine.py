@@ -44,6 +44,17 @@ class DecisionOption(BaseModel):
     confidence_estimate: float = Field(default=0.5, ge=0.0, le=1.0, description="Success probability")
 
 
+class DecisionResult(BaseModel):
+    """Result of a decision-making process."""
+    selected_option: DecisionOption = Field(..., description="The chosen decision option")
+    all_options: List[DecisionOption] = Field(default_factory=list, description="All options considered")
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0, description="Confidence in the decision")
+    reasoning: List[str] = Field(default_factory=list, description="Reasoning chain for the decision")
+    expected_outcome: Dict[str, Any] = Field(default_factory=dict, description="Expected results")
+    decision_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Unique decision ID")
+    timestamp: datetime = Field(default_factory=datetime.now, description="When the decision was made")
+
+
 class AutonomousDecisionEngine:
     """
     Advanced decision engine for autonomous agents.
@@ -66,32 +77,38 @@ class AutonomousDecisionEngine:
         # Default decision criteria
         self.default_criteria = [
             DecisionCriteria(
-                name="goal_alignment",
-                weight=0.3,
-                description="How well the option aligns with current goals",
-                evaluation_method="goal_similarity"
+                name="task_completion_necessity",
+                weight=0.5,  # INCREASED: Prioritize task completion
+                description="How necessary this action is for task completion",
+                evaluation_method="task_completion_analysis"
             ),
             DecisionCriteria(
                 name="success_probability",
-                weight=0.25,
+                weight=0.3,  # INCREASED: Tool confidence matters more
                 description="Likelihood of successful execution",
                 evaluation_method="historical_success_rate"
             ),
             DecisionCriteria(
+                name="goal_alignment",
+                weight=0.1,  # REDUCED: Less important when no goals
+                description="How well the option aligns with current goals",
+                evaluation_method="goal_similarity"
+            ),
+            DecisionCriteria(
                 name="resource_efficiency",
-                weight=0.2,
+                weight=0.05,  # REDUCED: Less important
                 description="Efficient use of available resources",
                 evaluation_method="cost_benefit_analysis"
             ),
             DecisionCriteria(
                 name="risk_level",
-                weight=0.15,
+                weight=0.03,  # REDUCED: Less important
                 description="Risk associated with the action",
                 evaluation_method="risk_assessment"
             ),
             DecisionCriteria(
                 name="learning_value",
-                weight=0.1,
+                weight=0.02,  # REDUCED: Less important
                 description="Potential learning and improvement value",
                 evaluation_method="learning_potential"
             )
@@ -162,7 +179,7 @@ class AutonomousDecisionEngine:
             
             # Record decision for learning
             self.decision_history.append(decision)
-            await self._update_decision_patterns(decision)
+            self._update_decision_patterns(decision)
             
             logger.info(
                 "Autonomous decision made",
@@ -201,13 +218,34 @@ class AutonomousDecisionEngine:
             if isinstance(tool, dict):
                 tool_name = tool.get("name", "unknown")
                 tool_params = tool.get("suggested_params", {})
-                
+
+                # Higher confidence for tools when task requires execution
+                current_task = context.get("current_task", "").lower()
+                execution_keywords = ["generate", "create", "build", "make", "produce", "develop"]
+                output_keywords = ["excel", "spreadsheet", "document", "report", "file"]
+                creative_keywords = ["meme", "roast", "screen", "capture", "chaos", "remix", "viral", "music", "lyric", "social", "unexpected", "creative"]
+                tool_action_keywords = ["use", "execute", "run", "perform", "do", "action"]
+
+                base_confidence = tool.get("confidence", 0.5)
+
+                # Check for creative chaos tasks that require tool execution
+                is_creative_task = any(keyword in current_task for keyword in creative_keywords)
+                is_execution_task = any(keyword in current_task for keyword in execution_keywords)
+                is_output_task = any(keyword in current_task for keyword in output_keywords)
+                is_tool_action_task = any(keyword in current_task for keyword in tool_action_keywords)
+
+                if is_creative_task or is_execution_task or is_output_task or is_tool_action_task:
+                    # Boost tool confidence significantly for tasks that require tool usage
+                    tool_confidence = min(0.95, base_confidence + 0.4)
+                else:
+                    tool_confidence = base_confidence
+
                 option = DecisionOption(
                     action=f"use_tool_{tool_name}",
                     type="tool_use",
                     parameters={"tool": tool_name, "args": tool_params},
                     expected_outcome={"tool_result": f"result_from_{tool_name}"},
-                    confidence_estimate=tool.get("confidence", 0.5)
+                    confidence_estimate=tool_confidence
                 )
                 options.append(option)
         
@@ -225,14 +263,39 @@ class AutonomousDecisionEngine:
                 )
                 options.append(option)
         
-        # Generate reasoning-based options
+        # Generate reasoning-based options - with reduced confidence after multiple iterations
         if context.get("requires_reasoning", True):
+            # Check for excessive reasoning - reduce confidence if too much reasoning already done
+            autonomous_reasoning = context.get("autonomous_reasoning", "")
+            reasoning_iterations = autonomous_reasoning.lower().count("reasoning") + autonomous_reasoning.lower().count("analyze")
+
+            # Check if task requires execution from the start
+            current_task = context.get("current_task", "").lower()
+            execution_keywords = ["generate", "create", "build", "make", "produce", "develop"]
+            output_keywords = ["excel", "spreadsheet", "document", "report", "file"]
+            task_requires_execution = any(keyword in current_task for keyword in execution_keywords)
+            task_requires_output = any(keyword in current_task for keyword in output_keywords)
+
+            # Start with very low reasoning confidence if task requires execution/output
+            if task_requires_execution or task_requires_output:
+                base_reasoning_confidence = 0.2  # Much lower for execution tasks
+            else:
+                base_reasoning_confidence = 0.7  # Normal for analysis tasks
+
+            # Reduce reasoning confidence based on iteration count
+            confidence_reduction = min(0.5, reasoning_iterations * 0.15)
+            reasoning_confidence = max(0.1, base_reasoning_confidence - confidence_reduction)
+
+            # Force extremely low confidence if task requires execution and we've reasoned at all
+            if (task_requires_execution or task_requires_output) and reasoning_iterations > 0:
+                reasoning_confidence = 0.05  # Extremely low confidence to force tool usage
+
             reasoning_option = DecisionOption(
                 action="autonomous_reasoning",
                 type="reasoning",
                 parameters={"prompt": "Analyze current situation and determine best course of action"},
                 expected_outcome={"reasoning_result": "analysis_and_recommendations"},
-                confidence_estimate=0.7
+                confidence_estimate=reasoning_confidence
             )
             options.append(reasoning_option)
         
@@ -281,7 +344,9 @@ class AutonomousDecisionEngine:
     ) -> float:
         """Evaluate a single criterion for an option."""
         try:
-            if criterion.evaluation_method == "goal_similarity":
+            if criterion.evaluation_method == "task_completion_analysis":
+                return self._evaluate_task_completion_necessity(option, context)
+            elif criterion.evaluation_method == "goal_similarity":
                 return self._evaluate_goal_alignment(option, context)
             elif criterion.evaluation_method == "historical_success_rate":
                 return self._evaluate_success_probability(option)
@@ -298,7 +363,60 @@ class AutonomousDecisionEngine:
         except Exception as e:
             logger.warning(f"Criterion evaluation failed for {criterion.name}", error=str(e))
             return 0.5  # Neutral score on error
-    
+
+    def _evaluate_task_completion_necessity(self, option: DecisionOption, context: Dict[str, Any]) -> float:
+        """Evaluate how necessary this action is for completing the current task."""
+        try:
+            # Get current task context
+            current_task = context.get("current_task", "").lower()
+            autonomous_reasoning = context.get("autonomous_reasoning", "").lower()
+
+            # High necessity for tool usage when task requires generation/creation
+            execution_keywords = ["generate", "create", "build", "make", "produce", "develop", "write", "export"]
+            task_requires_execution = any(keyword in current_task for keyword in execution_keywords)
+
+            if option.type == "tool_use":
+                # Tool usage is highly necessary for execution tasks
+                if task_requires_execution:
+                    return 0.95
+
+                # Check if task mentions specific outputs (Excel, spreadsheet, etc.)
+                output_keywords = ["excel", "spreadsheet", "document", "report", "file", "analysis"]
+                if any(keyword in current_task for keyword in output_keywords):
+                    return 0.9
+
+                # Medium necessity for analysis tasks
+                analysis_keywords = ["analyze", "review", "examine", "study", "investigate"]
+                if any(keyword in current_task for keyword in analysis_keywords):
+                    return 0.7
+
+                return 0.6  # Default tool necessity
+
+            elif option.type == "reasoning":
+                # Reasoning is less necessary if we've already reasoned extensively
+                reasoning_count = autonomous_reasoning.count("reasoning") + autonomous_reasoning.count("analyze")
+
+                # High necessity for initial reasoning
+                if reasoning_count == 0:
+                    return 0.8
+
+                # Decreasing necessity for repeated reasoning
+                necessity = max(0.2, 0.8 - (reasoning_count * 0.2))
+
+                # Very low necessity if task clearly requires execution
+                if task_requires_execution and reasoning_count > 1:
+                    return 0.1
+
+                return necessity
+
+            else:
+                # Other action types have medium necessity
+                return 0.5
+
+        except Exception as e:
+            logger.warning(f"Task completion necessity evaluation failed", error=str(e))
+            return 0.5
+
     def _evaluate_goal_alignment(self, option: DecisionOption, context: Dict[str, Any]) -> float:
         """Evaluate how well an option aligns with current goals."""
         current_goals = context.get("current_goals", [])
@@ -366,3 +484,122 @@ class AutonomousDecisionEngine:
             return 0.6  # Moderate learning value for reasoning
         else:
             return 0.3  # Low learning value for routine actions
+
+    def _select_best_option(self, evaluated_options: List[Tuple[DecisionOption, Dict[str, float]]]) -> Tuple[DecisionOption, Dict[str, float]]:
+        """Select the best option from evaluated options."""
+        if not evaluated_options:
+            # Create a default no-action option
+            default_option = DecisionOption(
+                action="no_action",
+                type="safety",
+                parameters={},
+                confidence_estimate=0.1,
+                expected_outcome={"status": "no_action_taken"}
+            )
+            default_evaluation = {"weighted_score": 0.1}
+            return default_option, default_evaluation
+
+        # Sort by weighted score (highest first)
+        sorted_options = sorted(evaluated_options, key=lambda x: x[1].get("weighted_score", 0.0), reverse=True)
+
+        # Return the best option
+        best_option, best_evaluation = sorted_options[0]
+
+        logger.debug(f"Selected best option: {best_option.action} with score {best_evaluation.get('weighted_score', 0.0)}")
+        return best_option, best_evaluation
+
+    def _calculate_decision_confidence(self, evaluation: Dict[str, float], context: Dict[str, Any]) -> float:
+        """Calculate overall confidence in the decision."""
+        base_confidence = evaluation.get("weighted_score", 0.5)
+
+        # Adjust confidence based on context factors
+        context_factors = {
+            "goal_clarity": len(context.get("current_goals", [])) > 0,
+            "resource_availability": len(context.get("available_resources", {})) > 0,
+            "historical_success": len(self.decision_history) > 0
+        }
+
+        # Boost confidence if context is favorable
+        confidence_boost = sum(0.1 for factor in context_factors.values() if factor)
+        adjusted_confidence = min(1.0, base_confidence + confidence_boost)
+
+        return adjusted_confidence
+
+    async def _generate_reasoning_chain(
+        self,
+        option: DecisionOption,
+        evaluation: Dict[str, float],
+        context: Dict[str, Any],
+        criteria: List[DecisionCriteria]
+    ) -> List[str]:
+        """Generate reasoning chain for the decision."""
+        reasoning = []
+
+        # Add context analysis
+        reasoning.append(f"Analyzed {len(context.get('current_goals', []))} current goals")
+        reasoning.append(f"Evaluated {len(criteria)} decision criteria")
+
+        # Add option analysis
+        reasoning.append(f"Selected action: {option.action} (type: {option.type})")
+        reasoning.append(f"Confidence estimate: {option.confidence_estimate:.2f}")
+        reasoning.append(f"Weighted evaluation score: {evaluation.get('weighted_score', 0.0):.2f}")
+
+        # Add specific reasoning based on option type
+        if option.type == "tool_use":
+            tool_name = option.parameters.get("tool", "unknown")
+            reasoning.append(f"Tool usage decision: {tool_name}")
+            reasoning.append("Expected to advance current goals through tool execution")
+        elif option.type == "exploration":
+            reasoning.append("Exploration decision to gather new information")
+            reasoning.append("High learning value for future decision making")
+        elif option.type == "reasoning":
+            reasoning.append("Reasoning-focused decision to analyze current situation")
+            reasoning.append("Will improve understanding before taking action")
+
+        return reasoning
+
+    def _update_decision_patterns(self, decision: AutonomousDecision) -> None:
+        """Update decision patterns based on the made decision."""
+        try:
+            # Extract pattern key from decision
+            pattern_key = f"{decision.chosen_option.get('type', 'unknown')}_{decision.chosen_option.get('action', 'unknown')}"
+
+            # Initialize pattern if not exists
+            if pattern_key not in self.decision_patterns:
+                self.decision_patterns[pattern_key] = {
+                    "usage_count": 0,
+                    "success_count": 0,
+                    "total_confidence": 0.0,
+                    "last_used": None
+                }
+
+            # Update pattern statistics
+            pattern = self.decision_patterns[pattern_key]
+            pattern["usage_count"] += 1
+            pattern["total_confidence"] += decision.confidence
+            pattern["last_used"] = datetime.utcnow().isoformat()
+
+            # Update tool-specific patterns if it's a tool use decision
+            if decision.chosen_option.get("type") == "tool_use":
+                tool_name = decision.chosen_option.get("parameters", {}).get("tool", "")
+                if tool_name:
+                    tool_pattern_key = f"tool_{tool_name}"
+                    if tool_pattern_key not in self.decision_patterns:
+                        self.decision_patterns[tool_pattern_key] = {
+                            "usage_count": 0,
+                            "success_count": 0,
+                            "average_confidence": 0.0
+                        }
+
+                    tool_pattern = self.decision_patterns[tool_pattern_key]
+                    tool_pattern["usage_count"] += 1
+                    tool_pattern["average_confidence"] = (
+                        (tool_pattern["average_confidence"] * (tool_pattern["usage_count"] - 1) + decision.confidence)
+                        / tool_pattern["usage_count"]
+                    )
+
+            logger.debug(f"Updated decision patterns for {pattern_key}", usage_count=pattern["usage_count"])
+
+        except Exception as e:
+            logger.warning(f"Failed to update decision patterns: {str(e)}")
+            # Don't raise exception to avoid breaking the decision flow

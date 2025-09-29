@@ -53,14 +53,19 @@ class AsyncFileHandler(logging.Handler):
     
     def _write_message(self, msg: str):
         """Write message to file with rotation check"""
+        # Check if stream is available
+        if self.stream is None:
+            return  # Skip writing if stream is not available
+
         # Check if rotation is needed
         if self.max_bytes > 0 and self.current_size >= self.max_bytes:
             self._rotate_file()
-        
-        # Write message
-        self.stream.write(msg + '\n')
-        self.stream.flush()
-        self.current_size += len(msg.encode('utf-8')) + 1
+
+        # Write message only if stream is still available
+        if self.stream is not None:
+            self.stream.write(msg + '\n')
+            self.stream.flush()
+            self.current_size += len(msg.encode('utf-8')) + 1
     
     def _rotate_file(self):
         """Rotate the log file"""
