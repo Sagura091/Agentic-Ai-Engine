@@ -23,8 +23,8 @@ depends_on = None
 
 def upgrade():
     """Create comprehensive tool system management tables."""
-    
-    print("🔧 Creating tool system management tables...")
+
+    print("Creating tool system management tables...")
     
     # ============================================================================
     # 1. TOOLS TABLE - Core tool definitions
@@ -203,26 +203,26 @@ def upgrade():
     op.create_index('idx_tool_templates_featured', 'tool_templates', ['is_featured'])
     op.create_index('idx_tool_templates_rating', 'tool_templates', ['rating'])
     
-    print("✅ Tool system tables created successfully!")
+    print("[SUCCESS] Tool system tables created successfully!")
 
 
 def downgrade():
     """Drop tool system management tables."""
-    
-    print("🗑️ Dropping tool system management tables...")
-    
+
+    print("Dropping tool system management tables...")
+
     # Drop tables in reverse order
     op.drop_table('tool_templates')
     op.drop_table('tool_executions')
     op.drop_table('agent_tools')
     op.drop_table('tool_categories')
     op.drop_table('tools')
-    
-    print("✅ Tool system tables dropped successfully!")
+
+    print("[SUCCESS] Tool system tables dropped successfully!")
 
 
 # Standalone execution for testing
 if __name__ == "__main__":
-    print("🚀 Running Tool System Migration (007)")
+    print("Running Tool System Migration (007)")
     upgrade()
-    print("🎉 Migration completed successfully!")
+    print("Migration completed successfully!")

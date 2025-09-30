@@ -725,7 +725,7 @@ class ExternalAPIException(BaseAgenticException):
 
 class RateLimitException(BaseAgenticException):
     """Rate limiting exceptions."""
-    
+
     def __init__(
         self,
         limit_type: str,
@@ -745,6 +745,14 @@ class RateLimitException(BaseAgenticException):
             user_message=f"Rate limit exceeded. Please wait {window_seconds} seconds before trying again.",
             request_id=request_id
         )
+
+
+# ============================================================================
+# ALIASES FOR BACKWARD COMPATIBILITY
+# ============================================================================
+
+# Alias for ExternalAPIException (used in health.py)
+ExternalServiceError = ExternalAPIException
 
 
 # ============================================================================
@@ -795,6 +803,6 @@ __all__ = [
     "RAGException", "DocumentProcessingException", "EmbeddingException",
     "VectorSearchException", "WorkflowException", "WorkflowNotFoundException",
     "WorkflowExecutionException", "LLMException", "LLMServiceException",
-    "LLMTimeoutException", "ExternalAPIException", "RateLimitException",
+    "LLMTimeoutException", "ExternalAPIException", "ExternalServiceError", "RateLimitException",
     "handle_exception", "get_error_response"
 ]

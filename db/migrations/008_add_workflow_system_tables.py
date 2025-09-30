@@ -23,8 +23,8 @@ depends_on = None
 
 def upgrade():
     """Create comprehensive workflow system management tables."""
-    
-    print("🔧 Creating workflow system management tables...")
+
+    print("Creating workflow system management tables...")
     
     # ============================================================================
     # 1. WORKFLOWS TABLE - Core workflow definitions
@@ -311,14 +311,14 @@ def upgrade():
     op.create_index('idx_node_execution_states_status', 'node_execution_states', ['status'])
     op.create_index('idx_node_execution_states_execution_mode', 'node_execution_states', ['execution_mode'])
 
-    print("✅ Workflow system tables created successfully!")
+    print("[SUCCESS] Workflow system tables created successfully!")
 
 
 def downgrade():
     """Drop workflow system management tables."""
-    
-    print("🗑️ Dropping workflow system management tables...")
-    
+
+    print("Dropping workflow system management tables...")
+
     # Drop tables in reverse order
     op.drop_table('node_execution_states')
     op.drop_table('workflow_connections')
@@ -328,12 +328,12 @@ def downgrade():
     op.drop_table('workflow_executions')
     op.drop_table('workflow_templates')
     op.drop_table('workflows')
-    
-    print("✅ Workflow system tables dropped successfully!")
+
+    print("[SUCCESS] Workflow system tables dropped successfully!")
 
 
 # Standalone execution for testing
 if __name__ == "__main__":
-    print("🚀 Running Workflow System Migration (008)")
+    print("Running Workflow System Migration (008)")
     upgrade()
-    print("🎉 Migration completed successfully!")
+    print("Migration completed successfully!")

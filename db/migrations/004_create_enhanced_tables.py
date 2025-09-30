@@ -38,8 +38,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
-# Add project root to path for imports
-project_root = Path(__file__).parent.parent
+# Add project root to path for imports (go up two levels: migrations/ -> db/ -> project root)
+project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from app.models.database.base import Base, get_engine, get_session_factory
@@ -168,11 +168,15 @@ class EnhancedTablesMigration:
 
             logger.info("Starting enhanced tables migration", migration=migration_name)
 
+            # Create tables using engine connection
+            async with self.engine.begin() as conn:
+                # Create all tables using SQLAlchemy metadata
+                await conn.run_sync(Base.metadata.create_all)
+                logger.info("All enhanced tables created successfully")
+
+            # Now use session for additional operations
             async with self.session_factory() as session:
                 async with session.begin():
-                    # Create all tables using SQLAlchemy metadata
-                    await session.run_sync(Base.metadata.create_all, self.engine)
-
                     # Create performance indices
                     await self._create_performance_indices(session)
 
@@ -184,8 +188,6 @@ class EnhancedTablesMigration:
 
                     # Insert default data
                     await self._insert_default_data(session)
-
-                    logger.info("All enhanced tables created successfully")
 
             # Record successful migration
             await self.record_migration(migration_name, True)
@@ -208,22 +210,14 @@ class EnhancedTablesMigration:
             # REMOVED: Model management indices (tables not created in optimized schema)
             # Knowledge base indices (ESSENTIAL)
             
-            # Knowledge base indices
+            # Knowledge base indices (ESSENTIAL - only for tables that exist)
             "CREATE INDEX IF NOT EXISTS idx_knowledge_bases_public_active ON rag.knowledge_bases(is_public, status) WHERE status = 'active';",
             "CREATE INDEX IF NOT EXISTS idx_knowledge_base_access_active ON rag.knowledge_base_access(is_active, access_level) WHERE is_active = true;",
-            "CREATE INDEX IF NOT EXISTS idx_kb_usage_logs_created_at ON rag.knowledge_base_usage_logs(created_at);",
-            
-            # User management indices
-            "CREATE INDEX IF NOT EXISTS idx_users_active ON users(is_active, is_verified) WHERE is_active = true;",
+
+            # User management indices (OPTIMIZED - only for columns that exist)
+            "CREATE INDEX IF NOT EXISTS idx_users_active ON users(is_active) WHERE is_active = true;",
             "CREATE INDEX IF NOT EXISTS idx_user_sessions_active ON user_sessions(is_active, expires_at) WHERE is_active = true;",
             "CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(session_token);",
-            "CREATE INDEX IF NOT EXISTS idx_user_audit_logs_created_at ON user_audit_logs(created_at);",
-            
-            # API management indices
-            "CREATE INDEX IF NOT EXISTS idx_api_keys_active ON api_keys(is_active, is_revoked) WHERE is_active = true AND is_revoked = false;",
-            "CREATE INDEX IF NOT EXISTS idx_api_key_usage_logs_created_at ON api_key_usage_logs(created_at);",
-            "CREATE INDEX IF NOT EXISTS idx_rate_limit_logs_violation ON rate_limit_logs(is_violation, created_at) WHERE is_violation = true;",
-            "CREATE INDEX IF NOT EXISTS idx_api_quota_usage_date_type ON api_quota_usage(usage_date, quota_type);",
         ]
         
         for index_sql in indices:
@@ -234,15 +228,12 @@ class EnhancedTablesMigration:
                 logger.warning("Failed to create index", sql=index_sql, error=str(e))
     
     async def _create_fulltext_indices(self, session: AsyncSession) -> None:
-        """Create full-text search indices."""
+        """Create full-text search indices (OPTIMIZED - only for existing tables)."""
         fulltext_indices = [
-            # Knowledge base full-text search
+            # Knowledge base full-text search (ESSENTIAL)
             "CREATE INDEX IF NOT EXISTS idx_knowledge_bases_fulltext ON rag.knowledge_bases USING gin(to_tsvector('english', name || ' ' || COALESCE(description, '')));",
-            
-            # Model registry full-text search
-            "CREATE INDEX IF NOT EXISTS idx_model_registry_fulltext ON rag.model_registry USING gin(to_tsvector('english', model_name || ' ' || COALESCE(description, '')));",
         ]
-        
+
         for index_sql in fulltext_indices:
             try:
                 await session.execute(text(index_sql))
@@ -251,20 +242,15 @@ class EnhancedTablesMigration:
                 logger.warning("Failed to create full-text index", sql=index_sql, error=str(e))
     
     async def _create_additional_constraints(self, session: AsyncSession) -> None:
-        """Create additional database constraints."""
+        """Create additional database constraints (OPTIMIZED - only for existing tables)."""
         constraints = [
-            # Ensure positive values
-            "ALTER TABLE rag.model_registry ADD CONSTRAINT chk_model_registry_size_positive CHECK (size_mb >= 0);",
-            "ALTER TABLE rag.model_usage_logs ADD CONSTRAINT chk_model_usage_processing_time_positive CHECK (processing_time_ms >= 0);",
-            "ALTER TABLE rag.knowledge_bases ADD CONSTRAINT chk_knowledge_bases_size_positive CHECK (size_mb >= 0);",
-            "ALTER TABLE api_keys ADD CONSTRAINT chk_api_keys_rate_limits_positive CHECK (rate_limit_per_minute > 0);",
-            
-            # Ensure valid enum values
-            "ALTER TABLE rag.model_registry ADD CONSTRAINT chk_model_type_valid CHECK (model_type IN ('embedding', 'reranking', 'vision', 'llm'));",
-            "ALTER TABLE rag.model_registry ADD CONSTRAINT chk_model_source_valid CHECK (model_source IN ('huggingface', 'ollama', 'openai_api', 'anthropic_api', 'google_api'));",
-            "ALTER TABLE rag.knowledge_bases ADD CONSTRAINT chk_kb_status_valid CHECK (status IN ('active', 'inactive', 'processing', 'error'));",
+            # Ensure positive values (only for tables that exist)
+            "ALTER TABLE rag.knowledge_bases ADD CONSTRAINT IF NOT EXISTS chk_knowledge_bases_size_positive CHECK (size_mb >= 0);",
+
+            # Ensure valid enum values (only for tables that exist)
+            "ALTER TABLE rag.knowledge_bases ADD CONSTRAINT IF NOT EXISTS chk_kb_status_valid CHECK (status IN ('active', 'inactive', 'processing', 'error'));",
         ]
-        
+
         for constraint_sql in constraints:
             try:
                 await session.execute(text(constraint_sql))
@@ -273,19 +259,16 @@ class EnhancedTablesMigration:
                 logger.warning("Failed to create constraint", sql=constraint_sql, error=str(e))
     
     async def _insert_default_data(self, session: AsyncSession) -> None:
-        """Insert default data for the enhanced tables."""
+        """Insert default data for the enhanced tables (OPTIMIZED - roles removed, now in users.user_group)."""
         try:
-            # Insert default roles
-            default_roles = [
-                "INSERT INTO roles (id, name, display_name, description, is_system_role, permissions) VALUES (gen_random_uuid(), 'admin', 'Administrator', 'Full system access', true, '[\"*\"]') ON CONFLICT (name) DO NOTHING;",
-                "INSERT INTO roles (id, name, display_name, description, is_system_role, permissions) VALUES (gen_random_uuid(), 'user', 'User', 'Standard user access', true, '[\"read\", \"create_agent\", \"use_rag\"]') ON CONFLICT (name) DO NOTHING;",
-                "INSERT INTO roles (id, name, display_name, description, is_system_role, permissions) VALUES (gen_random_uuid(), 'developer', 'Developer', 'Developer access with API keys', true, '[\"read\", \"write\", \"api_access\"]') ON CONFLICT (name) DO NOTHING;",
+            # REMOVED: Default roles insertion (roles table doesn't exist in optimized schema)
+            # Roles are now handled via users.user_group field (user/moderator/admin)
+            default_data = [
+                # No default data needed for optimized schema
             ]
-            
-            for role_sql in default_roles:
-                await session.execute(text(role_sql))
-            
-            logger.info("Inserted default roles")
+
+            # No default data to insert in optimized schema
+            logger.info("No default data needed for optimized schema (roles in users.user_group)")
             
         except Exception as e:
             logger.warning("Failed to insert default data", error=str(e))

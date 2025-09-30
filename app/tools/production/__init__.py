@@ -14,6 +14,10 @@ This module contains the first batch of revolutionary AI agent tools:
 These tools provide comprehensive capabilities for all agent operations.
 """
 
+import structlog
+
+logger = structlog.get_logger(__name__)
+
 from .file_system_tool import file_system_tool
 from .api_integration_tool import api_integration_tool
 from .database_operations_tool import database_operations_tool
@@ -28,6 +32,12 @@ from .computer_use_agent_tool import computer_use_agent_tool
 from .revolutionary_document_intelligence_tool import RevolutionaryDocumentIntelligenceTool
 from .ai_music_composition_tool import get_ai_music_composition_tool
 from .ai_lyric_vocal_synthesis_tool import get_ai_lyric_vocal_synthesis_tool
+
+# Revolutionary Universal Tools
+from .universal.revolutionary_universal_excel_tool import (
+    revolutionary_universal_excel_tool,
+    REVOLUTIONARY_UNIVERSAL_EXCEL_TOOL_METADATA,
+)
 
 # Create instance of the revolutionary document intelligence tool
 revolutionary_document_intelligence_tool = RevolutionaryDocumentIntelligenceTool()
@@ -46,7 +56,9 @@ __all__ = [
     "computer_use_agent_tool",
     "revolutionary_document_intelligence_tool",
     "get_ai_music_composition_tool",
-    "get_ai_lyric_vocal_synthesis_tool"
+    "get_ai_lyric_vocal_synthesis_tool",
+    "revolutionary_universal_excel_tool",
+    "REVOLUTIONARY_UNIVERSAL_EXCEL_TOOL_METADATA",
 ]
 
 # Import the revolutionary web scraper tool (lazy loading to avoid event loop issues)
@@ -87,7 +99,9 @@ PRODUCTION_TOOLS = {
     "revolutionary_web_scraper": revolutionary_web_scraper_tool,
     "screen_capture": screen_capture_tool,
     "ai_music_composition": get_ai_music_composition_tool,
-    "ai_lyric_vocal_synthesis": get_ai_lyric_vocal_synthesis_tool
+    "ai_lyric_vocal_synthesis": get_ai_lyric_vocal_synthesis_tool,
+    # Revolutionary Universal Tools
+    "revolutionary_universal_excel": revolutionary_universal_excel_tool,
 }
 
 def get_production_tool(tool_name: str):

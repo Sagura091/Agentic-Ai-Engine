@@ -33,8 +33,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
-# Add project root to path for imports
-project_root = Path(__file__).parent.parent
+# Add project root to path for imports (go up two levels: migrations/ -> db/ -> project root)
+project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from app.models.database.base import Base, get_engine, get_session_factory

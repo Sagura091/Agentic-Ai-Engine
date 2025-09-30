@@ -171,20 +171,35 @@ CREATE TRIGGER update_workflows_updated_at BEFORE UPDATE ON workflows FOR EACH R
 CREATE TRIGGER update_tools_updated_at BEFORE UPDATE ON tools FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ===================================
--- INITIALIZATION LOGGING
+-- MIGRATION TRACKING TABLE
 -- ===================================
 
--- Log initialization (optional - may fail in some environments)
-INSERT INTO pg_stat_statements_info (dealloc) VALUES (0) ON CONFLICT DO NOTHING;
+-- Create migration tracking table to track applied migrations
+CREATE TABLE IF NOT EXISTS migration_history (
+    id SERIAL PRIMARY KEY,
+    migration_name VARCHAR(255) UNIQUE NOT NULL,
+    applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    success BOOLEAN NOT NULL DEFAULT TRUE,
+    error_message TEXT,
+    execution_time_ms INTEGER
+);
+
+-- Create indexes for migration tracking
+CREATE INDEX IF NOT EXISTS idx_migration_history_migration_name ON migration_history(migration_name);
+CREATE INDEX IF NOT EXISTS idx_migration_history_applied_at ON migration_history(applied_at);
+
+-- ===================================
+-- INITIALIZATION LOGGING
+-- ===================================
 
 -- Log successful initialization
 DO $$
 BEGIN
-    RAISE NOTICE '🚀 Agentic AI Database initialized successfully';
-    RAISE NOTICE '📊 PostgreSQL version: %', version();
-    RAISE NOTICE '🗄️  Database: %', current_database();
-    RAISE NOTICE '👤 User: %', current_user;
-    RAISE NOTICE '📁 Schemas created: agents, workflows, tools, rag, autonomous';
-    RAISE NOTICE '🔧 Extensions enabled: uuid-ossp, pg_trgm, btree_gin, btree_gist';
-    RAISE NOTICE '✅ Ready for migration 002_create_autonomous_tables.py';
+    RAISE NOTICE 'Agentic AI Database initialized successfully';
+    RAISE NOTICE 'PostgreSQL version: %', version();
+    RAISE NOTICE 'Database: %', current_database();
+    RAISE NOTICE 'User: %', current_user;
+    RAISE NOTICE 'Schemas created: agents, workflows, tools, rag, autonomous';
+    RAISE NOTICE 'Extensions enabled: uuid-ossp, pg_trgm, btree_gin, btree_gist';
+    RAISE NOTICE 'Ready for migration 002_create_autonomous_tables.py';
 END $$;

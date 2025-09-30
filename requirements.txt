@@ -1,22 +1,33 @@
+# ============================================================================
+# REQUIREMENTS.TXT - Python 3.13.5 Compatible
+# Agentic AI Microservice - Complete Dependencies
+# ============================================================================
+
 # Core FastAPI and ASGI
 fastapi>=0.104.1
 uvicorn[standard]>=0.24.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
+typing-extensions>=4.8.0
 
-# LangChain and LangGraph
+# LangChain and LangGraph - Core Framework
 langchain>=0.1.0
 langchain-core>=0.1.0
 langchain-community>=0.0.10
 langgraph>=0.0.20
+
+# LangChain Provider Integrations
 langchain-openai>=0.0.5
 langchain-ollama>=0.0.1
+langchain-anthropic>=0.1.0
+langchain-google-genai>=1.0.0
 langchain-chroma>=0.1.0
 
 # Vector Database & Embeddings
 chromadb>=0.4.0
 sentence-transformers>=2.2.0
 transformers>=4.35.0
+accelerate>=0.24.1
 
 # Database and ORM
 sqlalchemy>=2.0.23
@@ -57,12 +68,14 @@ pandas>=2.1.0
 tiktoken>=0.5.2
 
 # Document Processing & RAG
-unstructured>=0.10.0
+# Note: unstructured may have Python 3.13 compatibility issues - install separately if needed
+# unstructured>=0.10.0
 pypdf>=3.17.0
 python-docx>=0.8.11
 beautifulsoup4>=4.12.0
 lxml>=4.9.0
-python-magic>=0.4.27
+python-magic-bin>=0.4.14; sys_platform == 'win32'
+python-magic>=0.4.27; sys_platform != 'win32'
 
 # Production ASGI server
 gunicorn>=21.2.0
@@ -73,7 +86,10 @@ sentry-sdk[fastapi]>=1.38.0
 # Performance
 orjson>=3.9.10
 
-# 🚀 REVOLUTIONARY AUTOMATION TOOLS DEPENDENCIES
+# ============================================================================
+# AUTOMATION & COMPUTER VISION DEPENDENCIES
+# ============================================================================
+
 # Screenshot Analysis & Computer Vision
 opencv-python>=4.8.0
 opencv-contrib-python>=4.8.0
@@ -83,15 +99,18 @@ scikit-image>=0.21.0
 
 # OCR Engines for Screenshot Analysis
 pytesseract>=0.3.10
-easyocr>=1.7.0
-paddleocr>=3.2.0
+# Note: easyocr and paddleocr may have Python 3.13 compatibility issues
+# Install separately if needed:
+# easyocr>=1.7.0
+# paddleocr>=3.2.0
 
 # Browser Automation with Visual Intelligence
 playwright>=1.40.0
 pyautogui>=0.9.54
 
 # Desktop Automation & Computer Use
-pygetwindow>=0.0.9
+# Note: Some packages may have limited Python 3.13 support
+pygetwindow>=0.0.9; sys_platform == 'win32'
 pyscreeze>=1.0.1
 pytweening>=1.2.0
 mouseinfo>=0.1.3
@@ -116,7 +135,10 @@ cython>=3.0.0
 # Linux: sudo apt-get install tesseract-ocr
 # macOS: brew install tesseract
 
-# 🔥 REVOLUTIONARY DOCUMENT INTELLIGENCE TOOL DEPENDENCIES
+# ============================================================================
+# DOCUMENT INTELLIGENCE DEPENDENCIES
+# ============================================================================
+
 # Document Processing Libraries
 python-docx>=0.8.11
 openpyxl>=3.1.0
@@ -128,36 +150,48 @@ reportlab>=4.0.0
 pypdf>=3.17.0
 pdfplumber>=0.9.0
 
-# Template Engine (already included but ensuring version)
+# Template Engine
 jinja2>=3.1.0
-
-# Document Format Detection
-python-magic>=0.4.27
 
 # Additional Document Processing
 xlsxwriter>=3.1.0
-python-docx2txt>=0.8
+docx2txt>=0.8
 
-# 🌐 REVOLUTIONARY WEB SCRAPING ARSENAL - 2024 ULTIMATE EDITION
-# The most advanced web scraping libraries for bypassing ALL protections
-undetected-chromedriver>=3.5.5    # Bypass Chrome detection completely
-selenium-stealth>=1.0.6           # Make Selenium 100% undetectable
-requests-html>=0.10.0             # JavaScript rendering with requests
-cloudscraper>=1.2.71              # Cloudflare bypass specialist
-fake-useragent>=1.4.0             # Real browser user agents rotation
-curl-cffi>=0.5.10                 # TLS fingerprint spoofing (JA3/JA4)
-selenium>=4.15.0                  # Latest Selenium with all improvements
-playwright-stealth>=1.0.6         # Stealth plugin for Playwright
-requests-random-user-agent>=1.0.1 # Random user agent for requests
-selenium-wire>=5.1.0              # Intercept and modify requests
-pyppeteer>=1.0.2                  # Python port of Puppeteer
-selenium-profiles>=2.2.8          # Browser profile management
-undetected-playwright>=0.2.0      # Undetected Playwright
-rotated-user-agents>=0.1.0        # Advanced user agent rotation
-browser-cookie3>=0.19.1           # Cookie extraction from browsers
-selenium-recaptcha-solver>=1.9.0  # CAPTCHA solving capabilities
-selenium-driverless>=1.6.0        # Driverless Chrome automation
-nodriver>=0.17                    # Ultimate undetected Chrome
-botright>=0.4.0                   # Advanced bot detection bypass
-selenium-interceptor>=1.0.2       # Request/response interception
-playwright-extra>=0.1.0           # Extra plugins for Playwright
+# ============================================================================
+# WEB SCRAPING & BROWSER AUTOMATION
+# ============================================================================
+
+# Core Web Scraping
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+# Advanced Web Scraping - Anti-Detection
+# Note: Some packages may need testing with Python 3.13
+selenium>=4.15.0
+fake-useragent>=1.4.0
+cloudscraper>=1.2.71
+
+# Packages that may need separate installation/testing:
+# undetected-chromedriver>=3.5.5
+# selenium-stealth>=1.0.6
+# selenium-wire>=5.1.0
+
+# Browser Automation
+playwright>=1.40.0
+# playwright-stealth>=1.0.6  # May not be compatible with Python 3.13
+# pyppeteer>=1.0.2  # May not be compatible with Python 3.13
+
+# Additional Web Tools
+# requests-html>=0.10.0  # May have compatibility issues
+# browser-cookie3>=0.19.1  # May have compatibility issues
+
+# Note: Some advanced anti-detection packages may not be compatible with Python 3.13.5
+# Test individually if needed:
+# - curl-cffi>=0.5.10 (may require specific build)
+# - selenium-profiles>=2.2.8
+# - undetected-playwright>=0.2.0
+# - selenium-recaptcha-solver>=1.9.0
+# - selenium-driverless>=1.6.0
+# - nodriver>=0.17
+# - botright>=0.4.0

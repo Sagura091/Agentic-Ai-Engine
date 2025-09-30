@@ -66,7 +66,7 @@ depends_on = None
 def upgrade():
     """Create comprehensive admin settings management tables."""
     
-    print("🔧 Creating admin settings management tables...")
+    print("Creating admin settings management tables...")
     
     # ============================================================================
     # 1. ADMIN SETTINGS TABLE - Core settings storage
@@ -146,26 +146,26 @@ def upgrade():
     op.create_index('idx_system_config_cache_category', 'system_configuration_cache', ['category'])
     op.create_index('idx_system_config_cache_expires', 'system_configuration_cache', ['expires_at'])
     
-    print("✅ Admin settings tables created successfully!")
+    print("[SUCCESS] Admin settings tables created successfully!")
 
 
 def downgrade():
     """Drop admin settings management tables."""
     
-    print("🗑️ Dropping admin settings management tables...")
+    print("Dropping admin settings management tables...")
     
     # Drop tables in reverse order
     op.drop_table('system_configuration_cache')
     op.drop_table('admin_setting_history')
     op.drop_table('admin_settings')
     
-    print("✅ Admin settings tables dropped successfully!")
+    print("[SUCCESS] Admin settings tables dropped successfully!")
 
 
 def insert_default_settings():
     """Insert default admin settings data."""
     
-    print("📝 Inserting default admin settings...")
+    print("Inserting default admin settings...")
     
     # Default admin user ID (this should be replaced with actual admin user ID)
     default_admin_id = "2f84c9c6-a978-4aff-b8ce-1a5e6bf22506"
@@ -313,12 +313,12 @@ def insert_default_settings():
             ) ON CONFLICT (category, key) DO NOTHING;
         """)
     
-    print(f"✅ Inserted {len(all_settings)} default admin settings!")
+    print(f"[SUCCESS] Inserted {len(all_settings)} default admin settings!")
 
 
 # Standalone execution for testing
 if __name__ == "__main__":
-    print("🚀 Running Admin Settings Migration (006)")
+    print("Running Admin Settings Migration (006)")
     upgrade()
     insert_default_settings()
     print("🎉 Migration completed successfully!")

@@ -4,6 +4,36 @@
 
 Welcome to the **Agentic AI Engine** - a revolutionary unified multi-agent system that represents the pinnacle of modern AI agent architecture. This isn't just another AI framework; it's a complete ecosystem that transforms how autonomous agents are built, deployed, and orchestrated at enterprise scale.
 
+## ⚡ **Quick Start - One Command Setup**
+
+Get the entire system running in under 3 minutes:
+
+### **Windows (PowerShell)**
+```powershell
+.\setup.ps1
+```
+
+### **Windows (Command Prompt)**
+```cmd
+setup.bat
+```
+
+### **Linux/Mac**
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+**That's it!** The setup script will:
+- ✅ Check Docker and Python
+- ✅ Start PostgreSQL in Docker
+- ✅ Run all database migrations
+- ✅ Create all data directories
+- ✅ Initialize the system
+- ✅ Verify everything works
+
+**Total time: ~2-3 minutes**
+
 ## 🌟 **Why This System is Revolutionary**
 
 ### **🎯 The Only Truly Unified Multi-Agent System**

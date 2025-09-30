@@ -29,8 +29,8 @@ import argparse
 from pathlib import Path
 from typing import Dict, Any
 
-# Add the project root to the path
-project_root = Path(__file__).parent.parent
+# Add the project root to the path (go up two levels: migrations/ -> db/ -> project root)
+project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 import structlog

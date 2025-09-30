@@ -57,30 +57,32 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- REMOVED: pg_stat_statements_info (not available in all PostgreSQL configurations)
+-- Create migration tracking table to track applied migrations
+CREATE TABLE IF NOT EXISTS migration_history (
+    id SERIAL PRIMARY KEY,
+    migration_name VARCHAR(255) UNIQUE NOT NULL,
+    applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    success BOOLEAN NOT NULL DEFAULT TRUE,
+    error_message TEXT,
+    execution_time_ms INTEGER
+);
 
--- Create initial admin user (optional)
--- This can be used for application-level user management
--- CREATE TABLE IF NOT EXISTS app_users (
---     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
---     username VARCHAR(255) UNIQUE NOT NULL,
---     email VARCHAR(255) UNIQUE NOT NULL,
---     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
--- );
+-- Create indexes for migration tracking
+CREATE INDEX IF NOT EXISTS idx_migration_history_migration_name ON migration_history(migration_name);
+CREATE INDEX IF NOT EXISTS idx_migration_history_applied_at ON migration_history(applied_at);
 
 -- Log successful initialization
 DO $$
 BEGIN
-    RAISE NOTICE '🚀 OPTIMIZED Agentic AI Database initialized successfully!';
+    RAISE NOTICE 'OPTIMIZED Agentic AI Database initialized successfully!';
     RAISE NOTICE 'PostgreSQL version: %', version();
     RAISE NOTICE 'Database: %', current_database();
     RAISE NOTICE 'User: %', current_user;
     RAISE NOTICE '';
-    RAISE NOTICE '📋 NEXT STEPS:';
+    RAISE NOTICE 'NEXT STEPS:';
     RAISE NOTICE '1. For basic functionality: Database is ready to use';
     RAISE NOTICE '2. For full features: Run migration system';
     RAISE NOTICE '   python db/migrations/migrate_database.py migrate';
     RAISE NOTICE '';
-    RAISE NOTICE '✅ OPTIMIZED SCHEMA: Essential tables only, autonomous learning preserved';
+    RAISE NOTICE 'OPTIMIZED SCHEMA: Essential tables only, autonomous learning preserved';
 END $$;
