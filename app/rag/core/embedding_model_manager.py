@@ -233,6 +233,102 @@ class CentralizedModelManager:
             return model_info.local_path
         return None
 
+    async def download_model(self, model_id: str, model_type: Optional[ModelType] = None, force_redownload: bool = False) -> bool:
+        """
+        Download a model from HuggingFace to the centralized storage.
+
+        Args:
+            model_id: HuggingFace model ID (e.g., 'sentence-transformers/all-MiniLM-L6-v2')
+            model_type: Type of model (embedding, vision, reranking). If None, will try to infer.
+            force_redownload: Force redownload even if model exists
+
+        Returns:
+            True if download successful, False otherwise
+        """
+        try:
+            import os
+
+            # Infer model type if not provided
+            if model_type is None:
+                model_type = self._infer_model_type(model_id)
+
+            # Determine local path
+            model_name = model_id.replace("/", "_").replace("-", "_")
+            local_path = self.models_dir / model_type.value / model_name
+
+            # Check if already downloaded
+            if local_path.exists() and not force_redownload:
+                logger.info(f"Model {model_id} already exists at {local_path}")
+                return True
+
+            # Create directory
+            local_path.mkdir(parents=True, exist_ok=True)
+
+            # Set cache directory to our local path
+            os.environ['TRANSFORMERS_CACHE'] = str(local_path.parent)
+            os.environ['HF_HOME'] = str(local_path.parent)
+
+            logger.info(f"Downloading {model_type.value} model: {model_id}")
+
+            if model_type == ModelType.EMBEDDING:
+                # Try sentence-transformers first, fallback to transformers
+                try:
+                    from sentence_transformers import SentenceTransformer
+                    logger.info("Using sentence-transformers for download...")
+                    model = SentenceTransformer(model_id, cache_folder=str(local_path.parent))
+                    model.save(str(local_path))
+                    logger.info(f"✅ Saved embedding model to: {local_path}")
+                except ImportError:
+                    logger.warning("sentence-transformers not available, using transformers...")
+                    from transformers import AutoModel, AutoTokenizer
+                    model = AutoModel.from_pretrained(model_id, cache_dir=str(local_path.parent))
+                    tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=str(local_path.parent))
+                    model.save_pretrained(str(local_path))
+                    tokenizer.save_pretrained(str(local_path))
+                    logger.info(f"✅ Saved embedding model to: {local_path}")
+
+            elif model_type == ModelType.VISION:
+                from transformers import AutoModel, AutoProcessor
+                logger.info("Downloading vision model...")
+                model = AutoModel.from_pretrained(model_id, cache_dir=str(local_path.parent))
+                processor = AutoProcessor.from_pretrained(model_id, cache_dir=str(local_path.parent))
+                model.save_pretrained(str(local_path))
+                processor.save_pretrained(str(local_path))
+                logger.info(f"✅ Saved vision model to: {local_path}")
+
+            elif model_type == ModelType.RERANKING:
+                from transformers import AutoModel, AutoTokenizer
+                logger.info("Downloading reranking model...")
+                model = AutoModel.from_pretrained(model_id, cache_dir=str(local_path.parent))
+                tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=str(local_path.parent))
+                model.save_pretrained(str(local_path))
+                tokenizer.save_pretrained(str(local_path))
+                logger.info(f"✅ Saved reranking model to: {local_path}")
+
+            # Refresh model registry
+            await self.refresh_models()
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to download model {model_id}: {str(e)}")
+            return False
+
+    def _infer_model_type(self, model_id: str) -> ModelType:
+        """Infer model type from model ID."""
+        model_id_lower = model_id.lower()
+
+        if 'sentence-transformers' in model_id_lower or 'all-minilm' in model_id_lower:
+            return ModelType.EMBEDDING
+        elif 'clip' in model_id_lower or 'vision' in model_id_lower:
+            return ModelType.VISION
+        elif 'cross-encoder' in model_id_lower or 'rerank' in model_id_lower:
+            return ModelType.RERANKING
+        else:
+            # Default to embedding
+            logger.warning(f"Could not infer model type for {model_id}, defaulting to EMBEDDING")
+            return ModelType.EMBEDDING
+
 
 # Global instance
 embedding_model_manager = CentralizedModelManager()

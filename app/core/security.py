@@ -13,8 +13,22 @@ import structlog
 from functools import wraps
 import re
 import html
+from passlib.context import CryptContext
 
 logger = structlog.get_logger(__name__)
+
+# Password hashing context
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def get_password_hash(password: str) -> str:
+    """Hash a password using bcrypt."""
+    return pwd_context.hash(password)
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a password against a hash."""
+    return pwd_context.verify(plain_password, hashed_password)
 
 
 @dataclass
@@ -250,5 +264,6 @@ def rate_limit(requests_per_minute: int = 60):
 
 __all__ = [
     "SecurityEvent", "InputSanitizer", "RateLimiter", "SecurityManager",
-    "security_manager", "require_security_check", "sanitize_inputs", "rate_limit"
+    "security_manager", "require_security_check", "sanitize_inputs", "rate_limit",
+    "get_password_hash", "verify_password"
 ]

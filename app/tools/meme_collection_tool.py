@@ -29,14 +29,23 @@ import base64
 from io import BytesIO
 
 import structlog
-import requests
-import praw
 from bs4 import BeautifulSoup
 from PIL import Image, ImageDraw, ImageFont
 import cv2
 import numpy as np
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
+
+# Optional Reddit API support
+try:
+    import praw
+    PRAW_AVAILABLE = True
+except ImportError:
+    PRAW_AVAILABLE = False
+    praw = None
+
+# Use custom HTTP client instead of requests
+from app.http_client import SimpleHTTPClient
 
 # Import required modules
 from app.http_client import SimpleHTTPClient
@@ -145,6 +154,11 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
     def _initialize_reddit_client(self):
         """Initialize Reddit API client."""
         try:
+            if not PRAW_AVAILABLE:
+                logger.warning("PRAW not available - Reddit collection disabled. Install with: pip install praw")
+                self._reddit_client = None
+                return
+
             if self._config.reddit_client_id and self._config.reddit_client_secret:
                 self._reddit_client = praw.Reddit(
                     client_id=self._config.reddit_client_id,
@@ -442,11 +456,12 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
             }
 
             # 🔍 Make request to Google Images
-            response = requests.get(search_url, headers=headers, timeout=10)
-            response.raise_for_status()
+            async with SimpleHTTPClient(search_url, timeout=10) as client:
+                response = await client.get("/", headers=headers)
+                response.raise_for_status()
 
             # 🧠 Parse HTML with BeautifulSoup
-            soup = BeautifulSoup(response.content, 'html.parser')
+            soup = BeautifulSoup(response.text.encode('utf-8'), 'html.parser')
 
             # 🎯 Extract image URLs from Google Images results
             image_urls = self._extract_google_image_urls(soup)
@@ -572,11 +587,12 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
                 'Referer': 'https://www.google.com/'
             }
 
-            response = requests.get(img_url, headers=headers, timeout=10, stream=True)
-            response.raise_for_status()
+            async with SimpleHTTPClient(img_url, timeout=10) as client:
+                response = await client.get("/", headers=headers)
+                response.raise_for_status()
 
             # 🖼️ Process the image
-            image = Image.open(BytesIO(response.content))
+            image = Image.open(BytesIO(response.text.encode('latin-1')))
 
             # 📏 Resize if too large (memes should be reasonable size)
             max_size = (800, 800)

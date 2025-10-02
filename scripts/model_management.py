@@ -27,8 +27,8 @@ import structlog
 # Add the app directory to the Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.rag.core.embedding_model_manager import UniversalModelManager, ModelType
-from app.rag.core.global_embedding_manager import get_global_embedding_manager, set_global_embedding_config
+from app.rag.core.embedding_model_manager import CentralizedModelManager, ModelType
+from app.rag.core.embeddings import get_global_embedding_manager, update_global_embedding_config, get_global_embedding_config
 from app.config.settings import get_settings
 
 logger = structlog.get_logger(__name__)
@@ -44,96 +44,122 @@ class ModelManagementCLI:
     async def initialize(self):
         """Initialize the model management system."""
         try:
-            # Initialize universal model manager
-            self.model_manager = UniversalModelManager()
-            
+            # Initialize centralized model manager
+            self.model_manager = CentralizedModelManager()
+
             # Initialize global embedding manager
             self.global_embedding_manager = await get_global_embedding_manager()
-            
+
             logger.info("Model management system initialized")
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize model management: {e}")
             raise
     
-    async def download_model(self, model_id: str, force: bool = False) -> bool:
+    async def download_model(self, model_id: str, force: bool = False, model_type: Optional[ModelType] = None) -> bool:
         """Download a model to the data/models directory."""
         try:
+            print(f"\n🚀 Starting download for model: {model_id}")
             logger.info(f"🚀 Starting download for model: {model_id}")
-            
-            # Check if model exists in catalog
-            model_info = self.model_manager.get_model_info(model_id)
-            if not model_info:
-                logger.error(f"Model {model_id} not found in catalog")
-                return False
-            
+
+            # Sanitize model_id to match how it's stored
+            model_name = model_id.replace("/", "_").replace("-", "_")
+
+            # Check if model already exists
+            model_info = self.model_manager.get_model_info(model_name)
+            if model_info and model_info.is_downloaded and not force:
+                logger.info(f"Model {model_id} is already downloaded")
+                print(f"✅ Model {model_id} is already downloaded at: {model_info.local_path}")
+                return True
+
             # Download the model
-            success = await self.model_manager.download_model(model_id, force_redownload=force)
-            
+            print(f"📥 Downloading model (this may take a few minutes)...")
+            success = await self.model_manager.download_model(model_id, model_type=model_type, force_redownload=force)
+
             if success:
                 logger.info(f"✅ Model {model_id} downloaded successfully")
-                logger.info(f"📁 Location: {model_info.local_path}")
-                
-                # If it's an embedding model, offer to set as global default
-                if model_info.model_type == ModelType.EMBEDDING:
-                    await self._offer_set_global_embedding(model_id)
-                
-                # If it's a vision model, offer to set as global vision model
-                elif model_info.model_type == ModelType.VISION:
-                    await self._offer_set_global_vision(model_id)
-                
+                print(f"✅ Model downloaded successfully!")
+
+                # Refresh to get updated model info
+                await self.model_manager.refresh_models()
+                model_info = self.model_manager.get_model_info(model_name)
+
+                if model_info:
+                    print(f"📁 Location: {model_info.local_path}")
+                    print(f"📊 Size: {model_info.size_mb:.1f} MB")
+
+                    # If it's an embedding model, offer to set as global default
+                    if model_info.model_type == ModelType.EMBEDDING:
+                        await self._offer_set_global_embedding(model_name)
+
+                    # If it's a vision model, offer to set as global vision model
+                    elif model_info.model_type == ModelType.VISION:
+                        await self._offer_set_global_vision(model_name)
+
                 return True
             else:
                 logger.error(f"❌ Failed to download model {model_id}")
+                print(f"❌ Failed to download model {model_id}")
                 return False
-                
+
         except Exception as e:
             logger.error(f"Download failed: {e}")
+            print(f"❌ Download failed: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     async def _offer_set_global_embedding(self, model_id: str):
         """Offer to set the downloaded embedding model as global default."""
         try:
-            current_config = self.global_embedding_manager.get_current_config()
-            current_model = current_config.get('embedding_model', 'none') if current_config else 'none'
-            
+            current_config = get_global_embedding_config()
+            current_model = current_config.get('model_name', 'none') if current_config else 'none'
+
             print(f"\n🤖 Would you like to set '{model_id}' as the global embedding model?")
             print(f"   Current global model: {current_model}")
-            
+
             response = input("   Set as global? (y/N): ").strip().lower()
-            
+
             if response in ['y', 'yes']:
                 await self.set_global_embedding_model(model_id)
-                
+
         except Exception as e:
             logger.warning(f"Could not offer global embedding setup: {e}")
-    
+
     async def _offer_set_global_vision(self, model_id: str):
         """Offer to set the downloaded vision model as global default."""
         try:
-            current_config = self.global_embedding_manager.get_current_config()
+            current_config = get_global_embedding_config()
             current_vision = current_config.get('vision_model', 'none') if current_config else 'none'
-            
+
             print(f"\n👁️ Would you like to set '{model_id}' as the global vision model?")
             print(f"   Current global vision model: {current_vision}")
-            
+
             response = input("   Set as global? (y/N): ").strip().lower()
-            
+
             if response in ['y', 'yes']:
                 await self.set_global_vision_model(model_id)
-                
+
         except Exception as e:
             logger.warning(f"Could not offer global vision setup: {e}")
     
     async def set_global_embedding_model(self, model_id: str):
         """Set a model as the global embedding model."""
         try:
-            # Get model info
-            model_info = self.model_manager.get_model_info(model_id)
+            # Try both original and sanitized model ID
+            model_name = model_id.replace("/", "_").replace("-", "_")
+            model_info = self.model_manager.get_model_info(model_name)
+
+            if not model_info:
+                # Try original ID
+                model_info = self.model_manager.get_model_info(model_id)
+
             if not model_info or not model_info.is_downloaded:
                 logger.error(f"Model {model_id} is not downloaded")
+                print(f"❌ Model {model_id} is not downloaded. Please download it first using:")
+                print(f"   python scripts/model_management.py download --model {model_id}")
                 return False
-            
+
             # Update global configuration
             new_config = {
                 'embedding_model': model_id,
@@ -142,43 +168,55 @@ class ModelManagementCLI:
                 'model_path': model_info.local_path,
                 'updated_at': str(asyncio.get_event_loop().time())
             }
-            
-            set_global_embedding_config(new_config)
-            await self.global_embedding_manager.reload_configuration()
-            
+
+            update_global_embedding_config(new_config)
+            # Note: Global manager will reinitialize automatically on next use
+
             logger.info(f"✅ Global embedding model set to: {model_id}")
+            print(f"✅ Global embedding model set to: {model_id}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to set global embedding model: {e}")
+            print(f"❌ Failed to set global embedding model: {e}")
             return False
     
     async def set_global_vision_model(self, model_id: str):
         """Set a model as the global vision model."""
         try:
-            # Get model info
-            model_info = self.model_manager.get_model_info(model_id)
+            # Try both original and sanitized model ID
+            model_name = model_id.replace("/", "_").replace("-", "_")
+            model_info = self.model_manager.get_model_info(model_name)
+
+            if not model_info:
+                # Try original ID
+                model_info = self.model_manager.get_model_info(model_id)
+
             if not model_info or not model_info.is_downloaded:
                 logger.error(f"Model {model_id} is not downloaded")
+                print(f"❌ Model {model_id} is not downloaded. Please download it first using:")
+                print(f"   python scripts/model_management.py download --model {model_id} --type vision")
                 return False
-            
+
             # Update global configuration
-            current_config = self.global_embedding_manager.get_current_config() or {}
+            current_config = get_global_embedding_config() or {}
             current_config.update({
                 'vision_model': model_id,
                 'vision_model_path': model_info.local_path,
                 'vision_dimension': model_info.dimension,
                 'updated_at': str(asyncio.get_event_loop().time())
             })
-            
-            set_global_embedding_config(current_config)
-            await self.global_embedding_manager.reload_configuration()
-            
+
+            update_global_embedding_config(current_config)
+            # Note: Global manager will reinitialize automatically on next use
+
             logger.info(f"✅ Global vision model set to: {model_id}")
+            print(f"✅ Global vision model set to: {model_id}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to set global vision model: {e}")
+            print(f"❌ Failed to set global vision model: {e}")
             return False
     
     def list_models(self):
@@ -186,53 +224,53 @@ class ModelManagementCLI:
         try:
             print("\n🤖 Available Models:")
             print("=" * 80)
-            
+
             models_by_type = {}
-            for model_id, model_info in self.model_manager.available_models.items():
+            for model_id, model_info in self.model_manager.list_all_models().items():
                 model_type = model_info.model_type.value
                 if model_type not in models_by_type:
                     models_by_type[model_type] = []
                 models_by_type[model_type].append(model_info)
-            
+
             for model_type, models in models_by_type.items():
                 print(f"\n📂 {model_type.upper()} MODELS:")
                 print("-" * 40)
-                
+
                 for model in models:
                     status = "✅ Downloaded" if model.is_downloaded else "⬇️  Available"
                     size = f"{model.size_mb:.1f}MB" if model.size_mb else "Unknown size"
-                    
+
                     print(f"  {status} {model.model_id}")
-                    print(f"    Name: {model.name}")
+                    print(f"    Description: {model.description}")
                     print(f"    Size: {size}")
                     if model.is_downloaded and model.local_path:
                         print(f"    Path: {model.local_path}")
                     print()
-            
+
             # Show global configuration
             self._show_global_config()
-            
+
         except Exception as e:
             logger.error(f"Failed to list models: {e}")
     
     def _show_global_config(self):
         """Show current global model configuration."""
         try:
-            config = self.global_embedding_manager.get_current_config() if self.global_embedding_manager else None
-            
+            config = get_global_embedding_config()
+
             print("\n🌍 Global Model Configuration:")
             print("-" * 40)
-            
+
             if config:
-                embedding_model = config.get('embedding_model', 'Not set')
+                embedding_model = config.get('model_name', 'Not set')
                 vision_model = config.get('vision_model', 'Not set')
-                
+
                 print(f"  Embedding Model: {embedding_model}")
                 print(f"  Vision Model: {vision_model}")
-                print(f"  Embedding Engine: {config.get('embedding_engine', 'local')}")
+                print(f"  Embedding Type: {config.get('embedding_type', 'dense')}")
             else:
                 print("  No global configuration found")
-            
+
         except Exception as e:
             logger.warning(f"Could not show global config: {e}")
     
@@ -273,7 +311,8 @@ async def main():
     
     # Download command
     download_parser = subparsers.add_parser('download', help='Download a model')
-    download_parser.add_argument('--model', required=True, help='Model ID to download')
+    download_parser.add_argument('--model', required=True, help='Model ID to download (e.g., sentence-transformers/all-MiniLM-L6-v2)')
+    download_parser.add_argument('--type', choices=['embedding', 'vision', 'reranking'], help='Model type (auto-detected if not specified)')
     download_parser.add_argument('--force', action='store_true', help='Force redownload')
     
     # Setup vision command
@@ -302,7 +341,11 @@ async def main():
     
     # Execute command
     if args.command == 'download':
-        await cli.download_model(args.model, args.force)
+        # Convert type string to ModelType enum if provided
+        model_type = None
+        if hasattr(args, 'type') and args.type:
+            model_type = ModelType(args.type)
+        await cli.download_model(args.model, args.force, model_type)
     elif args.command == 'setup-vision':
         await cli.set_global_vision_model(args.model)
     elif args.command == 'setup-embedding':

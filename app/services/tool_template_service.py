@@ -143,31 +143,31 @@ class {TOOL_NAME}(BaseTool):
             {API_HEADERS}
         }}
     
-    def _run(
+    async def _arun(
         self,
         {RUN_PARAMETERS},
-        run_manager: Optional[CallbackManagerForToolRun] = None,
+        run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
     ) -> str:
-        """Execute the API call."""
+        """Execute the API call asynchronously."""
         try:
-            import requests
-            
+            from app.http_client import SimpleHTTPClient
+
             # Prepare API request
-            url = f"{{self.base_url}}/{API_ENDPOINT}"
             payload = {{
                 {API_PAYLOAD}
             }}
-            
-            # Make API call
-            response = requests.post(url, json=payload, headers=self.headers)
-            response.raise_for_status()
-            
+
+            # Make API call using SimpleHTTPClient
+            async with SimpleHTTPClient(self.base_url, timeout=30) as client:
+                response = await client.post("/{API_ENDPOINT}", body=payload, headers=self.headers)
+                response.raise_for_status()
+
             # Process response
             result = response.json()
             {RESPONSE_PROCESSING}
-            
+
             return json.dumps(result, indent=2)
-            
+
         except Exception as e:
             return f"API call failed: {{str(e)}}"
 ''',

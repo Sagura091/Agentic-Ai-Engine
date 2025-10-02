@@ -432,24 +432,36 @@ class AgentBuilderFactory:
         return self._templates[template]
 
     # Agent Builder Methods
-    async def _build_react_agent(self, config: AgentBuilderConfig, llm) -> LangGraphAgent:
-        """Build a React (Reasoning + Acting) agent."""
-        agent_config = AgentConfig(
+    async def _build_react_agent(self, config: AgentBuilderConfig, llm):
+        """
+        Build a TRUE ReAct (Reasoning + Acting) agent.
+
+        Uses the revolutionary ReActLangGraphAgent that implements authentic
+        Thought → Decision → Action cycle.
+        """
+        from app.agents.react import ReActLangGraphAgent, ReActAgentConfig
+
+        agent_config = ReActAgentConfig(
             name=config.name,
             description=config.description,
             agent_type="react",
             framework="react",
-            system_prompt=config.system_prompt or "You are a reasoning and acting agent. Think step by step and use tools when needed.",
+            system_prompt=config.system_prompt or None,  # Use default ReAct prompt if not provided
             capabilities=config.capabilities,
             tools=config.tools,
             max_iterations=config.max_iterations,
             timeout_seconds=config.timeout_seconds,
             model_name=config.llm_config.model_id,
-            model_provider=config.llm_config.provider.value
+            model_provider=config.llm_config.provider.value,
+            # ReAct-specific settings
+            enable_thought_logging=True,
+            enable_decision_logging=True,
+            decision_confidence_threshold=0.6,
+            max_thought_iterations=3
         )
         # Get tools from the unified tool repository
         tools = await self._get_agent_tools(config.tools)
-        return LangGraphAgent(config=agent_config, llm=llm, tools=tools)
+        return ReActLangGraphAgent(config=agent_config, llm=llm, tools=tools)
 
     async def _build_knowledge_search_agent(self, config: AgentBuilderConfig, llm) -> LangGraphAgent:
         """Build a knowledge search agent focused on RAG operations."""

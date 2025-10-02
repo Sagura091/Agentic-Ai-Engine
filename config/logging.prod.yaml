@@ -1,0 +1,223 @@
+# ============================================================================
+# REVOLUTIONARY LOGGING SYSTEM - PRODUCTION CONFIGURATION
+# ============================================================================
+# This configuration is optimized for production environments.
+# Focuses on clean user experience, minimal console output, and comprehensive
+# file logging for audit trails and troubleshooting.
+# ============================================================================
+
+# Global settings - USER mode for clean experience
+global:
+  mode: user                   # user mode for end users
+  enabled: true
+  show_ids: false              # Never show IDs to users
+  show_timestamps: false       # Clean output without timestamps
+  show_callsite: false         # No callsite information
+  external_loggers_enabled: false  # Suppress all external libraries
+
+# Conversation layer - Clean, professional output
+conversation_layer:
+  enabled: true
+  style: conversational        # Natural conversational style
+  emoji_enhanced: true         # Emojis for better UX
+  max_reasoning_length: 150    # Shorter messages for production
+  max_tool_result_length: 200  # Concise tool results
+
+# Module control - ALL DISABLED for console, ALL ENABLED for file
+module_control:
+  # Agent operations - File only
+  app.agents:
+    enabled: true
+    console_level: ERROR       # Only show errors in console
+    file_level: INFO           # Full info in file
+    console_output: false      # No console output
+    file_output: true          # Write to file
+  
+  # RAG system - File only
+  app.rag:
+    enabled: true
+    console_level: ERROR
+    file_level: INFO
+    console_output: false
+    file_output: true
+  
+  # Memory system - File only
+  app.memory:
+    enabled: true
+    console_level: ERROR
+    file_level: INFO
+    console_output: false
+    file_output: true
+  
+  # LLM management - File only
+  app.llm:
+    enabled: true
+    console_level: ERROR
+    file_level: INFO
+    console_output: false
+    file_output: true
+  
+  # Tool execution - File only
+  app.tools:
+    enabled: true
+    console_level: ERROR
+    file_level: INFO
+    console_output: false
+    file_output: true
+  
+  # API layer - File only
+  app.api:
+    enabled: true
+    console_level: ERROR
+    file_level: INFO
+    console_output: false
+    file_output: true
+  
+  # Core system - File only
+  app.core:
+    enabled: true
+    console_level: ERROR
+    file_level: INFO
+    console_output: false
+    file_output: true
+  
+  # Business logic - File only
+  app.services:
+    enabled: true
+    console_level: ERROR
+    file_level: INFO
+    console_output: false
+    file_output: true
+  
+  # Workflow orchestration - File only
+  app.orchestration:
+    enabled: true
+    console_level: ERROR
+    file_level: INFO
+    console_output: false
+    file_output: true
+  
+  # Agent communication - File only
+  app.communication:
+    enabled: true
+    console_level: ERROR
+    file_level: INFO
+    console_output: false
+    file_output: true
+  
+  # Configuration - File only
+  app.config:
+    enabled: true
+    console_level: ERROR
+    file_level: WARNING
+    console_output: false
+    file_output: true
+  
+  # Database models - File only
+  app.models:
+    enabled: true
+    console_level: ERROR
+    file_level: WARNING
+    console_output: false
+    file_output: true
+  
+  # Performance optimization - File only
+  app.optimization:
+    enabled: true
+    console_level: ERROR
+    file_level: INFO
+    console_output: false
+    file_output: true
+  
+  # External integrations - File only
+  app.integrations:
+    enabled: true
+    console_level: ERROR
+    file_level: INFO
+    console_output: false
+    file_output: true
+
+# Tier configurations
+tier_configs:
+  user:
+    console_level: ERROR       # Only errors in console
+    show_ids: false
+    show_timestamps: false
+    show_callsite: false
+  
+  developer:
+    console_level: WARNING
+    show_ids: false
+    show_timestamps: true
+    show_callsite: false
+  
+  debug:
+    console_level: INFO
+    show_ids: true
+    show_timestamps: true
+    show_callsite: true
+
+# File persistence - Extended retention for production
+file_persistence:
+  enabled: true
+  base_path: data/logs/backend
+  rotation_strategy: daily     # Daily rotation
+  max_size_mb: 500             # Larger files for production (500MB)
+  retention_days: 90           # Keep for 90 days (compliance)
+  compression_enabled: true    # Compress to save space
+  format: json                 # JSON for log aggregation tools
+  async_writing: true          # Async for performance
+  buffer_size: 16384           # Larger buffer (16KB)
+
+# Hot-reload - Enabled for zero-downtime updates
+hot_reload:
+  enabled: true
+  check_interval_seconds: 300  # Check every 5 minutes (less frequent)
+  config_file_path: config/logging.yaml
+
+# External logger suppression - Suppress ALL
+external_logger_suppression:
+  uvicorn: true
+  httpx: true
+  httpcore: true
+  watchfiles: true
+  asyncio: true
+  multipart: true
+
+# ============================================================================
+# PRODUCTION NOTES
+# ============================================================================
+#
+# CONSOLE OUTPUT:
+# - Only conversation layer is visible to users
+# - No technical logs in console
+# - Clean, professional user experience
+#
+# FILE LOGGING:
+# - All modules log to files for audit trail
+# - 90-day retention for compliance
+# - JSON format for log aggregation (ELK, Splunk, etc.)
+# - Compressed to save disk space
+#
+# PERFORMANCE:
+# - Async writing for minimal performance impact
+# - Larger buffer size for efficiency
+# - Module control ensures zero overhead for disabled console output
+#
+# MONITORING:
+# - Use file logs for monitoring and alerting
+# - Parse JSON logs with log aggregation tools
+# - Set up alerts on ERROR and CRITICAL levels
+#
+# TROUBLESHOOTING:
+# - Switch to developer mode for debugging: POST /api/v1/admin/logging/mode
+# - Enable specific modules: POST /api/v1/admin/logging/module/enable
+# - Reload config after changes: POST /api/v1/admin/logging/reload
+#
+# SECURITY:
+# - Logs may contain sensitive data - secure log files
+# - Implement log rotation and retention policies
+# - Consider encryption for log files at rest
+#
+# ============================================================================
+

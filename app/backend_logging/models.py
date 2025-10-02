@@ -16,14 +16,20 @@ class LogLevel(str, Enum):
     """Log severity levels"""
     DEBUG = "DEBUG"
     INFO = "INFO"
-    WARN = "WARN"
+    WARNING = "WARNING"  # Changed from WARN to WARNING for consistency
+    WARN = "WARNING"     # Alias for backward compatibility
     ERROR = "ERROR"
-    FATAL = "FATAL"
+    CRITICAL = "CRITICAL"  # Changed from FATAL to CRITICAL for Python logging compatibility
+    FATAL = "CRITICAL"     # Alias for backward compatibility
 
 
 class LogCategory(str, Enum):
     """Log categories for better organization"""
     AGENT_OPERATIONS = "agent_operations"
+    RAG_OPERATIONS = "rag_operations"
+    MEMORY_OPERATIONS = "memory_operations"
+    LLM_OPERATIONS = "llm_operations"
+    TOOL_OPERATIONS = "tool_operations"
     API_LAYER = "api_layer"
     DATABASE_LAYER = "database_layer"
     EXTERNAL_INTEGRATIONS = "external_integrations"
@@ -32,9 +38,18 @@ class LogCategory(str, Enum):
     RESOURCE_MANAGEMENT = "resource_management"
     SYSTEM_HEALTH = "system_health"
     ORCHESTRATION = "orchestration"
+    COMMUNICATION = "communication"
+    SERVICE_OPERATIONS = "service_operations"
     PERFORMANCE = "performance"
     USER_INTERACTION = "user_interaction"
     ERROR_TRACKING = "error_tracking"
+
+
+class LoggingMode(str, Enum):
+    """Logging modes for different use cases"""
+    USER = "user"           # Clean conversation only, minimal technical logs
+    DEVELOPER = "developer" # Conversation + selected module logs
+    DEBUG = "debug"         # Full verbose logging with all metadata
 
 
 class LogContext(BaseModel):
@@ -181,8 +196,67 @@ class LogStats(BaseModel):
     time_range: Dict[str, datetime]
 
 
+class ModuleConfig(BaseModel):
+    """Configuration for a specific module's logging"""
+    module_name: str
+    enabled: bool = True
+    console_level: LogLevel = LogLevel.WARNING
+    file_level: LogLevel = LogLevel.DEBUG
+    console_output: bool = False
+    file_output: bool = True
+    description: Optional[str] = None
+    log_category: Optional[LogCategory] = None
+
+    class Config:
+        extra = "allow"
+
+
+class ConversationConfig(BaseModel):
+    """Configuration for user conversation layer"""
+    enabled: bool = True
+    style: str = "conversational"  # conversational | technical | minimal
+    show_reasoning: bool = True
+    show_tool_usage: bool = True
+    show_tool_results: bool = True
+    show_responses: bool = True
+    emoji_enhanced: bool = True
+    max_reasoning_length: int = 200
+    max_result_length: int = 500
+
+    # ReAct agent settings
+    react_show_iteration_count: bool = False
+    react_show_thought_process: bool = True
+    react_show_action_selection: bool = True
+    react_show_observation: bool = True
+
+    # Autonomous agent settings
+    autonomous_show_goals: bool = True
+    autonomous_show_decision_making: bool = True
+    autonomous_show_autonomous_actions: bool = True
+    autonomous_show_learning: bool = False
+
+    class Config:
+        extra = "allow"
+
+
+class TierConfig(BaseModel):
+    """Configuration for a specific logging tier"""
+    console_format: str = "conversation"  # conversation | structured | detailed
+    show_timestamps: bool = False
+    show_ids: bool = False
+    show_module_names: bool = False
+    show_log_levels: bool = False
+    module_default_level: LogLevel = LogLevel.WARNING
+    conversation_enabled: bool = True
+    technical_logs_enabled: bool = False
+
+    class Config:
+        extra = "allow"
+
+
 class LogConfiguration(BaseModel):
     """Logging system configuration"""
+    # Legacy settings (backward compatibility)
     log_level: LogLevel = LogLevel.INFO
     enable_console_output: bool = True
     enable_file_output: bool = True
@@ -200,6 +274,45 @@ class LogConfiguration(BaseModel):
     exclude_patterns: List[str] = Field(default_factory=list)
     include_stack_trace: bool = True
     correlation_id_header: str = "X-Correlation-ID"
-    
+
+    # Revolutionary logging system settings
+    logging_mode: LoggingMode = LoggingMode.USER
+    show_ids: bool = False
+    show_timestamps: bool = False
+    timestamp_format: str = "simple"  # simple | full | iso
+
+    # Module configurations
+    module_configs: Dict[str, ModuleConfig] = Field(default_factory=dict)
+
+    # Conversation configuration
+    conversation_config: ConversationConfig = Field(default_factory=ConversationConfig)
+
+    # Tier configurations
+    tier_configs: Dict[str, TierConfig] = Field(default_factory=dict)
+
+    # File logging settings
+    file_directory: str = "data/logs/backend"
+    file_format: str = "json"  # json | text
+    separate_by_category: bool = True
+    separate_by_module: bool = False
+    rotation_strategy: str = "daily"  # daily | size | time
+    rotation_interval_hours: int = 24
+    backup_count: int = 30
+    compress_old_logs: bool = True
+    compression_format: str = "gz"  # gz | zip
+    include_conversation_logs: bool = True
+
+    # External library logging
+    suppress_noisy_loggers: bool = True
+    external_default_level: LogLevel = LogLevel.ERROR
+
+    # Runtime settings
+    hot_reload_enabled: bool = True
+    reload_interval_seconds: int = 60
+    api_enabled: bool = True
+    api_auth_required: bool = True
+    allow_mode_switching: bool = True
+    allow_module_control: bool = True
+
     class Config:
         extra = "allow"

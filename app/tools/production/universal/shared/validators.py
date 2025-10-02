@@ -98,8 +98,6 @@ class UniversalToolValidator:
     # Security: Blocked path patterns
     BLOCKED_PATH_PATTERNS = [
         r"\.\.[\\/]",  # Parent directory traversal
-        r"^[\\/]",     # Absolute paths from root
-        r"^[A-Z]:",    # Windows drive letters (unless explicitly allowed)
         r"~[\\/]",     # Home directory shortcuts
     ]
     

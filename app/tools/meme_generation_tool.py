@@ -28,9 +28,11 @@ import base64
 from io import BytesIO
 
 import structlog
-import requests
 import cv2
 import numpy as np
+
+# Use custom HTTP client instead of requests
+from app.http_client import SimpleHTTPClient
 
 # Standardized PIL/Pillow imports with error handling
 try:
@@ -471,12 +473,12 @@ class MemeGenerationTool(BaseTool, MetadataCapableToolMixin):
                 "cfg_scale": 7
             }
 
-            response = requests.post(
-                f"{self._config.stable_diffusion_api_url}/sdapi/v1/txt2img",
-                json=payload,
+            async with SimpleHTTPClient(
+                self._config.stable_diffusion_api_url,
                 timeout=self._config.generation_timeout
-            )
-            
+            ) as client:
+                response = await client.post("/sdapi/v1/txt2img", body=payload)
+
             if response.status_code == 200:
                 result = response.json()
                 if 'images' in result and result['images']:

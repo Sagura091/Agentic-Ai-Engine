@@ -5,7 +5,7 @@ Clean Logging Configuration - Reduces spam and shows only essential agent output
 
 import logging
 import sys
-from typing import Optional
+from typing import Optional, Dict
 
 class CleanAgentFormatter(logging.Formatter):
     """Custom formatter that only shows essential agent messages."""
@@ -144,3 +144,192 @@ def agent_error(error: str, agent_name: str = "Agent"):
     """Log agent error."""
     logger = create_agent_logger(agent_name)
     logger.error(f"❌ {agent_name} error: {error}")
+
+
+# ============================================================================
+# REVOLUTIONARY CONVERSATION LOGGER
+# ============================================================================
+
+class ConversationLogger:
+    """
+    Revolutionary conversation logger for clean, user-facing agent dialogue.
+
+    This logger provides a clean, emoji-enhanced interface for logging agent
+    conversations without technical details, correlation IDs, or timestamps.
+    """
+
+    def __init__(self, agent_name: str = "Agent", config: Optional[Dict] = None):
+        """
+        Initialize conversation logger.
+
+        Args:
+            agent_name: Name of the agent
+            config: Optional configuration dictionary
+        """
+        self.agent_name = agent_name
+        self.config = config or {}
+        self.emoji_enhanced = self.config.get('emoji_enhanced', True)
+        self.show_reasoning = self.config.get('show_reasoning', True)
+        self.show_tool_usage = self.config.get('show_tool_usage', True)
+        self.show_tool_results = self.config.get('show_tool_results', True)
+        self.max_reasoning_length = self.config.get('max_reasoning_length', 200)
+        self.max_result_length = self.config.get('max_result_length', 500)
+
+        # Create dedicated conversation logger
+        self.logger = logging.getLogger(f"conversation.{agent_name}")
+        self.logger.setLevel(logging.INFO)
+
+        # Ensure it has a handler
+        if not self.logger.handlers:
+            handler = logging.StreamHandler(sys.stdout)
+            handler.setFormatter(logging.Formatter('%(message)s'))
+            self.logger.addHandler(handler)
+
+    def _truncate(self, text: str, max_length: int) -> str:
+        """Truncate text if too long"""
+        if len(text) > max_length:
+            return text[:max_length] + "..."
+        return text
+
+    def user_query(self, message: str):
+        """Log user query"""
+        emoji = "🧑 " if self.emoji_enhanced else ""
+        self.logger.info(f"{emoji}User: {message}")
+
+    def agent_acknowledgment(self, message: str):
+        """Log agent acknowledgment"""
+        emoji = "🤖 " if self.emoji_enhanced else ""
+        self.logger.info(f"{emoji}Agent: {message}")
+
+    def agent_thinking(self, message: str):
+        """Log agent thinking/reasoning"""
+        if not self.show_reasoning:
+            return
+
+        emoji = "🔍 " if self.emoji_enhanced else ""
+        truncated = self._truncate(message, self.max_reasoning_length)
+        self.logger.info(f"{emoji}Thinking: {truncated}")
+
+    def agent_goal(self, message: str):
+        """Log agent goal (autonomous agents)"""
+        emoji = "🎯 " if self.emoji_enhanced else ""
+        self.logger.info(f"{emoji}Goal: {message}")
+
+    def agent_decision(self, message: str):
+        """Log agent decision (autonomous agents)"""
+        emoji = "🧠 " if self.emoji_enhanced else ""
+        self.logger.info(f"{emoji}Decision: {message}")
+
+    def tool_usage(self, tool_name: str, purpose: str = ""):
+        """Log tool usage"""
+        if not self.show_tool_usage:
+            return
+
+        emoji = "🔧 " if self.emoji_enhanced else ""
+        if purpose:
+            self.logger.info(f"{emoji}Using: {tool_name}\n   → {purpose}")
+        else:
+            self.logger.info(f"{emoji}Using: {tool_name}")
+
+    def tool_result(self, message: str):
+        """Log tool result"""
+        if not self.show_tool_results:
+            return
+
+        emoji = "✅ " if self.emoji_enhanced else ""
+        truncated = self._truncate(message, self.max_result_length)
+        self.logger.info(f"{emoji}{truncated}")
+
+    def agent_action(self, message: str):
+        """Log agent action"""
+        emoji = "⚙️ " if self.emoji_enhanced else ""
+        self.logger.info(f"{emoji}Action: {message}")
+
+    def agent_response(self, message: str):
+        """Log agent final response"""
+        emoji = "💬 " if self.emoji_enhanced else ""
+        self.logger.info(f"{emoji}{message}")
+
+    def agent_insight(self, message: str):
+        """Log agent insight"""
+        emoji = "💡 " if self.emoji_enhanced else ""
+        self.logger.info(f"{emoji}Insight: {message}")
+
+    def error(self, message: str):
+        """Log error message"""
+        emoji = "❌ " if self.emoji_enhanced else ""
+        self.logger.error(f"{emoji}Error: {message}")
+
+    def warning(self, message: str):
+        """Log warning message"""
+        emoji = "⚠️ " if self.emoji_enhanced else ""
+        self.logger.warning(f"{emoji}Warning: {message}")
+
+    def success(self, message: str):
+        """Log success message"""
+        emoji = "✅ " if self.emoji_enhanced else ""
+        self.logger.info(f"{emoji}{message}")
+
+    def info(self, message: str):
+        """Log general informational message"""
+        emoji = "ℹ️ " if self.emoji_enhanced else ""
+        self.logger.info(f"{emoji}{message}")
+
+    def progress(self, message: str):
+        """Log progress update"""
+        emoji = "⏳ " if self.emoji_enhanced else ""
+        self.logger.info(f"{emoji}{message}")
+
+    def separator(self):
+        """Log a visual separator"""
+        self.logger.info("")
+
+    def header(self, message: str):
+        """Log a header message"""
+        emoji = "🚀 " if self.emoji_enhanced else ""
+        self.logger.info(f"\n{emoji}{message}\n")
+
+
+# ============================================================================
+# GLOBAL CONVERSATION LOGGER HELPERS
+# ============================================================================
+
+# Global conversation logger instances (one per agent)
+_conversation_loggers: Dict[str, ConversationLogger] = {}
+
+
+def get_conversation_logger(agent_name: str = "Agent", config: Optional[Dict] = None) -> ConversationLogger:
+    """Get or create a conversation logger for an agent (singleton per agent_name)"""
+    if agent_name not in _conversation_loggers:
+        _conversation_loggers[agent_name] = ConversationLogger(agent_name, config)
+    return _conversation_loggers[agent_name]
+
+
+def log_user_query(message: str, agent_name: str = "Agent"):
+    """Log user query"""
+    logger = get_conversation_logger(agent_name)
+    logger.user_query(message)
+
+
+def log_agent_thinking(message: str, agent_name: str = "Agent"):
+    """Log agent thinking/reasoning"""
+    logger = get_conversation_logger(agent_name)
+    logger.agent_thinking(message)
+
+
+def log_agent_action(message: str, agent_name: str = "Agent"):
+    """Log agent action"""
+    logger = get_conversation_logger(agent_name)
+    logger.agent_action(message)
+
+
+def log_tool_usage(tool_name: str, purpose: str = "", agent_name: str = "Agent"):
+    """Log tool usage"""
+    logger = get_conversation_logger(agent_name)
+    logger.tool_usage(tool_name, purpose)
+
+
+def log_agent_response(message: str, agent_name: str = "Agent"):
+    """Log agent final response"""
+    logger = get_conversation_logger(agent_name)
+    logger.agent_response(message)

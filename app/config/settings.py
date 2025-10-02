@@ -3,6 +3,9 @@ Application settings and configuration management.
 
 This module provides centralized configuration management using Pydantic settings
 with support for environment variables and multiple configuration sources.
+
+UPDATED: Now uses the unified configuration system under the hood while maintaining
+backward compatibility with existing code.
 """
 
 import os
@@ -11,6 +14,13 @@ from typing import List, Optional, Dict, Any
 
 from pydantic import Field, validator
 from pydantic_settings import BaseSettings
+
+# Import unified config system
+try:
+    from app.config.unified_config import get_config as get_unified_config
+    UNIFIED_CONFIG_AVAILABLE = True
+except ImportError:
+    UNIFIED_CONFIG_AVAILABLE = False
 
 
 class Settings(BaseSettings):
@@ -75,6 +85,77 @@ class Settings(BaseSettings):
         default=["/health", "/metrics", "/docs", "/openapi.json", "/favicon.ico"],
         description="Paths to exclude from logging"
     )
+
+    # ========================================================================
+    # REVOLUTIONARY LOGGING SYSTEM - Environment Variables
+    # ========================================================================
+
+    # Global logging mode
+    LOG_MODE: str = Field(default="user", description="Logging mode: user, developer, or debug")
+
+    # Global settings
+    LOG_SHOW_IDS: bool = Field(default=False, description="Show correlation/session/agent IDs in logs")
+    LOG_SHOW_TIMESTAMPS: bool = Field(default=False, description="Show timestamps in console logs")
+    LOG_TIMESTAMP_FORMAT: str = Field(default="simple", description="Timestamp format: simple, full, or iso")
+
+    # Conversation layer settings
+    LOG_CONVERSATION_ENABLED: bool = Field(default=True, description="Enable user conversation layer")
+    LOG_CONVERSATION_STYLE: str = Field(default="conversational", description="Conversation style: conversational, technical, or minimal")
+    LOG_CONVERSATION_SHOW_REASONING: bool = Field(default=True, description="Show agent reasoning in conversation")
+    LOG_CONVERSATION_SHOW_TOOL_USAGE: bool = Field(default=True, description="Show tool usage in conversation")
+    LOG_CONVERSATION_SHOW_TOOL_RESULTS: bool = Field(default=True, description="Show tool results in conversation")
+    LOG_CONVERSATION_EMOJI_ENHANCED: bool = Field(default=True, description="Use emoji-enhanced conversation output")
+    LOG_CONVERSATION_MAX_REASONING_LENGTH: int = Field(default=200, description="Max length for reasoning display")
+    LOG_CONVERSATION_MAX_RESULT_LENGTH: int = Field(default=500, description="Max length for result display")
+
+    # Module control - Enable/disable specific modules
+    LOG_MODULE_AGENTS: bool = Field(default=False, description="Enable logging for app.agents module")
+    LOG_MODULE_RAG: bool = Field(default=False, description="Enable logging for app.rag module")
+    LOG_MODULE_MEMORY: bool = Field(default=False, description="Enable logging for app.memory module")
+    LOG_MODULE_LLM: bool = Field(default=False, description="Enable logging for app.llm module")
+    LOG_MODULE_TOOLS: bool = Field(default=False, description="Enable logging for app.tools module")
+    LOG_MODULE_API: bool = Field(default=False, description="Enable logging for app.api module")
+    LOG_MODULE_CORE: bool = Field(default=False, description="Enable logging for app.core module")
+    LOG_MODULE_SERVICES: bool = Field(default=False, description="Enable logging for app.services module")
+    LOG_MODULE_ORCHESTRATION: bool = Field(default=False, description="Enable logging for app.orchestration module")
+    LOG_MODULE_COMMUNICATION: bool = Field(default=False, description="Enable logging for app.communication module")
+    LOG_MODULE_CONFIG: bool = Field(default=False, description="Enable logging for app.config module")
+    LOG_MODULE_MODELS: bool = Field(default=False, description="Enable logging for app.models module")
+    LOG_MODULE_OPTIMIZATION: bool = Field(default=False, description="Enable logging for app.optimization module")
+    LOG_MODULE_INTEGRATIONS: bool = Field(default=False, description="Enable logging for app.integrations module")
+
+    # Module log levels (when enabled)
+    LOG_LEVEL_APP_AGENTS: str = Field(default="DEBUG", description="Log level for app.agents module")
+    LOG_LEVEL_APP_RAG: str = Field(default="DEBUG", description="Log level for app.rag module")
+    LOG_LEVEL_APP_MEMORY: str = Field(default="DEBUG", description="Log level for app.memory module")
+    LOG_LEVEL_APP_LLM: str = Field(default="DEBUG", description="Log level for app.llm module")
+    LOG_LEVEL_APP_TOOLS: str = Field(default="DEBUG", description="Log level for app.tools module")
+    LOG_LEVEL_APP_API: str = Field(default="INFO", description="Log level for app.api module")
+    LOG_LEVEL_APP_CORE: str = Field(default="INFO", description="Log level for app.core module")
+    LOG_LEVEL_APP_SERVICES: str = Field(default="INFO", description="Log level for app.services module")
+    LOG_LEVEL_APP_ORCHESTRATION: str = Field(default="DEBUG", description="Log level for app.orchestration module")
+    LOG_LEVEL_APP_COMMUNICATION: str = Field(default="DEBUG", description="Log level for app.communication module")
+    LOG_LEVEL_APP_CONFIG: str = Field(default="WARNING", description="Log level for app.config module")
+    LOG_LEVEL_APP_MODELS: str = Field(default="WARNING", description="Log level for app.models module")
+    LOG_LEVEL_APP_OPTIMIZATION: str = Field(default="INFO", description="Log level for app.optimization module")
+    LOG_LEVEL_APP_INTEGRATIONS: str = Field(default="INFO", description="Log level for app.integrations module")
+
+    # File logging settings
+    LOG_FILE_DIRECTORY: str = Field(default="data/logs/backend", description="Directory for log files")
+    LOG_FILE_FORMAT: str = Field(default="json", description="File format: json or text")
+    LOG_SEPARATE_BY_CATEGORY: bool = Field(default=True, description="Separate log files by category")
+    LOG_ROTATION_STRATEGY: str = Field(default="daily", description="Rotation strategy: daily, size, or time")
+    LOG_COMPRESSION_ENABLED: bool = Field(default=True, description="Compress old log files")
+
+    # External library logging
+    LOG_SUPPRESS_NOISY_LOGGERS: bool = Field(default=True, description="Suppress noisy external library loggers")
+    LOG_EXTERNAL_DEFAULT_LEVEL: str = Field(default="ERROR", description="Default level for external libraries")
+
+    # Runtime configuration
+    LOG_HOT_RELOAD_ENABLED: bool = Field(default=True, description="Enable hot-reload of logging configuration")
+    LOG_API_ENABLED: bool = Field(default=True, description="Enable runtime logging control API")
+    LOG_ALLOW_MODE_SWITCHING: bool = Field(default=True, description="Allow runtime mode switching")
+    LOG_ALLOW_MODULE_CONTROL: bool = Field(default=True, description="Allow runtime module control")
     
     # Database settings - OPTIMIZED for higher performance
     DATABASE_URL: str = Field(

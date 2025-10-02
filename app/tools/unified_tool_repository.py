@@ -557,6 +557,15 @@ class UnifiedToolRepository:
             elif tool_id == 'notification_alert':
                 await self._load_notification_alert_tool()
                 return True
+            elif tool_id == 'revolutionary_universal_excel_tool':
+                await self._load_revolutionary_universal_excel_tool()
+                return True
+            elif tool_id == 'revolutionary_universal_word_tool':
+                await self._load_revolutionary_universal_word_tool()
+                return True
+            elif tool_id == 'revolutionary_universal_pdf_tool':
+                await self._load_revolutionary_universal_pdf_tool()
+                return True
             else:
                 logger.warning(f"No on-demand loader available for tool: {tool_id}")
                 return False
@@ -999,6 +1008,60 @@ class UnifiedToolRepository:
             logger.info("✅ Browser automation tool loaded on-demand")
         except Exception as e:
             logger.error(f"Failed to load browser automation tool: {str(e)}")
+
+    async def _load_revolutionary_universal_excel_tool(self):
+        """Load Revolutionary Universal Excel Tool on-demand."""
+        try:
+            from app.tools.production.universal.revolutionary_universal_excel_tool import (
+                revolutionary_universal_excel_tool,
+                REVOLUTIONARY_UNIVERSAL_EXCEL_TOOL_METADATA
+            )
+            from app.tools.metadata import get_global_registry
+
+            # Register with metadata system
+            registry = get_global_registry()
+            registry.register_tool(revolutionary_universal_excel_tool)
+
+            await self.register_tool(revolutionary_universal_excel_tool, REVOLUTIONARY_UNIVERSAL_EXCEL_TOOL_METADATA)
+            logger.info("✅ Revolutionary Universal Excel Tool loaded on-demand")
+        except Exception as e:
+            logger.error(f"Failed to load Revolutionary Universal Excel Tool: {str(e)}")
+
+    async def _load_revolutionary_universal_word_tool(self):
+        """Load Revolutionary Universal Word Tool on-demand."""
+        try:
+            from app.tools.production.universal.revolutionary_universal_word_tool import (
+                revolutionary_universal_word_tool,
+                REVOLUTIONARY_UNIVERSAL_WORD_TOOL_METADATA
+            )
+            from app.tools.metadata import get_global_registry
+
+            # Register with metadata system
+            registry = get_global_registry()
+            registry.register_tool(revolutionary_universal_word_tool)
+
+            await self.register_tool(revolutionary_universal_word_tool, REVOLUTIONARY_UNIVERSAL_WORD_TOOL_METADATA)
+            logger.info("✅ Revolutionary Universal Word Tool loaded on-demand")
+        except Exception as e:
+            logger.error(f"Failed to load Revolutionary Universal Word Tool: {str(e)}")
+
+    async def _load_revolutionary_universal_pdf_tool(self):
+        """Load Revolutionary Universal PDF Tool on-demand."""
+        try:
+            from app.tools.production.universal.revolutionary_universal_pdf_tool import (
+                revolutionary_universal_pdf_tool,
+                REVOLUTIONARY_UNIVERSAL_PDF_TOOL_METADATA
+            )
+            from app.tools.metadata import get_global_registry
+
+            # Register with metadata system
+            registry = get_global_registry()
+            registry.register_tool(revolutionary_universal_pdf_tool)
+
+            await self.register_tool(revolutionary_universal_pdf_tool, REVOLUTIONARY_UNIVERSAL_PDF_TOOL_METADATA)
+            logger.info("✅ Revolutionary Universal PDF Tool loaded on-demand")
+        except Exception as e:
+            logger.error(f"Failed to load Revolutionary Universal PDF Tool: {str(e)}")
 
     async def _load_notification_alert_tool(self):
         """Load notification alert tool on-demand."""

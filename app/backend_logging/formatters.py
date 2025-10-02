@@ -256,37 +256,177 @@ class MetricsFormatter(logging.Formatter):
     """
     Specialized formatter for metrics and performance data
     """
-    
+
     def format(self, record: logging.LogRecord) -> str:
         """Format metrics-focused log entries"""
         try:
             if hasattr(record, 'log_entry'):
                 log_entry: LogEntry = record.log_entry
-                
+
                 # Focus on metrics data
                 metrics_data = {}
-                
+
                 if log_entry.performance:
                     metrics_data.update(log_entry.performance.dict(exclude_none=True))
-                
+
                 if log_entry.agent_metrics:
                     metrics_data.update({f"agent_{k}": v for k, v in log_entry.agent_metrics.dict(exclude_none=True).items()})
-                
+
                 if log_entry.api_metrics:
                     metrics_data.update({f"api_{k}": v for k, v in log_entry.api_metrics.dict(exclude_none=True).items()})
-                
+
                 if log_entry.database_metrics:
                     metrics_data.update({f"db_{k}": v for k, v in log_entry.database_metrics.dict(exclude_none=True).items()})
-                
+
                 # Create metrics line
                 timestamp = log_entry.timestamp.isoformat()
                 component = log_entry.component
-                
+
                 metrics_str = " ".join([f"{k}={v}" for k, v in metrics_data.items()])
-                
+
                 return f"{timestamp} {component} {metrics_str}"
             else:
                 return record.getMessage()
-                
+
         except Exception:
             return f"{datetime.utcnow().isoformat()} metrics_formatter_error"
+
+
+class ConversationFormatter(logging.Formatter):
+    """
+    User-facing conversation formatter for clean, emoji-enhanced agent dialogue.
+
+    This formatter creates clean, conversational output without technical details,
+    correlation IDs, or timestamps. It's designed for end users interacting with agents.
+    """
+
+    def __init__(self, config: Dict[str, Any] = None):
+        super().__init__()
+        self.config = config or {}
+        self.emoji_enhanced = self.config.get('emoji_enhanced', True)
+        self.show_reasoning = self.config.get('show_reasoning', True)
+        self.show_tool_usage = self.config.get('show_tool_usage', True)
+        self.show_tool_results = self.config.get('show_tool_results', True)
+        self.max_reasoning_length = self.config.get('max_reasoning_length', 200)
+        self.max_result_length = self.config.get('max_result_length', 500)
+        self.style = self.config.get('style', 'conversational')
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Format a conversation log entry"""
+        try:
+            # Check if this is a conversation message
+            if not hasattr(record, 'conversation_type'):
+                return ""  # Not a conversation message, skip
+
+            conversation_type = record.conversation_type
+            message = record.getMessage()
+
+            # Format based on conversation type
+            if conversation_type == 'user_query':
+                return self._format_user_query(message)
+            elif conversation_type == 'agent_acknowledgment':
+                return self._format_agent_acknowledgment(message)
+            elif conversation_type == 'agent_thinking':
+                return self._format_agent_thinking(message) if self.show_reasoning else ""
+            elif conversation_type == 'agent_goal':
+                return self._format_agent_goal(message)
+            elif conversation_type == 'agent_decision':
+                return self._format_agent_decision(message)
+            elif conversation_type == 'tool_usage':
+                return self._format_tool_usage(message) if self.show_tool_usage else ""
+            elif conversation_type == 'tool_result':
+                return self._format_tool_result(message) if self.show_tool_results else ""
+            elif conversation_type == 'agent_action':
+                return self._format_agent_action(message)
+            elif conversation_type == 'agent_response':
+                return self._format_agent_response(message)
+            elif conversation_type == 'agent_insight':
+                return self._format_agent_insight(message)
+            elif conversation_type == 'error':
+                return self._format_error(message)
+            elif conversation_type == 'warning':
+                return self._format_warning(message)
+            elif conversation_type == 'success':
+                return self._format_success(message)
+            else:
+                return message  # Unknown type, return as-is
+
+        except Exception as e:
+            # Fallback: return message without formatting
+            return record.getMessage() if hasattr(record, 'getMessage') else str(record)
+
+    def _format_user_query(self, message: str) -> str:
+        """Format user query"""
+        emoji = "🧑 " if self.emoji_enhanced else ""
+        return f"{emoji}User: {message}"
+
+    def _format_agent_acknowledgment(self, message: str) -> str:
+        """Format agent acknowledgment"""
+        emoji = "🤖 " if self.emoji_enhanced else ""
+        return f"{emoji}Agent: {message}"
+
+    def _format_agent_thinking(self, message: str) -> str:
+        """Format agent thinking/reasoning"""
+        emoji = "🔍 " if self.emoji_enhanced else ""
+        # Truncate if too long
+        if len(message) > self.max_reasoning_length:
+            message = message[:self.max_reasoning_length] + "..."
+        return f"{emoji}Thinking: {message}"
+
+    def _format_agent_goal(self, message: str) -> str:
+        """Format agent goal (autonomous agents)"""
+        emoji = "🎯 " if self.emoji_enhanced else ""
+        return f"{emoji}Goal: {message}"
+
+    def _format_agent_decision(self, message: str) -> str:
+        """Format agent decision (autonomous agents)"""
+        emoji = "🧠 " if self.emoji_enhanced else ""
+        return f"{emoji}Decision: {message}"
+
+    def _format_tool_usage(self, message: str) -> str:
+        """Format tool usage"""
+        emoji = "🔧 " if self.emoji_enhanced else ""
+        # Expected format: "tool_name|purpose"
+        if "|" in message:
+            tool_name, purpose = message.split("|", 1)
+            return f"{emoji}Using: {tool_name}\n   → {purpose}"
+        else:
+            return f"{emoji}Using: {message}"
+
+    def _format_tool_result(self, message: str) -> str:
+        """Format tool result"""
+        emoji = "✅ " if self.emoji_enhanced else ""
+        # Truncate if too long
+        if len(message) > self.max_result_length:
+            message = message[:self.max_result_length] + "..."
+        return f"{emoji}{message}"
+
+    def _format_agent_action(self, message: str) -> str:
+        """Format agent action"""
+        emoji = "⚙️ " if self.emoji_enhanced else ""
+        return f"{emoji}Action: {message}"
+
+    def _format_agent_response(self, message: str) -> str:
+        """Format agent final response"""
+        emoji = "💬 " if self.emoji_enhanced else ""
+        return f"{emoji}{message}"
+
+    def _format_agent_insight(self, message: str) -> str:
+        """Format agent insight"""
+        emoji = "💡 " if self.emoji_enhanced else ""
+        return f"{emoji}Insight: {message}"
+
+    def _format_error(self, message: str) -> str:
+        """Format error message"""
+        emoji = "❌ " if self.emoji_enhanced else ""
+        return f"{emoji}Error: {message}"
+
+    def _format_warning(self, message: str) -> str:
+        """Format warning message"""
+        emoji = "⚠️ " if self.emoji_enhanced else ""
+        return f"{emoji}Warning: {message}"
+
+    def _format_success(self, message: str) -> str:
+        """Format success message"""
+        emoji = "✅ " if self.emoji_enhanced else ""
+        return f"{emoji}{message}"

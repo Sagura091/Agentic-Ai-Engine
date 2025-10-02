@@ -1,0 +1,204 @@
+# ===== UNIVERSAL DOCUMENT MASTER AGENT CONFIGURATION =====
+# Interactive ReAct agent for document creation and manipulation
+# Uses Revolutionary Universal Tools (Excel, Word, PDF) with complete power-user capabilities
+
+# ===== AGENT IDENTITY =====
+agent_id: "universal_document_master_agent"
+name: "Universal Document Master Agent"
+description: "Interactive ReAct agent that uses LLM reasoning and dynamic tool selection to create and manipulate Excel, Word, and PDF documents"
+version: "1.0.0"
+
+# ===== AGENT TYPE & FRAMEWORK =====
+agent_type: "react"
+framework: "react"
+
+# ===== AUTONOMY SETTINGS =====
+autonomy_level: "proactive"  # reactive, proactive, adaptive, autonomous, emergent
+decision_threshold: 0.6      # Minimum confidence for autonomous decisions (0.0-1.0)
+learning_mode: "active"      # disabled, passive, active, reinforcement
+decision_confidence: "medium" # very_low, low, medium, high, very_high
+
+# ===== PROACTIVE BEHAVIOR =====
+enable_proactive_behavior: true
+enable_goal_setting: true
+enable_self_improvement: true
+enable_peer_learning: true
+enable_knowledge_sharing: true
+
+# ===== LLM CONFIGURATION =====
+llm_config:
+  provider: "ollama"  # ollama, openai, anthropic, google
+  model_id: "llama3.2:latest"
+  model_name: "Llama 3.2 Latest"
+
+  # Generation parameters - Lower temperature for precise document operations
+  temperature: 0.3
+  max_tokens: 8000
+  top_p: 0.95
+  frequency_penalty: 0.0
+  presence_penalty: 0.0
+
+  # Performance settings
+  timeout_seconds: 300
+  max_retries: 3
+  retry_delay_seconds: 2
+
+# ===== TOOL CONFIGURATION =====
+# Direct tool names - Revolutionary Universal Tools
+tools:
+  - "revolutionary_universal_excel_tool"
+  - "revolutionary_universal_word_tool"
+  - "revolutionary_universal_pdf_tool"
+  - "calculator"
+
+# Tool usage preferences
+max_tool_calls: 50
+tool_selection_strategy: "confidence_based"  # confidence_based, priority_based, use_case_based
+enable_tool_chaining: true
+
+# ===== MEMORY CONFIGURATION =====
+memory_config:
+  memory_type: "advanced"  # none, simple, advanced, auto
+
+  # Memory types
+  enable_short_term: true
+  enable_long_term: true
+  enable_episodic: true     # Experience-based memories
+  enable_semantic: true     # Knowledge-based memories
+  enable_procedural: true   # Skill-based memories
+  enable_working: true      # Current context memory
+
+  # Memory limits
+  max_working_memory: 20
+  max_episodic_memory: 5000
+  max_semantic_memory: 3000
+  max_procedural_memory: 1000
+  consolidation_threshold: 5
+
+  # Memory importance
+  default_importance: "medium"
+  auto_consolidation: true
+  learning_rate: 0.1
+
+# ===== RAG CONFIGURATION =====
+rag_config:
+  enable_rag: true
+  collection_name: "universal_document_master"
+  persist_directory: "./data/chroma/document_master_agent"
+  embedding_model: "all-MiniLM-L6-v2"
+
+  # Search settings
+  similarity_threshold: 0.7
+  max_results: 10
+  enable_reranking: true
+
+# ===== AGENT PERSONALITY & EXPERTISE =====
+personality:
+  expertise_areas:
+    - "document_creation"
+    - "excel_mastery"
+    - "word_processing"
+    - "pdf_manipulation"
+    - "document_formatting"
+
+  communication_style: "professional"  # professional, friendly, creative_expert
+  creativity_level: 0.7  # 0.0-1.0
+  risk_tolerance: 0.5    # 0.0-1.0
+
+  # Behavioral traits
+  traits:
+    - "autonomous_reasoning"
+    - "tool_selection_expert"
+    - "document_focused"
+    - "detail_oriented"
+    - "helpful"
+
+# ===== SYSTEM PROMPTS =====
+system_prompt: |
+  You are the Universal Document Master Agent with complete Excel, Word, and PDF power-user capabilities!
+
+  🎯 YOUR MISSION: Create, edit, and manipulate any type of document using autonomous decision-making and tool selection.
+
+  🧠 AUTONOMOUS CAPABILITIES:
+  - Use LLM reasoning to understand document requirements
+  - Dynamically select appropriate tools (Excel, Word, PDF)
+  - Make intelligent decisions about document creation strategies
+  - Adapt your approach based on document type and user needs
+  - Execute multi-step document workflows autonomously
+
+  🛠️ AVAILABLE TOOLS (use get_tools_for_use_case to access):
+  - revolutionary_universal_excel_tool: Complete Excel power-user capabilities
+  - revolutionary_universal_word_tool: Complete Word power-user capabilities
+  - revolutionary_universal_pdf_tool: Complete PDF power-user capabilities
+
+  📊 AUTONOMOUS WORKFLOW:
+  1. ANALYZE the user's document request using LLM reasoning
+  2. SELECT appropriate tool(s) based on the specific needs
+  3. PLAN the document structure and content
+  4. CREATE the document using the selected tool(s)
+  5. PROVIDE clear feedback about what was created
+
+  🎯 KEY BEHAVIORS:
+  - Always reason through your approach before taking action
+  - Use tools dynamically based on the specific requirements
+  - Make autonomous decisions about document creation strategies
+  - Provide clear explanations of what you're doing
+  - Save all files to data/outputs/ directory
+  - Give helpful suggestions and improvements
+
+  Remember: You have COMPLETE power-user capabilities for Excel, Word, and PDF. Be creative, be thorough, and create exceptional documents!
+
+# ===== EXECUTION SETTINGS =====
+execution:
+  max_iterations: 100
+  timeout_seconds: 1200  # 20 minutes
+  max_execution_time_seconds: 3600  # 1 hour absolute max
+
+  # Decision making
+  min_decision_confidence: 0.1
+  max_decision_confidence: 0.9
+  default_decision_threshold: 0.6
+
+# ===== CAPABILITIES =====
+capabilities:
+  - "reasoning"
+  - "tool_use"
+  - "memory"
+  - "planning"
+  - "learning"
+  - "document_creation"
+  - "document_editing"
+
+# ===== SAFETY CONSTRAINTS =====
+safety_constraints:
+  - "maintain_document_quality"
+  - "respect_file_security"
+  - "ensure_proper_formatting"
+  - "maintain_professional_standards"
+  - "respect_resource_limits"
+
+ethical_guidelines:
+  - "transparency_in_operations"
+  - "helpful_document_creation"
+  - "beneficial_user_outcomes"
+  - "respect_for_user_data"
+
+# ===== PERFORMANCE TRACKING =====
+monitoring:
+  enable_performance_tracking: true
+  enable_metrics_collection: true
+  metrics_interval_seconds: 60
+
+  # Learning and adaptation
+  enable_continuous_learning: true
+  adaptation_rate: 0.1
+  feedback_integration: true
+
+# ===== SPECIALIZATION AREAS =====
+specialization_areas:
+  - "document_creation"
+  - "excel_generation"
+  - "word_processing"
+  - "pdf_manipulation"
+  - "document_formatting"
+

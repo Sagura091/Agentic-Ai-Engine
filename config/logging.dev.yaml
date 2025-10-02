@@ -1,0 +1,209 @@
+# ============================================================================
+# REVOLUTIONARY LOGGING SYSTEM - DEVELOPMENT CONFIGURATION
+# ============================================================================
+# This configuration is optimized for development and debugging.
+# Use this when actively developing and testing the system.
+# ============================================================================
+
+# Global settings
+global:
+  mode: developer              # developer mode for selective debugging
+  enabled: true
+  show_ids: false              # Hide IDs for cleaner output
+  show_timestamps: true        # Show timestamps for debugging
+  show_callsite: false         # Hide callsite for cleaner output
+  external_loggers_enabled: false  # Suppress noisy external libraries
+
+# Conversation layer - Clean user-facing output
+conversation_layer:
+  enabled: true
+  style: conversational        # Conversational style for natural dialogue
+  emoji_enhanced: true         # Use emojis for better UX
+  max_reasoning_length: 200    # Truncate long reasoning messages
+  max_tool_result_length: 300  # Truncate long tool results
+
+# Module control - Enable modules you're actively developing
+module_control:
+  # Agent operations - ENABLED for agent development
+  app.agents:
+    enabled: true
+    console_level: DEBUG       # Show all agent logs
+    file_level: DEBUG
+    console_output: true       # Show in console
+    file_output: true          # Also write to file
+  
+  # RAG system - ENABLED for RAG development
+  app.rag:
+    enabled: true
+    console_level: INFO        # Show important RAG logs
+    file_level: DEBUG          # Full details in file
+    console_output: true
+    file_output: true
+  
+  # Memory system - DISABLED by default
+  app.memory:
+    enabled: false
+    console_level: WARNING
+    file_level: INFO
+    console_output: false
+    file_output: true
+  
+  # LLM management - DISABLED by default
+  app.llm:
+    enabled: false
+    console_level: INFO
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+  
+  # Tool execution - DISABLED by default
+  app.tools:
+    enabled: false
+    console_level: INFO
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+  
+  # API layer - DISABLED by default
+  app.api:
+    enabled: false
+    console_level: WARNING
+    file_level: INFO
+    console_output: false
+    file_output: true
+  
+  # Core system - DISABLED by default
+  app.core:
+    enabled: false
+    console_level: INFO
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+  
+  # Business logic - DISABLED by default
+  app.services:
+    enabled: false
+    console_level: INFO
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+  
+  # Workflow orchestration - DISABLED by default
+  app.orchestration:
+    enabled: false
+    console_level: INFO
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+  
+  # Agent communication - DISABLED by default
+  app.communication:
+    enabled: false
+    console_level: INFO
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+  
+  # Configuration - DISABLED by default
+  app.config:
+    enabled: false
+    console_level: WARNING
+    file_level: INFO
+    console_output: false
+    file_output: true
+  
+  # Database models - DISABLED by default
+  app.models:
+    enabled: false
+    console_level: WARNING
+    file_level: INFO
+    console_output: false
+    file_output: true
+  
+  # Performance optimization - DISABLED by default
+  app.optimization:
+    enabled: false
+    console_level: INFO
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+  
+  # External integrations - DISABLED by default
+  app.integrations:
+    enabled: false
+    console_level: INFO
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+
+# Tier configurations
+tier_configs:
+  user:
+    console_level: WARNING
+    show_ids: false
+    show_timestamps: false
+    show_callsite: false
+  
+  developer:
+    console_level: INFO
+    show_ids: false
+    show_timestamps: true
+    show_callsite: false
+  
+  debug:
+    console_level: DEBUG
+    show_ids: true
+    show_timestamps: true
+    show_callsite: true
+
+# File persistence - Keep logs for 30 days
+file_persistence:
+  enabled: true
+  base_path: data/logs/backend
+  rotation_strategy: daily     # Rotate daily
+  max_size_mb: 100             # Max 100MB per file
+  retention_days: 30           # Keep for 30 days
+  compression_enabled: true    # Compress old logs
+  format: json                 # JSON format for easy parsing
+  async_writing: true          # Async for performance
+  buffer_size: 8192            # 8KB buffer
+
+# Hot-reload - Check every 60 seconds
+hot_reload:
+  enabled: true
+  check_interval_seconds: 60
+  config_file_path: config/logging.yaml
+
+# External logger suppression
+external_logger_suppression:
+  uvicorn: true
+  httpx: true
+  httpcore: true
+  watchfiles: true
+  asyncio: true
+  multipart: true
+
+# ============================================================================
+# DEVELOPMENT TIPS
+# ============================================================================
+# 
+# 1. Enable specific modules as needed:
+#    - Working on agents? Set app.agents.enabled = true
+#    - Working on RAG? Set app.rag.enabled = true
+#    - Working on memory? Set app.memory.enabled = true
+#
+# 2. Adjust log levels for noise control:
+#    - Too noisy? Increase to WARNING or ERROR
+#    - Need more detail? Decrease to DEBUG
+#
+# 3. Use console_output for active debugging:
+#    - Set console_output = true for modules you're debugging
+#    - Set console_output = false for background modules
+#
+# 4. Switch modes quickly:
+#    - developer: Balanced output for development
+#    - debug: Full verbose for deep debugging
+#    - user: Test user experience
+#
+# ============================================================================
+

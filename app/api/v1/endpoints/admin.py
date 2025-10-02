@@ -447,3 +447,275 @@ async def get_recent_logs(
     except Exception as e:
         logger.error("Failed to get recent logs", error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to get recent logs: {str(e)}")
+
+
+# ============================================================================
+# REVOLUTIONARY LOGGING SYSTEM - RUNTIME CONTROL API
+# ============================================================================
+
+class LoggingModeUpdate(BaseModel):
+    """Logging mode update request."""
+    mode: str = Field(..., description="Logging mode: user, developer, or debug")
+
+
+class ModuleControlUpdate(BaseModel):
+    """Module logging control update request."""
+    module_name: str = Field(..., description="Module name (e.g., 'app.rag', 'app.agents')")
+    enabled: bool = Field(..., description="Enable or disable module logging")
+    level: Optional[str] = Field(default="DEBUG", description="Log level: DEBUG, INFO, WARNING, ERROR")
+
+
+class ModuleLevelUpdate(BaseModel):
+    """Module log level update request."""
+    module_name: str = Field(..., description="Module name (e.g., 'app.rag', 'app.agents')")
+    console_level: str = Field(..., description="Console log level")
+    file_level: Optional[str] = Field(default=None, description="File log level (optional)")
+
+
+@router.get("/logging/status")
+async def get_logging_status(
+    admin: Dict = Depends(require_admin)
+) -> Dict[str, Any]:
+    """
+    Get current logging system status.
+
+    Returns:
+        Current logging configuration and module status
+    """
+    try:
+        from app.backend_logging.backend_logger import get_logger
+        backend_logger = get_logger()
+
+        status = {
+            "mode": backend_logger.config.logging_mode.value,
+            "conversation_enabled": backend_logger.config.conversation_config.enabled,
+            "active_modules": backend_logger.get_active_loggers(),
+            "module_status": backend_logger.get_module_status(),
+            "stats": backend_logger.get_stats(),
+            "timestamp": datetime.now().isoformat()
+        }
+
+        logger.info("Logging status retrieved")
+        return status
+
+    except Exception as e:
+        logger.error("Failed to get logging status", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to get logging status: {str(e)}")
+
+
+@router.post("/logging/mode")
+async def set_logging_mode(
+    update: LoggingModeUpdate,
+    admin: Dict = Depends(require_admin)
+) -> Dict[str, Any]:
+    """
+    Set logging mode at runtime.
+
+    Args:
+        update: Logging mode update request
+
+    Returns:
+        Updated logging status
+    """
+    try:
+        from app.backend_logging.backend_logger import get_logger
+        backend_logger = get_logger()
+
+        # Validate mode
+        valid_modes = ['user', 'developer', 'debug']
+        if update.mode.lower() not in valid_modes:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid mode '{update.mode}'. Must be one of: {', '.join(valid_modes)}"
+            )
+
+        # Set mode
+        backend_logger.set_mode(update.mode.lower())
+
+        result = {
+            "success": True,
+            "mode": update.mode.lower(),
+            "message": f"Logging mode set to '{update.mode.lower()}'",
+            "timestamp": datetime.now().isoformat()
+        }
+
+        logger.info("Logging mode updated", mode=update.mode.lower())
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to set logging mode", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to set logging mode: {str(e)}")
+
+
+@router.post("/logging/module/enable")
+async def enable_module_logging(
+    update: ModuleControlUpdate,
+    admin: Dict = Depends(require_admin)
+) -> Dict[str, Any]:
+    """
+    Enable logging for a specific module.
+
+    Args:
+        update: Module control update request
+
+    Returns:
+        Updated module status
+    """
+    try:
+        from app.backend_logging.backend_logger import get_logger
+        from app.backend_logging.models import LogLevel
+
+        backend_logger = get_logger()
+
+        # Validate level
+        try:
+            log_level = LogLevel(update.level.upper())
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid log level '{update.level}'. Must be one of: DEBUG, INFO, WARNING, ERROR, FATAL"
+            )
+
+        if update.enabled:
+            backend_logger.enable_module(update.module_name, log_level)
+            message = f"Module '{update.module_name}' enabled at level {update.level.upper()}"
+        else:
+            backend_logger.disable_module(update.module_name)
+            message = f"Module '{update.module_name}' disabled"
+
+        result = {
+            "success": True,
+            "module_name": update.module_name,
+            "enabled": update.enabled,
+            "level": update.level.upper() if update.enabled else None,
+            "message": message,
+            "timestamp": datetime.now().isoformat()
+        }
+
+        logger.info("Module logging updated", module=update.module_name, enabled=update.enabled)
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to update module logging", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to update module logging: {str(e)}")
+
+
+@router.post("/logging/module/level")
+async def set_module_log_level(
+    update: ModuleLevelUpdate,
+    admin: Dict = Depends(require_admin)
+) -> Dict[str, Any]:
+    """
+    Set log levels for a specific module.
+
+    Args:
+        update: Module level update request
+
+    Returns:
+        Updated module status
+    """
+    try:
+        from app.backend_logging.backend_logger import get_logger
+        from app.backend_logging.models import LogLevel
+
+        backend_logger = get_logger()
+
+        # Validate levels
+        try:
+            console_level = LogLevel(update.console_level.upper())
+            file_level = LogLevel(update.file_level.upper()) if update.file_level else None
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid log level: {str(e)}"
+            )
+
+        backend_logger.set_module_level(update.module_name, console_level, file_level)
+
+        result = {
+            "success": True,
+            "module_name": update.module_name,
+            "console_level": update.console_level.upper(),
+            "file_level": update.file_level.upper() if update.file_level else "unchanged",
+            "message": f"Module '{update.module_name}' log levels updated",
+            "timestamp": datetime.now().isoformat()
+        }
+
+        logger.info("Module log levels updated", module=update.module_name)
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to set module log levels", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to set module log levels: {str(e)}")
+
+
+@router.get("/logging/modules")
+async def get_module_status(
+    admin: Dict = Depends(require_admin)
+) -> Dict[str, Any]:
+    """
+    Get status of all logging modules.
+
+    Returns:
+        Status of all modules
+    """
+    try:
+        from app.backend_logging.backend_logger import get_logger
+        backend_logger = get_logger()
+
+        module_status = backend_logger.get_module_status()
+
+        result = {
+            "modules": module_status,
+            "total_modules": len(module_status),
+            "active_modules": len(backend_logger.get_active_loggers()),
+            "timestamp": datetime.now().isoformat()
+        }
+
+        logger.info("Module status retrieved", total=len(module_status))
+        return result
+
+    except Exception as e:
+        logger.error("Failed to get module status", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to get module status: {str(e)}")
+
+
+@router.post("/logging/conversation/toggle")
+async def toggle_conversation_layer(
+    enabled: bool,
+    admin: Dict = Depends(require_admin)
+) -> Dict[str, Any]:
+    """
+    Enable or disable conversation layer.
+
+    Args:
+        enabled: Enable or disable conversation layer
+
+    Returns:
+        Updated status
+    """
+    try:
+        from app.backend_logging.backend_logger import get_logger
+        backend_logger = get_logger()
+
+        backend_logger.set_conversation_enabled(enabled)
+
+        result = {
+            "success": True,
+            "conversation_enabled": enabled,
+            "message": f"Conversation layer {'enabled' if enabled else 'disabled'}",
+            "timestamp": datetime.now().isoformat()
+        }
+
+        logger.info("Conversation layer toggled", enabled=enabled)
+        return result
+
+    except Exception as e:
+        logger.error("Failed to toggle conversation layer", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to toggle conversation layer: {str(e)}")

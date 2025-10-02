@@ -44,22 +44,74 @@ from app.backend_logging.models import LogConfiguration, LogLevel, LogCategory
 
 # Configure clean, production-ready logging
 def setup_clean_logging():
-    """Setup clean logging with minimal console output and detailed file logging."""
+    """
+    Setup revolutionary logging system with mode-aware configuration.
 
-    # Set root logger to WARNING to reduce spam
-    logging.getLogger().setLevel(logging.WARNING)
+    This function initializes the 5-layer logging architecture:
+    1. User Conversation Layer - Clean agent dialogue
+    2. Module Control Layer - Granular per-module control
+    3. Tier System Layer - USER/DEVELOPER/DEBUG modes
+    4. Backend Logging Layer - Structured technical logs
+    5. File Persistence Layer - Complete audit trail
+    """
 
-    # Set specific loggers to appropriate levels
-    logging.getLogger("uvicorn").setLevel(logging.WARNING)
-    logging.getLogger("uvicorn.access").setLevel(logging.ERROR)
-    logging.getLogger("fastapi").setLevel(logging.WARNING)
-    logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("chromadb").setLevel(logging.ERROR)
+    # Get backend logger configuration
+    backend_logger = get_logger()
+    logging_mode = backend_logger.config.logging_mode
 
-    # Configure structlog for clean output
-    structlog.configure(
-        processors=[
+    # Set root logger based on mode
+    if logging_mode == backend_logger.config.logging_mode.__class__.USER:
+        # USER mode: Minimal technical logs
+        logging.getLogger().setLevel(logging.CRITICAL)
+    elif logging_mode == backend_logger.config.logging_mode.__class__.DEVELOPER:
+        # DEVELOPER mode: Selected module logs
+        logging.getLogger().setLevel(logging.WARNING)
+    else:  # DEBUG mode
+        # DEBUG mode: Full verbose logging
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    # Set specific external loggers to appropriate levels
+    external_loggers = {
+        "uvicorn": logging.WARNING,
+        "uvicorn.access": logging.ERROR,
+        "fastapi": logging.WARNING,
+        "sqlalchemy": logging.WARNING,
+        "httpx": logging.ERROR,
+        "chromadb": logging.ERROR,
+        "sentence_transformers": logging.ERROR,
+        "transformers": logging.ERROR,
+        "urllib3": logging.ERROR,
+        "requests": logging.ERROR,
+        "httpcore": logging.ERROR,
+        "openai": logging.ERROR,
+        "anthropic": logging.ERROR,
+        "ollama": logging.ERROR,
+        "playwright": logging.ERROR,
+        "selenium": logging.ERROR
+    }
+
+    for logger_name, level in external_loggers.items():
+        logging.getLogger(logger_name).setLevel(level)
+
+    # Configure structlog based on logging mode
+    if logging_mode == backend_logger.config.logging_mode.__class__.USER:
+        # USER mode: Minimal output, no timestamps, no logger names
+        processors = [
+            structlog.stdlib.filter_by_level,
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.UnicodeDecoder(),
+            # Minimal console output
+            structlog.dev.ConsoleRenderer(
+                colors=False,
+                pad_event=0,
+                force_colors=False,
+                level_styles={}
+            ) if sys.stdout.isatty() else structlog.processors.JSONRenderer(),
+        ]
+    elif logging_mode == backend_logger.config.logging_mode.__class__.DEVELOPER:
+        # DEVELOPER mode: Structured output with context
+        processors = [
             structlog.stdlib.filter_by_level,
             structlog.stdlib.add_logger_name,
             structlog.stdlib.add_log_level,
@@ -68,9 +120,39 @@ def setup_clean_logging():
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
             structlog.processors.UnicodeDecoder(),
-            # Clean console output - only essential info
-            structlog.dev.ConsoleRenderer(colors=True, pad_event=25) if sys.stdout.isatty() else structlog.processors.JSONRenderer(),
-        ],
+            # Structured console output
+            structlog.dev.ConsoleRenderer(
+                colors=True,
+                pad_event=25
+            ) if sys.stdout.isatty() else structlog.processors.JSONRenderer(),
+        ]
+    else:  # DEBUG mode
+        # DEBUG mode: Full verbose output with all metadata
+        processors = [
+            structlog.stdlib.filter_by_level,
+            structlog.stdlib.add_logger_name,
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.PositionalArgumentsFormatter(),
+            structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S.%f"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.UnicodeDecoder(),
+            structlog.processors.CallsiteParameterAdder(
+                [
+                    structlog.processors.CallsiteParameter.FILENAME,
+                    structlog.processors.CallsiteParameter.FUNC_NAME,
+                    structlog.processors.CallsiteParameter.LINENO,
+                ]
+            ),
+            # Full verbose console output
+            structlog.dev.ConsoleRenderer(
+                colors=True,
+                pad_event=40
+            ) if sys.stdout.isatty() else structlog.processors.JSONRenderer(),
+        ]
+
+    structlog.configure(
+        processors=processors,
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,

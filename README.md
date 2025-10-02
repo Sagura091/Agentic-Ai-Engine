@@ -1,433 +1,419 @@
-# 🚀 **AGENTIC AI ENGINE** - The Revolutionary Multi-Agent AI System
+# Agentic AI Engine
 
-> **The most advanced, comprehensive, and production-ready agentic AI system ever built.**
+> A multi-agent AI framework built on LangChain/LangGraph with FastAPI, featuring autonomous agents, RAG capabilities, and comprehensive tool integration.
 
-Welcome to the **Agentic AI Engine** - a revolutionary unified multi-agent system that represents the pinnacle of modern AI agent architecture. This isn't just another AI framework; it's a complete ecosystem that transforms how autonomous agents are built, deployed, and orchestrated at enterprise scale.
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
+[![LangChain](https://img.shields.io/badge/LangChain-0.1+-orange.svg)](https://github.com/langchain-ai/langchain)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## ⚡ **Quick Start - One Command Setup**
+## 📋 Table of Contents
 
-Get the entire system running in under 3 minutes:
+- [Project Status](#project-status)
+- [What This Project Is](#what-this-project-is)
+- [Quick Start](#quick-start)
+- [Core Features](#core-features)
+- [Architecture](#architecture)
+- [Configuration](#configuration)
+- [Development](#development)
+- [API Documentation](#api-documentation)
+- [Deployment](#deployment)
+- [Contributing](#contributing)
+- [License](#license)
 
-### **Windows (PowerShell)**
-```powershell
-.\setup.ps1
-```
+## 🚦 Project Status
 
-### **Windows (Command Prompt)**
-```cmd
-setup.bat
-```
+**Version:** 0.1.0 (Beta)
+**Status:** Active Development
+**Stability:** Core features functional, testing in progress
+**Production Ready:** Not yet - See [Roadmap](#roadmap)
 
-### **Linux/Mac**
-```bash
-chmod +x setup.sh
-./setup.sh
-```
+## 💡 What This Project Is
 
-**That's it!** The setup script will:
-- ✅ Check Docker and Python
-- ✅ Start PostgreSQL in Docker
-- ✅ Run all database migrations
-- ✅ Create all data directories
-- ✅ Initialize the system
-- ✅ Verify everything works
+Agentic AI Engine is a Python-based multi-agent framework that provides:
 
-**Total time: ~2-3 minutes**
+- **Multi-Agent Support**: Create and manage multiple AI agents with different capabilities
+- **LangChain/LangGraph Integration**: Built on industry-standard agent frameworks
+- **RAG System**: Retrieval-Augmented Generation with ChromaDB vector storage
+- **Memory Management**: Persistent agent memory across sessions
+- **Tool Ecosystem**: Extensible tool system for agent capabilities
+- **FastAPI Backend**: RESTful API with WebSocket support
+- **Database Integration**: PostgreSQL for structured data, ChromaDB for vectors
 
-## 🌟 **Why This System is Revolutionary**
+## ⚡ Quick Start
 
-### **🎯 The Only Truly Unified Multi-Agent System**
-- **Single Entry Point**: One system orchestrates unlimited autonomous agents
-- **Multi-Framework Support**: 6 agent frameworks in one unified architecture (Basic, ReAct, BDI, CrewAI, AutoGen, Swarm)
-- **Zero-Code Agent Creation**: Build sophisticated agents with just YAML configuration
-- **Universal Compatibility**: Seamlessly integrates with OpenWebUI, Ollama, and any LLM provider
+### Prerequisites
 
-### **🧠 Revolutionary Agent Intelligence**
-- **Agent DNA System**: Personality, behavior, and capability configuration at the genetic level
-- **BDI Architecture**: Belief-Desire-Intention autonomous decision-making
-- **8-Type Memory System**: From working memory to long-term episodic learning
-- **Multi-Modal RAG**: Advanced retrieval with 5-tier knowledge organization
-- **Real-Time Learning**: Agents that adapt, improve, and evolve autonomously
+- **Docker & Docker Compose** (required for PostgreSQL)
+- **Python 3.11+** (for development)
+- **8GB+ RAM** (recommended)
 
-### **🏗️ Enterprise-Grade Architecture**
-- **Production-Ready**: Comprehensive monitoring, security, and scalability
-- **Multi-Database**: PostgreSQL + ChromaDB + Redis for optimal performance
-- **Microservice Design**: Containerized, scalable, and cloud-native
-- **Advanced Security**: JWT authentication, RBAC, rate limiting, and security hardening
-
-## 🎯 **Revolutionary Features That Set Us Apart**
-
-### **🤖 Multi-Framework Agent Support**
-The only system that supports **6 different agent frameworks** in one unified architecture:
-
-- **🔧 Basic Agents**: Simple task-oriented agents
-- **⚡ ReAct Agents**: Reasoning and Acting with tool integration
-- **🧠 BDI Agents**: Belief-Desire-Intention autonomous decision-making
-- **👥 CrewAI Agents**: Collaborative multi-agent teams
-- **🔄 AutoGen Agents**: Conversational multi-agent systems
-- **🐝 Swarm Agents**: Distributed collective intelligence
-
-### **🎨 Agent DNA System**
-Revolutionary personality and behavior configuration:
-
-```yaml
-agent_dna:
-  personality:
-    traits: ["analytical", "creative", "persistent"]
-    communication_style: "professional_friendly"
-    decision_making: "data_driven"
-  capabilities:
-    autonomy_level: "autonomous"
-    learning_enabled: true
-    collaboration_mode: "proactive"
-```
-
-### **🧠 Advanced Memory Architecture**
-**8 distinct memory types** for comprehensive cognitive capabilities:
-
-- **Working Memory**: Active task context and immediate processing
-- **Episodic Memory**: Personal experiences and event sequences
-- **Semantic Memory**: Factual knowledge and learned concepts
-- **Procedural Memory**: Skills, habits, and learned procedures
-- **Emotional Memory**: Emotional associations and responses
-- **Social Memory**: Relationships and social interactions
-- **Meta Memory**: Self-awareness and learning strategies
-- **Contextual Memory**: Situational and environmental awareness
-
-### **📚 Multi-Modal RAG System**
-**5-tier hierarchical knowledge organization**:
-
-1. **Global Knowledge**: System-wide shared knowledge
-2. **Domain Knowledge**: Subject-specific expertise
-3. **Agent Knowledge**: Individual agent specializations
-4. **Session Knowledge**: Conversation-specific context
-5. **Document Knowledge**: Granular document understanding
-
-## 🏗️ **System Architecture**
-
-### **Unified Multi-Agent Orchestration**
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    AGENTIC AI ENGINE                            │
-├─────────────────────────────────────────────────────────────────┤
-│  🎯 UnifiedSystemOrchestrator (Single Entry Point)             │
-├─────────────────────────────────────────────────────────────────┤
-│  🤖 Multi-Framework Agent Support                              │
-│  ├── Basic Agents      ├── ReAct Agents    ├── BDI Agents     │
-│  ├── CrewAI Agents     ├── AutoGen Agents  └── Swarm Agents   │
-├─────────────────────────────────────────────────────────────────┤
-│  🧠 Unified Memory System (8 Memory Types)                     │
-│  📚 Unified RAG System (5-Tier Knowledge)                      │
-│  🛠️ Unified Tool Repository (Production Tools)                 │
-│  💬 Agent Communication System                                 │
-├─────────────────────────────────────────────────────────────────┤
-│  🗄️ Multi-Database Architecture                                │
-│  ├── PostgreSQL (Structured Data)                             │
-│  ├── ChromaDB (Vector Storage)                                │
-│  └── Redis (Caching & State)                                  │
-├─────────────────────────────────────────────────────────────────┤
-│  🌐 Integration Layer                                          │
-│  ├── OpenWebUI Pipelines  ├── LLM Providers  ├── External APIs │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### **Core Revolutionary Components**
-
-#### **🎯 UnifiedSystemOrchestrator**
-- **Single Entry Point**: One system manages unlimited agents
-- **Agent Isolation**: Each agent operates in its own secure environment
-- **Resource Management**: Intelligent resource allocation and optimization
-- **Performance Monitoring**: Real-time system health and metrics
-
-#### **🤖 Multi-Framework Agent Engine**
-- **Framework Abstraction**: Unified interface for all agent types
-- **Dynamic Agent Creation**: Runtime agent instantiation and configuration
-- **Agent Lifecycle Management**: Complete agent lifecycle from creation to retirement
-- **Cross-Framework Communication**: Agents from different frameworks can collaborate
-
-#### **🧠 Advanced Cognitive Architecture**
-- **Memory Consolidation**: Automatic memory organization and optimization
-- **Learning Integration**: Continuous learning from interactions and outcomes
-- **Emotional Intelligence**: Emotional state tracking and response adaptation
-- **Meta-Cognition**: Self-awareness and strategy optimization
-
-## 🚀 **Installation & Quick Start**
-
-### **Prerequisites**
-- Docker and Docker Compose
-- Python 3.11+ (for development)
-- 8GB+ RAM recommended
-- OpenWebUI/Ollama infrastructure (optional but recommended)
-
-### **🎯 One-Command Setup**
+### Installation
 
 ```bash
-# Clone and start the entire system
+# 1. Clone the repository
 git clone https://github.com/Sagura091/Agentic-Ai-Engine.git
 cd Agentic-Ai-Engine
-docker-compose up --build -d
 
-# Verify system is running
-curl http://localhost:8001/health
+# 2. Start PostgreSQL
+docker-compose up -d postgres
+
+# 3. Install Python dependencies
+pip install -r requirements.txt
+
+# 4. Run database migrations
+python db/migrations/migrate_database.py migrate
+
+# 5. Start the application
+python -m app.main
 ```
 
-### **🔧 Integration with OpenWebUI**
+The API will be available at `http://localhost:8888`
 
-The system automatically integrates with OpenWebUI through pipelines:
+### Verify Installation
 
-```yaml
-# Add to your existing docker-compose.yml
-services:
-  agentic-ai-engine:
-    image: agentic-ai-engine:latest
-    ports:
-      - "8001:8000"
-    environment:
-      - OPENWEBUI_BASE_URL=http://open-webui:8080
-      - OLLAMA_BASE_URL=http://ollama:11434
-    depends_on:
-      - postgres
-      - redis
-      - chromadb
+```bash
+# Check health endpoint
+curl http://localhost:8888/health
+
+# View API documentation
+open http://localhost:8888/docs
 ```
 
-## 🎨 **Zero-Code Agent Creation**
+## 🎯 Core Features
 
-### **YAML-Driven Agent Configuration**
+### 1. Agent Framework
 
-Create sophisticated agents with just YAML configuration - no coding required!
+Create agents with different capabilities:
+
+- **Basic Agents**: Simple task-oriented agents for straightforward operations
+- **ReAct Agents**: Reasoning and Acting pattern with thought/action cycles
+- **Autonomous Agents**: Self-directed agents with goal management and learning
+
+### 2. Memory System
+
+Agents maintain context through multiple memory types:
+
+- **Short-term Memory**: Active conversation context
+- **Long-term Memory**: Persistent knowledge across sessions
+- **Episodic Memory**: Experience tracking and learning from past interactions
+- **Working Memory**: Immediate task processing
+
+### 3. RAG (Retrieval-Augmented Generation)
+
+- **ChromaDB Integration**: Vector storage for semantic search
+- **Document Processing**: Automatic chunking and embedding
+- **Knowledge Bases**: Agent-specific and shared knowledge collections
+- **Semantic Search**: Context-aware information retrieval
+
+### 4. Tool System
+
+Extensible tool framework with production-ready tools:
+
+- **Web Research**: Web scraping and content extraction
+- **Document Processing**: PDF, Word, Excel, and text file handling
+- **Database Operations**: SQL query execution and data management
+- **File System**: File and directory operations
+- **API Integration**: HTTP client for external API calls
+
+### 5. API & Integration
+
+- **RESTful API**: FastAPI-based endpoints with automatic documentation
+- **WebSocket Support**: Real-time bidirectional communication
+- **OpenAPI/Swagger**: Interactive API documentation
+- **OpenWebUI Integration**: Pipeline support for OpenWebUI
+
+## 🏗️ Architecture
+
+### System Overview
+
+```text
+┌─────────────────────────────────────────┐
+│         FastAPI Application             │
+├─────────────────────────────────────────┤
+│  API Endpoints  │  WebSocket Manager    │
+├─────────────────────────────────────────┤
+│         Agent Management                │
+│  ├── Agent Factory                      │
+│  ├── Agent Registry                     │
+│  └── Agent Execution                    │
+├─────────────────────────────────────────┤
+│  Memory System  │  RAG System           │
+│  ├── Short-term │  ├── ChromaDB         │
+│  └── Long-term  │  └── Embeddings       │
+├─────────────────────────────────────────┤
+│  Tool Repository                        │
+│  └── Production Tools                   │
+├─────────────────────────────────────────┤
+│         Data Layer                      │
+│  ├── PostgreSQL (Structured)            │
+│  ├── ChromaDB (Vectors)                 │
+│  └── Redis (Cache)                      │
+└─────────────────────────────────────────┘
+```
+
+### Core Components
+
+#### Agent System
+
+- **Agent Factory**: Creates and configures agents based on type
+- **Agent Registry**: Manages active agent instances
+- **Agent Execution**: Handles agent task execution and lifecycle
+
+#### Memory & Knowledge
+
+- **Memory System**: Manages short-term and long-term agent memory
+- **RAG System**: Provides semantic search and knowledge retrieval
+- **ChromaDB**: Vector database for embeddings and similarity search
+
+#### Tools & Integration
+
+- **Tool Repository**: Centralized tool management and execution
+- **LLM Providers**: Support for Ollama, OpenAI, and other providers
+- **API Layer**: RESTful and WebSocket endpoints
+
+## ⚙️ Configuration
+
+Configuration is managed through environment variables and `.env` files.
+
+### Environment Variables
+
+Create a `.env` file in the project root:
+
+```env
+# Server Configuration
+AGENTIC_HOST=0.0.0.0
+AGENTIC_PORT=8888
+AGENTIC_DEBUG=false
+
+# Database
+DATABASE_URL=postgresql://user:pass@localhost:5432/agentic_ai
+
+# LLM Providers
+OLLAMA_BASE_URL=http://localhost:11434
+OPENAI_API_KEY=your-key-here
+
+# Security
+SECRET_KEY=your-secret-key-change-this-in-production
+JWT_SECRET_KEY=your-jwt-secret-change-this
+
+# ChromaDB
+CHROMA_HOST=localhost
+CHROMA_PORT=8000
+
+# Redis (optional)
+REDIS_URL=redis://localhost:6379
+```
+
+See `.env.example` for all available configuration options.
+
+### Agent Configuration
+
+Agents can be configured via YAML files in `data/config/agents/`:
 
 ```yaml
-# data/config/agents/autonomous_trading_agent.yaml
 agent:
-  name: "Autonomous Stock Trading Agent"
-  type: "autonomous"
-  framework: "bdi"
-  autonomy_level: "autonomous"
-
-agent_dna:
-  personality:
-    traits: ["analytical", "risk_aware", "decisive"]
-    communication_style: "professional"
-    decision_making: "data_driven"
-
-  capabilities:
-    autonomy_level: "autonomous"
-    learning_enabled: true
-    collaboration_mode: "proactive"
-
-llm:
-  provider: "ollama"
+  name: "Research Assistant"
+  type: "react"
   model: "llama3.1:8b"
-  temperature: 0.1
 
 tools:
-  - "advanced_stock_trading"
-  - "business_intelligence"
-  - "revolutionary_document_intelligence"
+  - "web_research"
+  - "document_search"
 
 memory:
-  type: "advanced"
   enable_learning: true
-  memory_types: ["episodic", "semantic", "procedural"]
-
-rag:
-  enable_knowledge_base: true
-  collection_name: "stock_trading_knowledge"
-  retrieval_strategy: "hybrid"
-
-goals:
-  - "Monitor market conditions continuously"
-  - "Execute profitable trades autonomously"
-  - "Learn from market patterns and outcomes"
+  memory_types: ["episodic", "semantic"]
 ```
 
-### **One-File Agent Templates**
+## 💻 Development
 
-Use our revolutionary template system for instant agent creation:
+### Project Structure
 
-```python
-# Copy any template from /templates/ directory
-# Customize the config section at the top
-# Run the file - your agent is live!
+```text
+app/
+├── agents/          # Agent implementations
+│   ├── base/        # Base agent classes
+│   ├── react/       # ReAct agents
+│   └── autonomous/  # Autonomous agents
+├── api/             # FastAPI endpoints
+│   └── v1/          # API version 1
+├── config/          # Configuration management
+├── core/            # Core utilities and orchestration
+├── memory/          # Memory systems
+├── models/          # Database models
+├── rag/             # RAG implementation
+├── services/        # Business logic
+└── tools/           # Tool implementations
 
-from templates.research_agent_template import create_research_agent
-
-# Agent automatically inherits all system capabilities:
-# ✅ Advanced RAG system
-# ✅ 8-type memory system
-# ✅ Production tool access
-# ✅ Real-time learning
-# ✅ Autonomous operation
+tests/               # Test suite
+docs/                # Documentation
+scripts/             # Utility scripts
+db/                  # Database migrations
 ```
 
-## 🛠️ **Production-Ready Tool Ecosystem**
+### Running Tests
 
-### **Comprehensive Tool Repository**
+```bash
+# Install test dependencies
+pip install -r requirements-test.txt
 
-The system includes **50+ production-ready tools** across multiple categories:
+# Run all tests
+pytest tests/ -v
 
-#### **🔍 Intelligence & Analysis Tools**
-- **Advanced Web Scraping**: Revolutionary web scraper with AI-powered content extraction
-- **Business Intelligence**: Comprehensive market analysis and reporting
-- **Document Intelligence**: Multi-modal document processing and analysis
-- **Stock Trading**: Real-time market data and autonomous trading capabilities
+# Run with coverage
+pytest tests/ --cov=app --cov-report=html
 
-#### **🎨 Creative & Content Tools**
-- **Meme Generation**: Autonomous meme creation with trend analysis
-- **Music Composition**: AI-powered music creation and synthesis
-- **Lyric Generation**: Creative writing and vocal synthesis
-- **PDF Report Generation**: Professional document creation
-
-#### **🔧 System & Utility Tools**
-- **Database Management**: Advanced database operations and optimization
-- **File Operations**: Comprehensive file system management
-- **API Integration**: Universal API connectivity and management
-- **Performance Monitoring**: Real-time system health and metrics
-
-### **Universal Tool Testing Framework**
-
-Every tool includes comprehensive validation:
-
-```python
-# Automatic tool validation with performance metrics
-tool_validator = UniversalToolTesting()
-results = await tool_validator.validate_all_tools()
-
-# Results include:
-# ✅ Functionality validation
-# ✅ Performance benchmarks
-# ✅ Error handling verification
-# ✅ Integration compatibility
+# Run specific test file
+pytest tests/test_logging_system.py -v
 ```
 
-## 🚀 **Autonomous Agent Capabilities**
+**Note:** Test coverage is currently being expanded.
 
-### **BDI Architecture (Belief-Desire-Intention)**
+### Code Quality
 
-Our agents use sophisticated autonomous decision-making:
+```bash
+# Format code
+black app/ tests/
+
+# Sort imports
+isort app/ tests/
+
+# Type checking
+mypy app/
+
+# Linting
+flake8 app/
+```
+
+## 📚 API Documentation
+
+Once the application is running, visit:
+
+- **Interactive Docs (Swagger)**: http://localhost:8888/docs
+- **ReDoc**: http://localhost:8888/redoc
+- **OpenAPI JSON**: http://localhost:8888/openapi.json
+
+### Example API Usage
+
+#### Create an Agent
 
 ```python
-# Autonomous agent with BDI architecture
-autonomous_agent = BDIAgent(
-    beliefs={"market_conditions": "volatile", "risk_tolerance": "moderate"},
-    desires=["maximize_profit", "minimize_risk", "learn_patterns"],
-    intentions=["analyze_market", "execute_trades", "update_knowledge"]
+import httpx
+
+response = httpx.post("http://localhost:8888/api/v1/agents", json={
+    "name": "Research Assistant",
+    "type": "react",
+    "model": "llama3.1:8b",
+    "tools": ["web_research", "document_search"]
+})
+
+agent_id = response.json()["id"]
+```
+
+#### Execute a Task
+
+```python
+response = httpx.post(
+    f"http://localhost:8888/api/v1/agents/{agent_id}/execute",
+    json={"task": "Research recent developments in AI agents"}
 )
 
-# Agent operates completely autonomously:
-# 🧠 Analyzes situations and updates beliefs
-# 🎯 Prioritizes goals based on current context
-# ⚡ Takes actions to achieve intentions
-# 📚 Learns from outcomes and adapts
+result = response.json()["result"]
+print(result)
 ```
 
-### **Autonomous Learning & Adaptation**
-
-- **Experience-Based Learning**: Agents learn from every interaction
-- **Pattern Recognition**: Automatic identification of successful strategies
-- **Strategy Optimization**: Continuous improvement of decision-making
-- **Knowledge Transfer**: Agents can share learned insights
-
-## 🌐 **Real-Time Collaboration & Communication**
-
-### **Multi-Protocol Communication System**
-
-Agents can communicate through multiple channels:
-
-- **WebSocket**: Real-time bidirectional communication
-- **SocketIO**: Advanced event-based messaging
-- **REST API**: Standard HTTP-based interactions
-- **Message Queues**: Asynchronous task distribution
-
-### **Agent Collaboration Patterns**
+#### WebSocket Communication
 
 ```python
-# Agents can collaborate in sophisticated ways:
+import websockets
+import json
 
-# 1. Knowledge Sharing
-research_agent.share_knowledge(trading_agent, "market_analysis")
+async with websockets.connect("ws://localhost:8888/ws") as websocket:
+    await websocket.send(json.dumps({
+        "type": "agent_message",
+        "agent_id": agent_id,
+        "message": "Hello, agent!"
+    }))
 
-# 2. Task Delegation
-supervisor_agent.delegate_task(specialist_agent, complex_task)
-
-# 3. Collective Decision Making
-decision = multi_agent_consensus([agent1, agent2, agent3], proposal)
-
-# 4. Real-Time Coordination
-await agent_swarm.coordinate_parallel_execution(task_list)
+    response = await websocket.recv()
+    print(json.loads(response))
 ```
 
-## 🔒 **Enterprise Security & Monitoring**
+## 🐳 Deployment
 
-### **Comprehensive Security Framework**
+### Docker Deployment
 
-- **🔐 JWT Authentication**: Secure token-based authentication
-- **👥 Role-Based Access Control**: Granular permission management
-- **🛡️ Security Hardening**: Comprehensive security headers and middleware
-- **⚡ Rate Limiting**: Advanced rate limiting with burst protection
-- **🔍 Input Validation**: Strict validation and sanitization
-- **🔒 Encryption**: End-to-end encryption for sensitive data
+```bash
+# Build and start all services
+docker-compose up --build -d
 
-### **Advanced Monitoring & Observability**
+# View logs
+docker-compose logs -f
 
-- **📊 Prometheus Metrics**: Comprehensive system metrics at `/metrics`
-- **🏥 Health Checks**: Multi-level health monitoring (`/health`, `/ready`, `/live`)
-- **📝 Structured Logging**: JSON-based logging with request tracing
-- **⚡ Performance Monitoring**: Real-time performance metrics and optimization
-- **🚨 Alert System**: Intelligent alerting for system anomalies
-- **📈 Analytics Dashboard**: Real-time system analytics and insights
+# Stop services
+docker-compose down
+```
 
-## 🎯 **What Makes This System Truly Revolutionary**
+### Production Deployment
 
-### **🏆 Industry-First Innovations**
+**Before deploying to production, ensure you:**
 
-#### **1. Unified Multi-Framework Architecture**
-- **First system ever** to support 6 different agent frameworks in one unified platform
-- **Cross-framework communication** - agents from different frameworks can collaborate
-- **Framework abstraction** - switch frameworks without changing agent logic
+- [ ] Change all default secret keys
+- [ ] Configure proper database credentials
+- [ ] Set up SSL/TLS certificates
+- [ ] Configure rate limiting
+- [ ] Set up monitoring and logging
+- [ ] Review security settings
+- [ ] Run security audit
+- [ ] Complete load testing
+- [ ] Set up backup and recovery
 
-#### **2. Agent DNA System**
-- **Revolutionary personality configuration** at the genetic level
-- **Behavioral inheritance** - agents can inherit and evolve traits
-- **Dynamic personality adaptation** based on experiences and outcomes
+See [docs/guides/DEPLOYMENT_GUIDE.md](docs/guides/DEPLOYMENT_GUIDE.md) for detailed instructions.
 
-#### **3. 8-Type Memory Architecture**
-- **Most comprehensive memory system** in any AI agent platform
-- **Human-like cognitive architecture** with working, episodic, semantic, and procedural memory
-- **Memory consolidation** and **cross-memory type associations**
+### Environment-Specific Configuration
 
-#### **4. Zero-Code Agent Creation**
-- **YAML-driven agent configuration** - no programming required
-- **One-file agent templates** - copy, customize, run
-- **Production-ready from day one** - full system access immediately
+```bash
+# Development
+export AGENTIC_DEBUG=true
+python -m app.main
 
-#### **5. Autonomous BDI Architecture**
-- **True autonomous decision-making** with Belief-Desire-Intention framework
-- **Self-directed goal management** and **adaptive strategy optimization**
-- **Continuous learning** and **experience-based improvement**
+# Staging
+export AGENTIC_DEBUG=false
+export AGENTIC_ENV=staging
+python -m app.main
 
-### **🚀 Production Deployment Status**
+# Production
+export AGENTIC_DEBUG=false
+export AGENTIC_ENV=production
+gunicorn app.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker
+```
 
-#### **✅ Fully Implemented & Production-Ready**
-- **🏗️ Complete System Architecture** - All 16 major systems implemented
-- **🤖 Multi-Framework Agent Support** - All 6 frameworks operational
-- **🧠 Advanced Memory System** - All 8 memory types functional
-- **📚 Multi-Modal RAG System** - 5-tier knowledge organization active
-- **🛠️ Production Tool Ecosystem** - 50+ tools ready for use
-- **🔒 Enterprise Security** - Full security hardening implemented
-- **📊 Monitoring & Analytics** - Comprehensive observability active
-- **🐳 Docker Deployment** - Production containerization complete
-- **🌐 OpenWebUI Integration** - Seamless pipeline integration working
-- **💬 Real-Time Communication** - Multi-protocol communication active
+## 🗺️ Roadmap
 
-#### **🎯 Current Capabilities**
-- **Unlimited Agent Creation** - Create as many agents as needed
-- **Autonomous Operation** - Agents operate independently 24/7
-- **Real-Time Collaboration** - Agents communicate and coordinate
-- **Continuous Learning** - System improves from every interaction
-- **Production Scalability** - Enterprise-grade performance and reliability
+### Current Focus (v0.1.x)
+
+- [ ] Expand test coverage to 70%+
+- [ ] Simplify architecture and reduce code duplication
+- [ ] Complete API documentation with examples
+- [ ] Performance optimization and profiling
+- [ ] Security hardening and audit
+
+### Planned Features (v0.2.x)
+
+- [ ] Enhanced monitoring with Prometheus/Grafana
+- [ ] Multi-agent collaboration improvements
+- [ ] Additional LLM provider support (Anthropic, Cohere)
+- [ ] Workflow orchestration enhancements
+- [ ] Production deployment templates (Kubernetes, AWS, GCP)
+
+### Future Considerations (v0.3.x+)
+
+- [ ] Distributed agent execution across multiple nodes
+- [ ] Advanced learning capabilities and model fine-tuning
+- [ ] Multi-modal agent support (vision, audio)
+- [ ] Enterprise features (RBAC, audit logs, compliance)
+- [ ] Agent marketplace and sharing platform
 
 ## 🤝 Contributing
 
@@ -447,25 +433,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Issues**: GitHub Issues
 - **Discussions**: GitHub Discussions
 
-## 🏆 **Why Choose Agentic AI Engine**
+## 📝 Known Limitations
 
-### **🎯 For Developers**
-- **Zero Learning Curve**: YAML configuration, no complex setup
-- **Production Ready**: Enterprise-grade infrastructure included
-- **Unlimited Scalability**: Create as many agents as needed
-- **Framework Freedom**: Choose the best framework for each task
-
-### **🚀 For Businesses**
-- **Immediate ROI**: Deploy autonomous agents in minutes
-- **Cost Effective**: One system replaces multiple AI solutions
-- **Risk Mitigation**: Built-in safety and monitoring systems
-- **Future Proof**: Continuous updates and improvements
-
-### **🧠 For Researchers**
-- **Cutting-Edge Architecture**: Latest advances in agent AI
-- **Comprehensive Logging**: Detailed interaction and learning data
-- **Extensible Framework**: Easy to add new capabilities
-- **Open Source**: Full transparency and customization
+- Test coverage is currently limited (being actively expanded)
+- Some advanced features are in development
+- Performance optimization is ongoing
+- Documentation is being improved continuously
 #   A g e n t i c - A i - E n g i n e 
  
  

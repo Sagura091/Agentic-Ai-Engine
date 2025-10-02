@@ -1,0 +1,509 @@
+# ============================================================================
+# REVOLUTIONARY 5-LAYER LOGGING SYSTEM CONFIGURATION
+# ============================================================================
+# This configuration file controls all aspects of the logging system including:
+# - Global logging mode (USER/DEVELOPER/DEBUG)
+# - User conversation layer settings
+# - Per-module logging control for all 14 backend systems
+# - Tier-specific formatting and output
+# - File persistence settings
+# ============================================================================
+
+# ============================================================================
+# GLOBAL SETTINGS
+# ============================================================================
+global:
+  # Logging mode: user | developer | debug
+  # - user: Clean conversation only, minimal technical logs
+  # - developer: Conversation + selected module logs
+  # - debug: Full verbose logging with all metadata
+  mode: user
+  
+  # Enable/disable the entire logging system
+  enabled: true
+  
+  # Show correlation IDs, session IDs, agent IDs
+  show_ids: false
+  
+  # Show timestamps in console output
+  show_timestamps: false
+  
+  # Timestamp format: simple (HH:MM:SS) | full (YYYY-MM-DD HH:MM:SS.mmm) | iso
+  timestamp_format: simple
+
+# ============================================================================
+# LAYER 1: USER CONVERSATION LAYER
+# ============================================================================
+conversation:
+  # Enable user-facing conversation output
+  enabled: true
+  
+  # Conversation style: conversational | technical | minimal
+  style: conversational
+  
+  # Show agent reasoning/thinking process
+  show_reasoning: true
+  
+  # Show tool usage and execution
+  show_tool_usage: true
+  
+  # Show tool results
+  show_tool_results: true
+  
+  # Show agent final responses
+  show_responses: true
+  
+  # Enable emoji enhancement for visual clarity
+  emoji_enhanced: true
+  
+  # Maximum length for reasoning text (truncate if longer)
+  max_reasoning_length: 200
+  
+  # Maximum length for tool results (truncate if longer)
+  max_result_length: 500
+  
+  # ReAct agent specific settings
+  react_agent:
+    show_iteration_count: false
+    show_thought_process: true
+    show_action_selection: true
+    show_observation: true
+  
+  # Autonomous agent specific settings
+  autonomous_agent:
+    show_goals: true
+    show_decision_making: true
+    show_autonomous_actions: true
+    show_learning: false
+
+# ============================================================================
+# LAYER 2: MODULE CONTROL LAYER
+# ============================================================================
+# Control logging for each of the 14 backend systems independently
+# Each module can be enabled/disabled and have different log levels for
+# console output vs file output
+# ============================================================================
+modules:
+  # -------------------------------------------------------------------------
+  # AGENTS SYSTEM
+  # -------------------------------------------------------------------------
+  app.agents:
+    enabled: false
+    console_level: CRITICAL  # DEBUG | INFO | WARNING | ERROR | CRITICAL
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+    
+    # Sub-module overrides
+    sub_modules:
+      app.agents.base:
+        enabled: false
+        console_level: CRITICAL
+      
+      app.agents.base.agent:
+        enabled: false
+        console_level: CRITICAL
+      
+      app.agents.autonomous:
+        enabled: false
+        console_level: CRITICAL
+      
+      app.agents.factory:
+        enabled: false
+        console_level: INFO
+      
+      app.agents.registry:
+        enabled: false
+        console_level: INFO
+  
+  # -------------------------------------------------------------------------
+  # RAG SYSTEM
+  # -------------------------------------------------------------------------
+  app.rag:
+    enabled: false
+    console_level: WARNING
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+    
+    sub_modules:
+      app.rag.core:
+        enabled: false
+        console_level: WARNING
+      
+      app.rag.core.unified_rag_system:
+        enabled: false
+        console_level: WARNING
+      
+      app.rag.ingestion:
+        enabled: false
+        console_level: WARNING
+      
+      app.rag.ingestion.pipeline:
+        enabled: false
+        console_level: WARNING
+      
+      app.rag.tools:
+        enabled: false
+        console_level: WARNING
+      
+      app.rag.vision:
+        enabled: false
+        console_level: WARNING
+  
+  # -------------------------------------------------------------------------
+  # MEMORY SYSTEM
+  # -------------------------------------------------------------------------
+  app.memory:
+    enabled: false
+    console_level: WARNING
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+    
+    sub_modules:
+      app.memory.unified_memory_system:
+        enabled: false
+        console_level: WARNING
+      
+      app.memory.memory_consolidation_system:
+        enabled: false
+        console_level: WARNING
+      
+      app.memory.dynamic_knowledge_graph:
+        enabled: false
+        console_level: WARNING
+  
+  # -------------------------------------------------------------------------
+  # LLM SYSTEM
+  # -------------------------------------------------------------------------
+  app.llm:
+    enabled: false
+    console_level: ERROR
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+    
+    sub_modules:
+      app.llm.manager:
+        enabled: false
+        console_level: ERROR
+      
+      app.llm.providers:
+        enabled: false
+        console_level: ERROR
+  
+  # -------------------------------------------------------------------------
+  # TOOLS SYSTEM
+  # -------------------------------------------------------------------------
+  app.tools:
+    enabled: false
+    console_level: CRITICAL
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+    
+    sub_modules:
+      app.tools.production:
+        enabled: false
+        console_level: CRITICAL
+      
+      app.tools.social_media:
+        enabled: false
+        console_level: CRITICAL
+  
+  # -------------------------------------------------------------------------
+  # API LAYER
+  # -------------------------------------------------------------------------
+  app.api:
+    enabled: false
+    console_level: ERROR
+    file_level: INFO
+    console_output: false
+    file_output: true
+    
+    sub_modules:
+      app.api.v1:
+        enabled: false
+        console_level: ERROR
+      
+      app.api.websocket:
+        enabled: false
+        console_level: ERROR
+  
+  # -------------------------------------------------------------------------
+  # CORE SYSTEM
+  # -------------------------------------------------------------------------
+  app.core:
+    enabled: true
+    console_level: WARNING
+    file_level: DEBUG
+    console_output: true
+    file_output: true
+    
+    sub_modules:
+      app.core.unified_system_orchestrator:
+        enabled: true
+        console_level: WARNING
+      
+      app.core.error_handling:
+        enabled: true
+        console_level: ERROR
+      
+      app.core.monitoring:
+        enabled: true
+        console_level: INFO
+  
+  # -------------------------------------------------------------------------
+  # SERVICES
+  # -------------------------------------------------------------------------
+  app.services:
+    enabled: false
+    console_level: ERROR
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+  
+  # -------------------------------------------------------------------------
+  # ORCHESTRATION
+  # -------------------------------------------------------------------------
+  app.orchestration:
+    enabled: false
+    console_level: WARNING
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+  
+  # -------------------------------------------------------------------------
+  # COMMUNICATION
+  # -------------------------------------------------------------------------
+  app.communication:
+    enabled: false
+    console_level: INFO
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+  
+  # -------------------------------------------------------------------------
+  # CONFIG
+  # -------------------------------------------------------------------------
+  app.config:
+    enabled: false
+    console_level: WARNING
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+  
+  # -------------------------------------------------------------------------
+  # MODELS (DATABASE)
+  # -------------------------------------------------------------------------
+  app.models:
+    enabled: false
+    console_level: ERROR
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+  
+  # -------------------------------------------------------------------------
+  # OPTIMIZATION
+  # -------------------------------------------------------------------------
+  app.optimization:
+    enabled: false
+    console_level: WARNING
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+  
+  # -------------------------------------------------------------------------
+  # INTEGRATIONS
+  # -------------------------------------------------------------------------
+  app.integrations:
+    enabled: false
+    console_level: WARNING
+    file_level: DEBUG
+    console_output: false
+    file_output: true
+
+# ============================================================================
+# LAYER 3: TIER SYSTEM LAYER
+# ============================================================================
+# Define behavior for each logging mode
+# ============================================================================
+tiers:
+  # USER MODE: Clean conversation only, minimal technical output
+  user:
+    console_format: conversation  # conversation | structured | detailed
+    show_timestamps: false
+    show_ids: false
+    show_module_names: false
+    show_log_levels: false
+    module_default_level: CRITICAL  # Most modules silent
+    conversation_enabled: true
+    technical_logs_enabled: false
+
+  # DEVELOPER MODE: Conversation + selected module logs
+  developer:
+    console_format: structured
+    show_timestamps: true
+    show_ids: false
+    show_module_names: true
+    show_log_levels: true
+    module_default_level: WARNING  # Show warnings and errors
+    conversation_enabled: true
+    technical_logs_enabled: true
+
+  # DEBUG MODE: Full verbose logging
+  debug:
+    console_format: detailed
+    show_timestamps: true
+    show_ids: true
+    show_module_names: true
+    show_log_levels: true
+    module_default_level: DEBUG  # Show everything
+    conversation_enabled: true
+    technical_logs_enabled: true
+
+# ============================================================================
+# LAYER 4: BACKEND LOGGING LAYER
+# ============================================================================
+backend_logging:
+  # Enable structured logging with context
+  enabled: true
+
+  # Include performance metrics
+  include_performance_metrics: true
+
+  # Include correlation tracking
+  include_correlation_tracking: true
+
+  # Include stack traces for errors
+  include_stack_traces: true
+
+  # Maximum stack trace depth
+  max_stack_trace_depth: 10
+
+  # Async logging for performance
+  async_logging: true
+
+  # Log buffer size for async logging
+  log_buffer_size: 1000
+
+  # Flush interval in seconds
+  flush_interval_seconds: 5
+
+# ============================================================================
+# LAYER 5: FILE PERSISTENCE LAYER
+# ============================================================================
+file_logging:
+  # Enable file logging
+  enabled: true
+
+  # Base directory for log files
+  directory: data/logs/backend
+
+  # Log file format: json | text
+  format: json
+
+  # Separate log files by category
+  separate_by_category: true
+
+  # Separate log files by module
+  separate_by_module: false
+
+  # File rotation strategy: daily | size | time
+  rotation_strategy: daily
+
+  # Maximum file size in MB (for size-based rotation)
+  max_file_size_mb: 100
+
+  # Rotation time interval in hours (for time-based rotation)
+  rotation_interval_hours: 24
+
+  # Number of backup files to keep
+  backup_count: 30
+
+  # Retention period in days
+  retention_days: 30
+
+  # Compress old log files
+  compress_old_logs: true
+
+  # Compression format: gz | zip
+  compression_format: gz
+
+  # Category-specific log files
+  category_files:
+    AGENT_OPERATIONS: agent_operations.log
+    RAG_OPERATIONS: rag_operations.log
+    MEMORY_OPERATIONS: memory_operations.log
+    LLM_OPERATIONS: llm_operations.log
+    TOOL_OPERATIONS: tool_operations.log
+    API_LAYER: api_layer.log
+    SYSTEM_HEALTH: system_health.log
+    SERVICE_OPERATIONS: service_operations.log
+    ORCHESTRATION: orchestration.log
+    COMMUNICATION: communication.log
+    CONFIGURATION_MANAGEMENT: configuration.log
+    DATABASE_LAYER: database.log
+    PERFORMANCE: performance.log
+    EXTERNAL_INTEGRATIONS: integrations.log
+    ERROR_TRACKING: errors.log
+    SECURITY_EVENTS: security.log
+
+  # Include conversation logs in files
+  include_conversation_logs: true
+
+  # Conversation log file
+  conversation_log_file: conversation.log
+
+# ============================================================================
+# EXTERNAL LIBRARY LOGGING
+# ============================================================================
+# Control logging from external libraries
+# ============================================================================
+external_libraries:
+  # Suppress noisy external loggers
+  suppress_noisy_loggers: true
+
+  # List of external loggers to suppress
+  noisy_loggers:
+    - chromadb
+    - sentence_transformers
+    - transformers
+    - urllib3
+    - requests
+    - httpx
+    - httpcore
+    - openai
+    - anthropic
+    - ollama
+    - playwright
+    - selenium
+    - asyncio
+    - aiohttp
+
+  # Default level for external loggers
+  external_default_level: ERROR
+
+# ============================================================================
+# RUNTIME CONFIGURATION
+# ============================================================================
+runtime:
+  # Enable hot-reload of configuration
+  hot_reload_enabled: true
+
+  # Configuration reload interval in seconds
+  reload_interval_seconds: 60
+
+  # Enable runtime API for logging control
+  api_enabled: true
+
+  # API authentication required
+  api_auth_required: true
+
+  # Allow runtime mode switching
+  allow_mode_switching: true
+
+  # Allow runtime module control
+  allow_module_control: true
+

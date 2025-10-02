@@ -379,10 +379,12 @@ class AutonomousLangGraphAgent(LangGraphAgent):
         from app.backend_logging.backend_logger import get_logger
         from app.backend_logging.models import LogCategory
         from app.backend_logging.context import CorrelationContext, AgentContext
+        from app.core.clean_logging import get_conversation_logger
         from langchain_core.messages import HumanMessage
         from langchain_core.runnables import RunnableConfig
 
         backend_logger = get_logger()
+        conversation_logger = get_conversation_logger(self.name)
         start_time = time.time()
         session_id = str(uuid.uuid4())
 
@@ -395,7 +397,7 @@ class AutonomousLangGraphAgent(LangGraphAgent):
             operation="execute_task"
         )
 
-        # Log task initiation
+        # Log task initiation (backend)
         backend_logger.info(
             f"Agent task execution started: {task[:100]}...",
             LogCategory.AGENT_OPERATIONS,
@@ -411,6 +413,10 @@ class AutonomousLangGraphAgent(LangGraphAgent):
                 "timeout_seconds": self.config.timeout_seconds
             }
         )
+
+        # Log task initiation (conversation - user-facing)
+        conversation_logger.user_query(task)
+        conversation_logger.agent_goal(f"I'll work autonomously to complete this task with {self.config.autonomy_level.value} autonomy level")
 
         async with self._execution_lock:
             try:
@@ -464,7 +470,7 @@ class AutonomousLangGraphAgent(LangGraphAgent):
                 # Run the autonomous workflow
                 result = await self.compiled_graph.ainvoke(initial_state, config)
 
-                # Log successful completion
+                # Log successful completion (backend)
                 execution_time = time.time() - start_time
                 backend_logger.info(
                     "Agent task execution completed successfully",
@@ -481,6 +487,19 @@ class AutonomousLangGraphAgent(LangGraphAgent):
                         "final_state_keys": list(result.keys())
                     }
                 )
+
+                # Log completion (conversation - user-facing)
+                # Extract final response from messages
+                final_response = ""
+                if result.get("messages"):
+                    last_msg = result["messages"][-1]
+                    if hasattr(last_msg, 'content'):
+                        final_response = str(last_msg.content)
+
+                if final_response:
+                    conversation_logger.agent_response(final_response)
+                else:
+                    conversation_logger.success(f"Autonomous task completed successfully in {execution_time:.1f}s!")
 
                 return result
 

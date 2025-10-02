@@ -62,7 +62,6 @@ from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 import aiohttp
 import httpx
-import requests
 
 # Import required modules
 from app.http_client import SimpleHTTPClient
@@ -496,9 +495,8 @@ This tool is UNSTOPPABLE and UNDETECTABLE - it will scrape ANY website successfu
                 verify=False
             )
 
-            # Initialize requests session
-            self._session_pool['requests'] = requests.Session()
-            self._session_pool['requests'].headers.update(self._get_random_headers())
+            # Note: SimpleHTTPClient is used directly in _scrape_with_requests method
+            # No session pooling needed as it creates connections on demand
 
             # Initialize CloudScraper if available
             if CLOUDSCRAPER_AVAILABLE:
@@ -638,13 +636,11 @@ This tool is UNSTOPPABLE and UNDETECTABLE - it will scrape ANY website successfu
     # ========================================
 
     async def _scrape_with_requests(self, url: str, **kwargs) -> ScrapingResult:
-        """Basic scraping with requests library."""
+        """Basic scraping with SimpleHTTPClient (custom HTTP client)."""
         try:
-            logger.info(f"🔧 Using requests engine for: {url}")
+            logger.info(f"🔧 Using SimpleHTTPClient engine for: {url}")
 
-            session = self._session_pool.get('requests', requests.Session())
             headers = self._get_random_headers()
-            proxies = self._get_random_proxy()
 
             # Apply rate limiting
             domain = urlparse(url).netloc
@@ -654,16 +650,19 @@ This tool is UNSTOPPABLE and UNDETECTABLE - it will scrape ANY website successfu
             if kwargs.get('human_behavior', True):
                 await self._simulate_human_behavior()
 
-            response = session.get(
-                url,
-                headers=headers,
-                proxies=proxies,
-                timeout=kwargs.get('timeout', 30),
-                allow_redirects=kwargs.get('follow_redirects', True),
-                verify=False
-            )
+            # Use SimpleHTTPClient
+            import time
+            start_time = time.time()
 
-            response.raise_for_status()
+            async with SimpleHTTPClient(
+                url,
+                timeout=kwargs.get('timeout', 30),
+                verify_ssl=False
+            ) as client:
+                response = await client.get("/", headers=headers)
+                response.raise_for_status()
+
+            response_time = time.time() - start_time
 
             # Parse content
             soup = BeautifulSoup(response.text, 'lxml')
@@ -674,8 +673,8 @@ This tool is UNSTOPPABLE and UNDETECTABLE - it will scrape ANY website successfu
                 content=soup.get_text(strip=True),
                 html=response.text,
                 status_code=response.status_code,
-                response_time=response.elapsed.total_seconds(),
-                engine_used="requests",
+                response_time=response_time,
+                engine_used="simple_http_client",
                 success=True
             )
 

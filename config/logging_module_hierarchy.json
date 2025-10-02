@@ -1,0 +1,332 @@
+{
+  "module_hierarchy": {
+    "app": {
+      "description": "Root application module",
+      "default_level": "INFO",
+      "sub_modules": {
+        "app.agents": {
+          "description": "Agent operations, reasoning, and execution",
+          "default_level": "WARNING",
+          "log_category": "AGENT_OPERATIONS",
+          "sub_modules": {
+            "app.agents.base": {
+              "description": "Base agent implementation (LangGraph)",
+              "default_level": "WARNING"
+            },
+            "app.agents.base.agent": {
+              "description": "Core LangGraph agent class",
+              "default_level": "WARNING"
+            },
+            "app.agents.autonomous": {
+              "description": "Autonomous agent implementations",
+              "default_level": "WARNING"
+            },
+            "app.agents.autonomous.autonomous_agent": {
+              "description": "Main autonomous agent class",
+              "default_level": "WARNING"
+            },
+            "app.agents.autonomous.goal_manager": {
+              "description": "Goal management system",
+              "default_level": "WARNING"
+            },
+            "app.agents.autonomous.decision_engine": {
+              "description": "Decision making engine",
+              "default_level": "WARNING"
+            },
+            "app.agents.autonomous.learning_system": {
+              "description": "Agent learning capabilities",
+              "default_level": "WARNING"
+            },
+            "app.agents.factory": {
+              "description": "Agent factory and builder",
+              "default_level": "INFO"
+            },
+            "app.agents.registry": {
+              "description": "Agent registry and lifecycle management",
+              "default_level": "INFO"
+            },
+            "app.agents.coordination": {
+              "description": "Multi-agent coordination",
+              "default_level": "INFO"
+            },
+            "app.agents.testing": {
+              "description": "Agent testing utilities",
+              "default_level": "DEBUG"
+            }
+          }
+        },
+        "app.rag": {
+          "description": "RAG system for document processing and retrieval",
+          "default_level": "WARNING",
+          "log_category": "RAG_OPERATIONS",
+          "sub_modules": {
+            "app.rag.core": {
+              "description": "Core RAG functionality",
+              "default_level": "WARNING"
+            },
+            "app.rag.core.unified_rag_system": {
+              "description": "Unified RAG system orchestrator",
+              "default_level": "WARNING"
+            },
+            "app.rag.core.embedding_model_manager": {
+              "description": "Embedding model management",
+              "default_level": "WARNING"
+            },
+            "app.rag.core.vector_db_clients": {
+              "description": "Vector database clients",
+              "default_level": "WARNING"
+            },
+            "app.rag.ingestion": {
+              "description": "Document ingestion pipeline",
+              "default_level": "WARNING"
+            },
+            "app.rag.ingestion.pipeline": {
+              "description": "Main ingestion pipeline",
+              "default_level": "WARNING"
+            },
+            "app.rag.ingestion.processors": {
+              "description": "Document processors",
+              "default_level": "WARNING"
+            },
+            "app.rag.tools": {
+              "description": "RAG tools for agents",
+              "default_level": "WARNING"
+            },
+            "app.rag.vision": {
+              "description": "Vision and multimodal RAG",
+              "default_level": "WARNING"
+            },
+            "app.rag.integration": {
+              "description": "RAG integration layer",
+              "default_level": "WARNING"
+            }
+          }
+        },
+        "app.memory": {
+          "description": "Memory system for agents",
+          "default_level": "WARNING",
+          "log_category": "MEMORY_OPERATIONS",
+          "sub_modules": {
+            "app.memory.unified_memory_system": {
+              "description": "Unified memory system orchestrator",
+              "default_level": "WARNING"
+            },
+            "app.memory.memory_consolidation_system": {
+              "description": "Memory consolidation and sleep cycles",
+              "default_level": "WARNING"
+            },
+            "app.memory.dynamic_knowledge_graph": {
+              "description": "Dynamic knowledge graph",
+              "default_level": "WARNING"
+            },
+            "app.memory.active_retrieval_engine": {
+              "description": "Active memory retrieval",
+              "default_level": "WARNING"
+            },
+            "app.memory.memory_orchestrator": {
+              "description": "Memory operation orchestration",
+              "default_level": "WARNING"
+            },
+            "app.memory.lifelong_learning_capabilities": {
+              "description": "Lifelong learning system",
+              "default_level": "WARNING"
+            },
+            "app.memory.multimodal_memory_support": {
+              "description": "Multimodal memory support",
+              "default_level": "WARNING"
+            }
+          }
+        },
+        "app.llm": {
+          "description": "LLM provider management",
+          "default_level": "WARNING",
+          "log_category": "LLM_OPERATIONS",
+          "sub_modules": {
+            "app.llm.manager": {
+              "description": "LLM manager and orchestrator",
+              "default_level": "WARNING"
+            },
+            "app.llm.providers": {
+              "description": "LLM provider implementations",
+              "default_level": "WARNING"
+            },
+            "app.llm.production_providers": {
+              "description": "Production LLM providers",
+              "default_level": "WARNING"
+            }
+          }
+        },
+        "app.tools": {
+          "description": "Tool execution and management",
+          "default_level": "WARNING",
+          "log_category": "TOOL_OPERATIONS",
+          "sub_modules": {
+            "app.tools.production": {
+              "description": "Production tools",
+              "default_level": "WARNING"
+            },
+            "app.tools.social_media": {
+              "description": "Social media tools",
+              "default_level": "WARNING"
+            },
+            "app.tools.metadata": {
+              "description": "Tool metadata system",
+              "default_level": "INFO"
+            },
+            "app.tools.auto_discovery": {
+              "description": "Tool auto-discovery",
+              "default_level": "INFO"
+            },
+            "app.tools.management": {
+              "description": "Tool management interface",
+              "default_level": "INFO"
+            },
+            "app.tools.unified_tool_repository": {
+              "description": "Unified tool repository",
+              "default_level": "WARNING"
+            }
+          }
+        },
+        "app.api": {
+          "description": "API layer and endpoints",
+          "default_level": "INFO",
+          "log_category": "API_LAYER",
+          "sub_modules": {
+            "app.api.v1": {
+              "description": "API v1 endpoints",
+              "default_level": "INFO"
+            },
+            "app.api.websocket": {
+              "description": "WebSocket connections",
+              "default_level": "INFO"
+            },
+            "app.api.socketio": {
+              "description": "Socket.IO connections",
+              "default_level": "INFO"
+            }
+          }
+        },
+        "app.core": {
+          "description": "Core system components",
+          "default_level": "WARNING",
+          "log_category": "SYSTEM_HEALTH",
+          "sub_modules": {
+            "app.core.unified_system_orchestrator": {
+              "description": "System orchestrator",
+              "default_level": "WARNING"
+            },
+            "app.core.error_handling": {
+              "description": "Error handling system",
+              "default_level": "ERROR"
+            },
+            "app.core.monitoring": {
+              "description": "System monitoring",
+              "default_level": "INFO"
+            },
+            "app.core.clean_logging": {
+              "description": "Clean logging utilities",
+              "default_level": "DEBUG"
+            },
+            "app.core.performance_optimizer": {
+              "description": "Performance optimization",
+              "default_level": "INFO"
+            }
+          }
+        },
+        "app.services": {
+          "description": "Business logic services",
+          "default_level": "WARNING",
+          "log_category": "SERVICE_OPERATIONS",
+          "sub_modules": {
+            "app.services.revolutionary_ingestion_engine": {
+              "description": "Document ingestion engine",
+              "default_level": "WARNING"
+            },
+            "app.services.monitoring_service": {
+              "description": "Monitoring service",
+              "default_level": "INFO"
+            },
+            "app.services.document_service": {
+              "description": "Document service",
+              "default_level": "WARNING"
+            }
+          }
+        },
+        "app.orchestration": {
+          "description": "Workflow orchestration",
+          "default_level": "WARNING",
+          "log_category": "ORCHESTRATION",
+          "sub_modules": {
+            "app.orchestration.subgraphs": {
+              "description": "LangGraph subgraphs",
+              "default_level": "WARNING"
+            }
+          }
+        },
+        "app.communication": {
+          "description": "Agent-to-agent communication",
+          "default_level": "INFO",
+          "log_category": "COMMUNICATION",
+          "sub_modules": {
+            "app.communication.agent_communication_system": {
+              "description": "Agent communication system",
+              "default_level": "INFO"
+            },
+            "app.communication.collaboration_manager": {
+              "description": "Collaboration manager",
+              "default_level": "INFO"
+            }
+          }
+        },
+        "app.config": {
+          "description": "Configuration management",
+          "default_level": "WARNING",
+          "log_category": "CONFIGURATION_MANAGEMENT",
+          "sub_modules": {
+            "app.config.settings": {
+              "description": "Application settings",
+              "default_level": "WARNING"
+            },
+            "app.config.unified_config": {
+              "description": "Unified configuration",
+              "default_level": "WARNING"
+            }
+          }
+        },
+        "app.models": {
+          "description": "Database models",
+          "default_level": "ERROR",
+          "log_category": "DATABASE_LAYER",
+          "sub_modules": {}
+        },
+        "app.optimization": {
+          "description": "Performance optimization",
+          "default_level": "WARNING",
+          "log_category": "PERFORMANCE",
+          "sub_modules": {
+            "app.optimization.intelligent_optimizer": {
+              "description": "Intelligent optimizer",
+              "default_level": "WARNING"
+            },
+            "app.optimization.performance_optimizer": {
+              "description": "Performance optimizer",
+              "default_level": "WARNING"
+            }
+          }
+        },
+        "app.integrations": {
+          "description": "External integrations",
+          "default_level": "WARNING",
+          "log_category": "EXTERNAL_INTEGRATIONS",
+          "sub_modules": {
+            "app.integrations.openwebui": {
+              "description": "OpenWebUI integration",
+              "default_level": "WARNING"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

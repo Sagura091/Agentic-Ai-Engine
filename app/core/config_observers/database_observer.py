@@ -42,16 +42,19 @@ class DatabaseConfigurationObserver(ConfigurationObserver):
         """Initialize database components."""
         try:
             # Import database services
-            from app.core.database import get_database_service
-            from app.core.database.connection_pool import get_connection_pool
-            from app.core.database.query_optimizer import get_query_optimizer
-            
-            self._database_service = get_database_service()
-            self._connection_pool = get_connection_pool()
-            self._query_optimizer = get_query_optimizer()
-            
+            from app.models.database import get_engine, get_session_factory
+
+            # Get database engine and session factory
+            self._database_service = get_engine()
+            self._session_factory = get_session_factory()
+
+            # Note: Connection pool and query optimizer are managed by SQLAlchemy engine
+            # The engine itself handles connection pooling
+            self._connection_pool = None  # Managed by engine
+            self._query_optimizer = None  # Future enhancement
+
             logger.info("✅ Database configuration observer initialized")
-            
+
         except Exception as e:
             logger.warning(f"⚠️ Some database components not available: {str(e)}")
     
