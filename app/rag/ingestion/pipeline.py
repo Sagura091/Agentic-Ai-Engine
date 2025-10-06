@@ -29,17 +29,25 @@ Email: EML, MSG, PST (with attachments)
 
 import asyncio
 import mimetypes
-from typing import List, Dict, Any, Optional, Union, BinaryIO
+from typing import List, Dict, Any, Optional, Union, BinaryIO, Tuple
 from datetime import datetime
 from pathlib import Path
 from io import BytesIO
+import aiofiles
 
 import structlog
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from ..core.unified_rag_system import Document, DocumentChunk
 from ..core.collection_based_kb_manager import CollectionBasedKBManager, KnowledgeBaseInfo
 from .processors import ProcessorRegistry, DocumentProcessor
+from .chunking import SemanticChunker, ChunkConfig, ContentType
+from .utils_hash import compute_content_sha, compute_norm_text_sha, normalize_text
+from .deduplication import DeduplicationEngine, DeduplicationResult
+from .kb_interface import CollectionBasedKBInterface
+from .metrics import get_metrics_collector, MetricsCollector
+from .dlq import get_dlq, DeadLetterQueue, FailureReason
+from .health import get_health_registry, HealthCheckRegistry, check_pipeline_health
 
 logger = structlog.get_logger(__name__)
 
@@ -119,6 +127,100 @@ class RevolutionaryIngestionConfig(BaseModel):
     allowed_extensions: Optional[List[str]] = Field(default=None, description="Allowed file extensions (None = all)")
     blocked_extensions: List[str] = Field(default=[".exe", ".bat", ".cmd"], description="Blocked file extensions")
 
+    @model_validator(mode='after')
+    def validate_config(self):
+        """
+        Cross-field validation for configuration.
+
+        Validates:
+        - chunk_overlap < chunk_size
+        - reasonable video frame limits
+        - archive size limits
+        - audio sample rate
+        - content length constraints
+        """
+        # Validate chunking configuration
+        if self.default_chunk_overlap >= self.default_chunk_size:
+            raise ValueError(
+                f"chunk_overlap ({self.default_chunk_overlap}) must be less than "
+                f"chunk_size ({self.default_chunk_size})"
+            )
+
+        # Validate video processing
+        if self.enable_video_processing:
+            # Check frame interval is reasonable
+            if self.video_frame_interval < 1:
+                raise ValueError("video_frame_interval must be at least 1 second")
+
+            # Check max frames is reasonable
+            if self.max_video_frames > 1000:
+                raise ValueError("max_video_frames should not exceed 1000 (performance concern)")
+
+            # Warn if frame extraction will be very frequent
+            if self.video_frame_interval < 5 and self.max_video_frames > 50:
+                logger.warning(
+                    "High frame extraction rate detected",
+                    interval=self.video_frame_interval,
+                    max_frames=self.max_video_frames,
+                    recommendation="Consider increasing video_frame_interval or reducing max_video_frames"
+                )
+
+        # Validate archive processing
+        if self.enable_archive_extraction:
+            if self.max_archive_depth > 10:
+                raise ValueError("max_archive_depth should not exceed 10 (security concern)")
+
+            if self.archive_size_limit_mb > 10000:
+                raise ValueError("archive_size_limit_mb should not exceed 10000 MB (10 GB)")
+
+        # Validate audio processing
+        if self.enable_audio_transcription:
+            # Common sample rates: 8000, 16000, 22050, 44100, 48000
+            valid_sample_rates = [8000, 16000, 22050, 44100, 48000]
+            if self.audio_sample_rate not in valid_sample_rates:
+                logger.warning(
+                    "Unusual audio sample rate",
+                    rate=self.audio_sample_rate,
+                    recommended=valid_sample_rates
+                )
+
+        # Validate content length constraints
+        if self.min_content_length >= self.max_content_length:
+            raise ValueError(
+                f"min_content_length ({self.min_content_length}) must be less than "
+                f"max_content_length ({self.max_content_length})"
+            )
+
+        # Validate OCR engines
+        if self.enable_ocr:
+            valid_engines = ['tesseract', 'easyocr', 'paddleocr']
+            invalid_engines = [e for e in self.ocr_engines if e not in valid_engines]
+            if invalid_engines:
+                raise ValueError(
+                    f"Invalid OCR engines: {invalid_engines}. "
+                    f"Valid engines: {valid_engines}"
+                )
+
+        # Validate batch size and concurrency
+        if self.batch_size * self.max_concurrent_jobs > 1000:
+            logger.warning(
+                "Very high concurrency detected",
+                batch_size=self.batch_size,
+                max_concurrent=self.max_concurrent_jobs,
+                total=self.batch_size * self.max_concurrent_jobs,
+                recommendation="Consider reducing batch_size or max_concurrent_jobs to avoid resource exhaustion"
+            )
+
+        # Validate cache TTL
+        if self.cache_ttl_hours > 720:  # 30 days
+            logger.warning(
+                "Very long cache TTL",
+                ttl_hours=self.cache_ttl_hours,
+                recommendation="Consider reducing cache_ttl_hours to avoid stale data"
+            )
+
+        return self
+
 
 class IngestionJob(BaseModel):
     """Ingestion job for tracking document processing."""
@@ -190,6 +292,10 @@ class RevolutionaryIngestionPipeline:
         self.jobs: Dict[str, IngestionJob] = {}
         self.processing_queue: asyncio.Queue = asyncio.Queue()
 
+        # Job history limits (prevent unbounded growth)
+        self.max_job_history = 1000  # Maximum jobs to keep in memory
+        self.job_ttl_hours = 24  # Time-to-live for completed jobs
+
         # Background tasks tracking (prevent memory leak)
         self._background_tasks: List[asyncio.Task] = []
         self._shutdown_event = asyncio.Event()
@@ -208,8 +314,22 @@ class RevolutionaryIngestionPipeline:
             "ocr_operations": 0,
             "ai_analysis_performed": 0,
             "processing_time_total": 0.0,
-            "average_processing_time": 0.0
+            "average_processing_time": 0.0,
+            # Deduplication stats
+            "exact_duplicates": 0,
+            "fuzzy_duplicates": 0,
+            "unique_chunks": 0,
+            "chunks_updated": 0,
+            "chunks_skipped": 0
         }
+
+        # Deduplication engine (will be initialized async)
+        self.dedup_engine: Optional[DeduplicationEngine] = None
+
+        # Observability components (will be initialized async)
+        self.metrics: Optional[MetricsCollector] = None
+        self.dlq: Optional[DeadLetterQueue] = None
+        self.health_registry: Optional[HealthCheckRegistry] = None
 
         logger.info("Revolutionary ingestion pipeline initialized", config=config.model_dump())
 
@@ -220,9 +340,45 @@ class RevolutionaryIngestionPipeline:
             from .processors import get_revolutionary_processor_registry
             self.processor_registry = await get_revolutionary_processor_registry()
 
+            # Initialize KB interface for deduplication
+            kb_interface = CollectionBasedKBInterface(
+                kb_manager=self.knowledge_base,
+                collection_name="default"  # Will be overridden per job
+            )
+
+            # Initialize deduplication engine
+            self.dedup_engine = DeduplicationEngine(kb_interface)
+            logger.info("Deduplication engine initialized")
+
+            # Initialize metrics collector
+            self.metrics = await get_metrics_collector()
+            logger.info("Metrics collector initialized")
+
+            # Initialize DLQ
+            dlq_path = Path("data/dlq")
+            self.dlq = await get_dlq(dlq_path, max_retries=3)
+            logger.info("Dead Letter Queue initialized", path=str(dlq_path))
+
+            # Initialize health check registry
+            self.health_registry = await get_health_registry()
+
+            # Register health checks
+            self.health_registry.register(
+                "pipeline",
+                lambda: check_pipeline_health(self),
+                timeout_seconds=5.0,
+                cache_ttl_seconds=30
+            )
+
+            logger.info("Health check registry initialized")
+
             # Start background processing (track task to prevent memory leak)
             task = asyncio.create_task(self._process_queue())
             self._background_tasks.append(task)
+
+            # Start DLQ retry worker
+            retry_task = asyncio.create_task(self._dlq_retry_worker())
+            self._background_tasks.append(retry_task)
 
             logger.info("🚀 Revolutionary ingestion pipeline ready with multi-modal capabilities!")
             logger.info(f"📊 Supported formats: {len(self.processor_registry.get_supported_formats())} categories")
@@ -348,6 +504,10 @@ class RevolutionaryIngestionPipeline:
         """Background task to process ingestion queue."""
         logger.info("Queue processing started")
 
+        # Track cleanup cycles
+        cleanup_counter = 0
+        cleanup_interval = 100  # Clean up every 100 jobs
+
         while not self._shutdown_event.is_set():
             try:
                 # Get job from queue with timeout to check shutdown periodically
@@ -366,6 +526,12 @@ class RevolutionaryIngestionPipeline:
                 # Mark task as done
                 self.processing_queue.task_done()
 
+                # Periodic cleanup to prevent unbounded memory growth
+                cleanup_counter += 1
+                if cleanup_counter >= cleanup_interval:
+                    await self.cleanup_old_jobs()
+                    cleanup_counter = 0
+
             except asyncio.CancelledError:
                 logger.info("Queue processing cancelled")
                 break
@@ -374,7 +540,86 @@ class RevolutionaryIngestionPipeline:
                 await asyncio.sleep(1)  # Brief pause before continuing
 
         logger.info("Queue processing stopped")
-    
+
+    async def _dlq_retry_worker(self) -> None:
+        """Background worker for retrying DLQ entries."""
+        logger.info("DLQ retry worker started")
+
+        retry_interval = 60  # Check every 60 seconds
+
+        while not self._shutdown_event.is_set():
+            try:
+                # Wait for retry interval or shutdown
+                try:
+                    await asyncio.wait_for(
+                        self._shutdown_event.wait(),
+                        timeout=retry_interval
+                    )
+                    # Shutdown event was set
+                    break
+                except asyncio.TimeoutError:
+                    # Timeout reached, continue with retry check
+                    pass
+
+                if not self.dlq:
+                    continue
+
+                # Get retryable entries
+                retryable = await self.dlq.get_retryable()
+
+                if not retryable:
+                    continue
+
+                logger.info(f"Found {len(retryable)} DLQ entries to retry")
+
+                # Retry each entry
+                for entry in retryable:
+                    try:
+                        # Mark retry attempted
+                        await self.dlq.mark_retry_attempted(entry.job_id)
+
+                        # Re-submit job
+                        if Path(entry.file_path).exists():
+                            job_id = await self.ingest_file(
+                                file_path=entry.file_path,
+                                collection=entry.metadata.get("collection"),
+                                metadata=entry.metadata
+                            )
+
+                            logger.info(
+                                "DLQ entry retried",
+                                original_job_id=entry.job_id,
+                                new_job_id=job_id,
+                                retry_count=entry.retry_count
+                            )
+                        else:
+                            # File no longer exists, resolve entry
+                            await self.dlq.resolve(
+                                entry.job_id,
+                                resolution_notes="File no longer exists"
+                            )
+
+                            logger.warning(
+                                "DLQ entry resolved - file not found",
+                                job_id=entry.job_id,
+                                file_path=entry.file_path
+                            )
+
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to retry DLQ entry: {entry.job_id}",
+                            error=str(e)
+                        )
+
+            except asyncio.CancelledError:
+                logger.info("DLQ retry worker cancelled")
+                break
+            except Exception as e:
+                logger.error(f"Error in DLQ retry worker: {str(e)}")
+                await asyncio.sleep(retry_interval)
+
+        logger.info("DLQ retry worker stopped")
+
     async def _process_job(
         self,
         job: IngestionJob,
@@ -382,31 +627,58 @@ class RevolutionaryIngestionPipeline:
         metadata: Dict[str, Any]
     ) -> None:
         """Process a single ingestion job."""
+        start_time = datetime.utcnow()
+
         try:
+            # Update metrics
+            if self.metrics:
+                self.metrics.inc_counter("ingest_jobs_total", {"status": "processing"})
+                self.metrics.set_gauge("active_workers", 1.0)
+
             # Update job status
             job.status = "processing"
-            job.started_at = datetime.utcnow()
+            job.started_at = start_time
             job.progress = 0.1
             
-            # Get content
-            if job.file_path:
-                with open(job.file_path, 'rb') as f:
-                    content = f.read()
+            # Stage 1: Intake
+            if self.metrics:
+                with self.metrics.timer("stage_duration_ms", {"stage": "intake"}):
+                    # Get content (async I/O)
+                    if job.file_path:
+                        async with aiofiles.open(job.file_path, 'rb') as f:
+                            content = await f.read()
+                    else:
+                        content = job.file_content
+
+                    # Track document size
+                    self.metrics.observe_histogram("document_size_bytes", len(content))
             else:
-                content = job.file_content
-            
+                if job.file_path:
+                    async with aiofiles.open(job.file_path, 'rb') as f:
+                        content = await f.read()
+                else:
+                    content = job.file_content
+
             job.progress = 0.2
-            
-            # 🚀 REVOLUTIONARY PROCESSING WITH MULTI-MODAL CAPABILITIES
+
+            # Stage 2: Extraction
             logger.info(f"🔄 Processing {job.file_name} with revolutionary engine")
 
-            # Use revolutionary processor registry for multi-modal processing
-            processing_result = await self.processor_registry.process_document(
-                content=content,
-                filename=job.file_name,
-                mime_type=job.mime_type,
-                metadata=metadata
-            )
+            if self.metrics:
+                with self.metrics.timer("stage_duration_ms", {"stage": "extraction"}):
+                    processing_result = await self.processor_registry.process_document(
+                        content=content,
+                        filename=job.file_name,
+                        mime_type=job.mime_type,
+                        metadata=metadata
+                    )
+            else:
+                processing_result = await self.processor_registry.process_document(
+                    content=content,
+                    filename=job.file_name,
+                    mime_type=job.mime_type,
+                    metadata=metadata
+                )
 
             job.progress = 0.4
 
@@ -477,45 +749,114 @@ class RevolutionaryIngestionPipeline:
             )
             
             job.progress = 0.7
-            
-            # Add to knowledge base
-            document_id = await self.knowledge_base.add_document(
-                document,
-                collection,
-                chunk_size=self.config.default_chunk_size,
-                chunk_overlap=self.config.default_chunk_overlap
-            )
-            
+
+            # Stage 3: Chunking and Deduplication
+            if self.metrics:
+                with self.metrics.timer("stage_duration_ms", {"stage": "chunking"}):
+                    document_id, chunks_created, dedup_stats = await self._process_document_with_dedup(
+                        document=document,
+                        collection=collection,
+                        content_type=self._get_content_type(job.mime_type)
+                    )
+            else:
+                document_id, chunks_created, dedup_stats = await self._process_document_with_dedup(
+                    document=document,
+                    collection=collection,
+                    content_type=self._get_content_type(job.mime_type)
+                )
+
             job.progress = 0.9
+
+            # Update deduplication stats
+            self.stats["exact_duplicates"] += dedup_stats.get("exact_duplicates", 0)
+            self.stats["fuzzy_duplicates"] += dedup_stats.get("fuzzy_duplicates", 0)
+            self.stats["unique_chunks"] += dedup_stats.get("unique_chunks", 0)
+            self.stats["chunks_updated"] += dedup_stats.get("chunks_updated", 0)
+            self.stats["chunks_skipped"] += dedup_stats.get("chunks_skipped", 0)
+
+            # Update metrics
+            if self.metrics:
+                self.metrics.inc_counter("duplicates_total", {"type": "exact"}, dedup_stats.get("exact_duplicates", 0))
+                self.metrics.inc_counter("duplicates_total", {"type": "fuzzy"}, dedup_stats.get("fuzzy_duplicates", 0))
+                self.metrics.inc_counter("chunks_total", {"status": "created"}, dedup_stats.get("unique_chunks", 0))
+                self.metrics.inc_counter("chunks_total", {"status": "skipped"}, dedup_stats.get("chunks_skipped", 0))
+                self.metrics.inc_counter("chunks_total", {"status": "updated"}, dedup_stats.get("chunks_updated", 0))
             
             # Update job completion
             job.status = "completed"
             job.document_id = document_id
-            job.chunks_created = document.chunk_count
+            job.chunks_created = chunks_created
             job.completed_at = datetime.utcnow()
             job.progress = 1.0
-            
+
             # Update stats
             self.stats["jobs_completed"] += 1
             self.stats["documents_processed"] += 1
-            self.stats["total_chunks"] += document.chunk_count
-            
+            self.stats["total_chunks"] += chunks_created
+
+            # Update metrics
+            if self.metrics:
+                self.metrics.inc_counter("ingest_jobs_total", {"status": "completed"})
+                processing_time_ms = (job.completed_at - start_time).total_seconds() * 1000
+                self.metrics.observe_histogram("stage_duration_ms", processing_time_ms, {"stage": "total"})
+                self.metrics.set_gauge("active_workers", 0.0)
+
             logger.info(
                 f"Job completed successfully",
                 job_id=job.id,
                 document_id=document_id,
-                chunks=document.chunk_count
+                chunks=chunks_created,
+                processing_time_ms=(job.completed_at - start_time).total_seconds() * 1000
             )
-            
+
         except Exception as e:
             # Handle job failure
             job.status = "failed"
             job.error_message = str(e)
             job.completed_at = datetime.utcnow()
-            
+
             self.stats["jobs_failed"] += 1
-            
-            logger.error(f"Job failed: {job.id}, error: {str(e)}")
+
+            # Update metrics
+            if self.metrics:
+                self.metrics.inc_counter("ingest_jobs_total", {"status": "failed"})
+                self.metrics.set_gauge("active_workers", 0.0)
+
+            # Determine failure reason
+            failure_reason = FailureReason.UNKNOWN_ERROR
+            if "timeout" in str(e).lower():
+                failure_reason = FailureReason.TIMEOUT
+            elif "validation" in str(e).lower():
+                failure_reason = FailureReason.VALIDATION_ERROR
+            elif "dependency" in str(e).lower() or "import" in str(e).lower():
+                failure_reason = FailureReason.DEPENDENCY_ERROR
+            else:
+                failure_reason = FailureReason.PROCESSING_ERROR
+
+            # Add to DLQ
+            if self.dlq:
+                await self.dlq.add(
+                    job_id=job.id,
+                    file_path=job.file_path or "in-memory",
+                    failure_reason=failure_reason,
+                    error_message=str(e),
+                    error_details={
+                        "file_name": job.file_name,
+                        "mime_type": job.mime_type,
+                        "progress": job.progress
+                    },
+                    metadata=metadata
+                )
+
+                if self.metrics:
+                    self.metrics.inc_counter("dlq_total", {"reason": failure_reason.value})
+
+            logger.error(
+                f"Job failed and added to DLQ",
+                job_id=job.id,
+                error=str(e),
+                failure_reason=failure_reason.value
+            )
     
     def _get_document_type(self, mime_type: str) -> str:
         """Determine document type from MIME type."""
@@ -529,6 +870,115 @@ class RevolutionaryIngestionPipeline:
             return "image"
         else:
             return "unknown"
+
+    def _get_content_type(self, mime_type: str) -> ContentType:
+        """Determine content type for chunking from MIME type."""
+        if mime_type.startswith("text/html"):
+            return ContentType.MARKDOWN
+        elif mime_type.startswith("text/markdown"):
+            return ContentType.MARKDOWN
+        elif mime_type.startswith("text/"):
+            # Check if it's code
+            code_types = ["javascript", "python", "java", "cpp", "c", "xml", "json"]
+            if any(ct in mime_type for ct in code_types):
+                return ContentType.CODE
+            return ContentType.TEXT
+        elif mime_type == "application/json":
+            return ContentType.CODE
+        elif mime_type == "application/xml":
+            return ContentType.CODE
+        elif "spreadsheet" in mime_type or mime_type == "text/csv":
+            return ContentType.TABLE
+        else:
+            return ContentType.TEXT
+
+    async def _process_document_with_dedup(
+        self,
+        document: Document,
+        collection: Optional[str],
+        content_type: ContentType = ContentType.TEXT
+    ) -> Tuple[str, int, Dict[str, Any]]:
+        """
+        Process document with semantic chunking and deduplication.
+
+        Args:
+            document: Document to process
+            collection: Collection name
+            content_type: Content type for chunking
+
+        Returns:
+            Tuple of (document_id, chunks_created, dedup_stats)
+        """
+        # Generate document ID
+        document_id = document.id if hasattr(document, 'id') and document.id else f"doc_{datetime.utcnow().timestamp()}"
+        document.id = document_id
+
+        # Compute document hashes
+        document.content_sha = compute_content_sha(document.content)
+        document.norm_text_sha = compute_norm_text_sha(document.content)
+
+        # Perform semantic chunking
+        chunks = await self.process_text(
+            content=document.content,
+            metadata={
+                "document_id": document_id,
+                "title": document.title,
+                "document_type": document.document_type,
+                "source": document.source,
+                **document.metadata
+            },
+            content_type=content_type
+        )
+
+        # Deduplicate chunks
+        if self.dedup_engine:
+            unique_chunks, duplicate_chunks = await self.dedup_engine.deduplicate_chunks(
+                chunks=chunks,
+                skip_duplicates=True
+            )
+
+            dedup_stats = self.dedup_engine.get_stats()
+
+            logger.info(
+                "Deduplication complete",
+                document_id=document_id,
+                total_chunks=len(chunks),
+                unique=len(unique_chunks),
+                duplicates=len(duplicate_chunks),
+                exact_dupes=dedup_stats.get("exact_duplicates", 0),
+                fuzzy_dupes=dedup_stats.get("fuzzy_duplicates", 0)
+            )
+        else:
+            unique_chunks = chunks
+            duplicate_chunks = []
+            dedup_stats = {}
+
+        # Add unique chunks to knowledge base
+        if unique_chunks:
+            # Use KB interface for batch upsert
+            kb_interface = CollectionBasedKBInterface(
+                kb_manager=self.knowledge_base,
+                collection_name=collection or "default"
+            )
+
+            chunk_ids = await kb_interface.batch_upsert_chunks(
+                chunks=unique_chunks,
+                batch_size=100
+            )
+
+            logger.info(
+                "Chunks added to knowledge base",
+                document_id=document_id,
+                chunks_added=len(chunk_ids)
+            )
+
+        # Update document metadata
+        document.chunk_count = len(unique_chunks)
+        document.metadata["chunks_total"] = len(chunks)
+        document.metadata["chunks_unique"] = len(unique_chunks)
+        document.metadata["chunks_duplicate"] = len(duplicate_chunks)
+
+        return document_id, len(unique_chunks), dedup_stats
     
     async def get_job_status(self, job_id: str) -> Optional[IngestionJob]:
         """Get status of an ingestion job."""
@@ -539,67 +989,249 @@ class RevolutionaryIngestionPipeline:
         content: str,
         metadata: Optional[Dict[str, Any]] = None,
         chunk_size: Optional[int] = None,
-        chunk_overlap: Optional[int] = None
+        chunk_overlap: Optional[int] = None,
+        content_type: ContentType = ContentType.TEXT,
+        section_path: Optional[str] = None
     ) -> List[DocumentChunk]:
         """
-        Process text content into document chunks.
+        Process text content into document chunks using semantic chunking.
 
         Args:
             content: Text content to process
             metadata: Optional metadata for the document
-            chunk_size: Optional chunk size override
+            chunk_size: Optional chunk size override (in tokens, ~4 chars)
             chunk_overlap: Optional chunk overlap override
+            content_type: Type of content (text, code, markdown, table)
+            section_path: Section path for hierarchical documents
 
         Returns:
-            List of document chunks
+            List of document chunks with rich metadata
         """
         # Use config defaults if not specified
         chunk_size = chunk_size or self.config.default_chunk_size
         chunk_overlap = chunk_overlap or self.config.default_chunk_overlap
         metadata = metadata or {}
 
-        # Simple text chunking
-        chunks = []
-        start = 0
-        chunk_index = 0
+        # Create chunking configuration
+        chunk_config = ChunkConfig(
+            min_chunk_size=max(100, chunk_size // 4),  # 25% of target
+            max_chunk_size=chunk_size,
+            overlap_percentage=chunk_overlap / chunk_size if chunk_size > 0 else 0.15,
+            respect_sentences=self.config.enable_semantic_chunking,
+            respect_paragraphs=self.config.enable_semantic_chunking,
+            respect_sections=self.config.enable_semantic_chunking
+        )
 
-        while start < len(content):
-            end = start + chunk_size
-            chunk_content = content[start:end]
+        # Create semantic chunker
+        chunker = SemanticChunker(chunk_config)
 
-            # Create document chunk
-            chunk = DocumentChunk(
-                content=chunk_content.strip(),
-                document_id=metadata.get("document_id", "text_doc"),
-                chunk_index=chunk_index,
-                metadata={
-                    **metadata,
-                    "chunk_size": len(chunk_content),
-                    "start_position": start,
-                    "end_position": end
+        # Perform semantic chunking
+        semantic_chunks = chunker.chunk_document(
+            content=content,
+            content_type=content_type,
+            section_path=section_path,
+            metadata=metadata
+        )
+
+        # Convert to DocumentChunk objects with enhanced metadata
+        document_chunks = []
+        document_id = metadata.get("document_id", "text_doc")
+
+        for semantic_chunk in semantic_chunks:
+            # Compute hashes for deduplication
+            content_sha = compute_content_sha(semantic_chunk.content)
+            norm_text_sha = compute_norm_text_sha(semantic_chunk.content)
+
+            # Create enhanced metadata
+            chunk_metadata = {
+                **metadata,
+                # Position information
+                "chunk_index": semantic_chunk.chunk_index,
+                "start_char": semantic_chunk.start_char,
+                "end_char": semantic_chunk.end_char,
+                "char_count": semantic_chunk.char_count,
+                "token_count_estimate": semantic_chunk.token_count_estimate,
+
+                # Structure information
+                "section_path": semantic_chunk.section_path,
+                "content_type": semantic_chunk.content_type.value,
+
+                # Deduplication hashes
+                "content_sha": content_sha,
+                "norm_text_sha": norm_text_sha,
+
+                # Chunking metadata
+                "chunking_method": "semantic" if self.config.enable_semantic_chunking else "fixed",
+                "chunk_config": {
+                    "min_size": chunk_config.min_chunk_size,
+                    "max_size": chunk_config.max_chunk_size,
+                    "overlap_pct": chunk_config.overlap_percentage
                 }
+            }
+
+            # Merge with semantic chunk metadata
+            chunk_metadata.update(semantic_chunk.metadata)
+
+            # Create DocumentChunk
+            doc_chunk = DocumentChunk(
+                id=f"{document_id}_chunk_{semantic_chunk.chunk_index}",
+                content=semantic_chunk.content,
+                document_id=document_id,
+                chunk_index=semantic_chunk.chunk_index,
+                metadata=chunk_metadata,
+                embedding=None  # Will be computed later
             )
 
-            chunks.append(chunk)
+            # Add enhanced fields
+            doc_chunk.content_sha = content_sha
+            doc_chunk.norm_text_sha = norm_text_sha
+            doc_chunk.section_path = semantic_chunk.section_path
 
-            # Move to next chunk with overlap
-            start = end - chunk_overlap
-            chunk_index += 1
+            document_chunks.append(doc_chunk)
 
-            # Prevent infinite loop
-            if start >= len(content):
-                break
+        logger.info(
+            "Text chunked with semantic awareness",
+            document_id=document_id,
+            content_length=len(content),
+            chunks_created=len(document_chunks),
+            avg_chunk_size=sum(c.metadata.get("char_count", 0) for c in document_chunks) // len(document_chunks) if document_chunks else 0,
+            content_type=content_type.value,
+            semantic_enabled=self.config.enable_semantic_chunking
+        )
 
-        return chunks
+        return document_chunks
 
     async def get_stats(self) -> Dict[str, Any]:
         """Get ingestion pipeline statistics."""
-        return {
+        stats = {
             **self.stats,
             "active_jobs": len([j for j in self.jobs.values() if j.status == "processing"]),
             "pending_jobs": self.processing_queue.qsize(),
             "total_jobs": len(self.jobs)
         }
+
+        # Add DLQ stats
+        if self.dlq:
+            stats["dlq"] = self.dlq.get_stats()
+
+        # Add deduplication stats
+        if self.dedup_engine:
+            stats["deduplication"] = self.dedup_engine.get_stats()
+
+        return stats
+
+    async def get_metrics(self) -> Dict[str, Any]:
+        """Get metrics in structured format."""
+        if not self.metrics:
+            return {}
+
+        return self.metrics.get_metrics()
+
+    async def get_metrics_prometheus(self) -> str:
+        """Get metrics in Prometheus format."""
+        if not self.metrics:
+            return ""
+
+        return self.metrics.get_prometheus_format()
+
+    async def get_health(self, use_cache: bool = True) -> Dict[str, Any]:
+        """Get health status."""
+        if not self.health_registry:
+            return {
+                "status": "unknown",
+                "message": "Health registry not initialized"
+            }
+
+        return await self.health_registry.get_health_report(use_cache=use_cache)
+
+    async def liveness_probe(self) -> bool:
+        """Liveness probe for Kubernetes."""
+        if not self.health_registry:
+            return True  # Assume alive if health not initialized
+
+        return await self.health_registry.liveness_probe()
+
+    async def readiness_probe(self) -> bool:
+        """Readiness probe for Kubernetes."""
+        if not self.health_registry:
+            return True  # Assume ready if health not initialized
+
+        return await self.health_registry.readiness_probe()
+
+    async def cleanup_old_jobs(self) -> int:
+        """
+        Clean up old completed jobs to prevent unbounded memory growth.
+
+        Removes jobs that:
+        1. Are completed or failed
+        2. Are older than job_ttl_hours
+
+        Also enforces max_job_history limit using LRU eviction.
+
+        Returns:
+            Number of jobs removed
+        """
+        from datetime import timedelta
+
+        now = datetime.utcnow()
+        ttl_threshold = now - timedelta(hours=self.job_ttl_hours)
+
+        # Find jobs to remove (TTL-based)
+        jobs_to_remove = []
+        for job_id, job in self.jobs.items():
+            # Only remove completed/failed jobs
+            if job.status in ("completed", "failed"):
+                # Check if job is older than TTL
+                if job.completed_at and job.completed_at < ttl_threshold:
+                    jobs_to_remove.append(job_id)
+
+        # Remove TTL-expired jobs
+        for job_id in jobs_to_remove:
+            del self.jobs[job_id]
+
+        logger.debug(
+            "Cleaned up TTL-expired jobs",
+            removed=len(jobs_to_remove),
+            ttl_hours=self.job_ttl_hours
+        )
+
+        # Enforce max_job_history limit (LRU eviction)
+        if len(self.jobs) > self.max_job_history:
+            # Sort jobs by completion time (oldest first)
+            completed_jobs = [
+                (job_id, job)
+                for job_id, job in self.jobs.items()
+                if job.status in ("completed", "failed") and job.completed_at
+            ]
+            completed_jobs.sort(key=lambda x: x[1].completed_at)
+
+            # Calculate how many to remove
+            excess_count = len(self.jobs) - self.max_job_history
+
+            # Remove oldest jobs
+            lru_removed = 0
+            for job_id, job in completed_jobs[:excess_count]:
+                del self.jobs[job_id]
+                lru_removed += 1
+
+            logger.debug(
+                "Cleaned up excess jobs (LRU)",
+                removed=lru_removed,
+                max_history=self.max_job_history
+            )
+
+            jobs_to_remove.extend([job_id for job_id, _ in completed_jobs[:excess_count]])
+
+        total_removed = len(jobs_to_remove)
+
+        if total_removed > 0:
+            logger.info(
+                "Job history cleanup complete",
+                removed=total_removed,
+                remaining=len(self.jobs)
+            )
+
+        return total_removed
 
     async def shutdown(self, timeout: float = 30.0) -> None:
         """

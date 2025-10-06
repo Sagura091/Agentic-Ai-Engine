@@ -47,6 +47,17 @@ import numpy as np
 # Import safe subprocess wrapper
 from .subprocess_async import run_command
 
+# Import dependency checker
+from .dependencies import get_dependency_checker, check_dependency
+
+# Import specialized processors
+from .processor_audio import AudioProcessor
+from .processor_archive import ArchiveProcessor
+from .processor_spreadsheet import SpreadsheetProcessor
+from .processor_presentation import PresentationProcessor
+from .processor_email import EmailProcessor
+from .processor_code import CodeProcessor
+
 logger = structlog.get_logger(__name__)
 
 
@@ -107,26 +118,19 @@ class RevolutionaryOCREngine:
         """Detect which OCR engines are available."""
         engines = []
 
+        dep_checker = get_dependency_checker()
+
         # Check Tesseract
-        try:
-            import pytesseract
+        if dep_checker.is_available('pytesseract'):
             engines.append('tesseract')
-        except ImportError:
-            logger.warning("Tesseract not available")
 
         # Check EasyOCR
-        try:
-            import easyocr
+        if dep_checker.is_available('easyocr'):
             engines.append('easyocr')
-        except ImportError:
-            logger.warning("EasyOCR not available")
 
         # Check PaddleOCR
-        try:
-            import paddleocr
+        if dep_checker.is_available('paddleocr'):
             engines.append('paddleocr')
-        except ImportError:
-            logger.warning("PaddleOCR not available")
 
         if not engines:
             logger.error("No OCR engines available! Install at least one: pytesseract, easyocr, or paddleocr")
@@ -1016,35 +1020,37 @@ class PDFProcessor(DocumentProcessor):
     async def process(self, content: bytes, filename: str) -> str:
         """Process PDF content and extract text."""
         try:
-            # Try to import PDF processing library
-            try:
-                import pypdf
-                from io import BytesIO
-                
-                # Create PDF reader
-                pdf_reader = pypdf.PdfReader(BytesIO(content))
-                
-                # Extract text from all pages
-                text_parts = []
-                for page_num, page in enumerate(pdf_reader.pages):
-                    try:
-                        page_text = page.extract_text()
-                        if page_text.strip():
-                            text_parts.append(f"--- Page {page_num + 1} ---\n{page_text}")
-                    except Exception as e:
-                        logger.warning(f"Failed to extract text from page {page_num + 1}: {str(e)}")
-                
-                if not text_parts:
-                    raise ValueError("No text could be extracted from PDF")
-                
-                extracted_text = "\n\n".join(text_parts)
-                logger.info(f"Extracted text from PDF: {len(extracted_text)} characters")
-                return extracted_text
-                
-            except ImportError:
-                logger.error("pypdf library not available for PDF processing")
-                raise ValueError("PDF processing not available - pypdf library required")
-                
+            # Check dependency
+            dep_checker = get_dependency_checker()
+            if not dep_checker.is_available('pypdf'):
+                raise ImportError(
+                    "PDF processing requires 'pypdf' library. "
+                    "Install it with: pip install pypdf"
+                )
+
+            import pypdf
+            from io import BytesIO
+
+            # Create PDF reader
+            pdf_reader = pypdf.PdfReader(BytesIO(content))
+
+            # Extract text from all pages
+            text_parts = []
+            for page_num, page in enumerate(pdf_reader.pages):
+                try:
+                    page_text = page.extract_text()
+                    if page_text.strip():
+                        text_parts.append(f"--- Page {page_num + 1} ---\n{page_text}")
+                except Exception as e:
+                    logger.warning(f"Failed to extract text from page {page_num + 1}: {str(e)}")
+
+            if not text_parts:
+                raise ValueError("No text could be extracted from PDF")
+
+            extracted_text = "\n\n".join(text_parts)
+            logger.info(f"Extracted text from PDF: {len(extracted_text)} characters")
+            return extracted_text
+
         except Exception as e:
             logger.error(f"Failed to process PDF file {filename}: {str(e)}")
             raise
@@ -1060,41 +1066,43 @@ class DOCXProcessor(DocumentProcessor):
     async def process(self, content: bytes, filename: str) -> str:
         """Process DOCX content and extract text."""
         try:
-            # Try to import DOCX processing library
-            try:
-                from docx import Document
-                from io import BytesIO
-                
-                # Create document from bytes
-                doc = Document(BytesIO(content))
-                
-                # Extract text from paragraphs
-                text_parts = []
-                for paragraph in doc.paragraphs:
-                    if paragraph.text.strip():
-                        text_parts.append(paragraph.text)
-                
-                # Extract text from tables
-                for table in doc.tables:
-                    for row in table.rows:
-                        row_text = []
-                        for cell in row.cells:
-                            if cell.text.strip():
-                                row_text.append(cell.text.strip())
-                        if row_text:
-                            text_parts.append(" | ".join(row_text))
-                
-                if not text_parts:
-                    raise ValueError("No text could be extracted from DOCX")
-                
-                extracted_text = "\n\n".join(text_parts)
-                logger.info(f"Extracted text from DOCX: {len(extracted_text)} characters")
-                return extracted_text
-                
-            except ImportError:
-                logger.error("python-docx library not available for DOCX processing")
-                raise ValueError("DOCX processing not available - python-docx library required")
-                
+            # Check dependency
+            dep_checker = get_dependency_checker()
+            if not dep_checker.is_available('python-docx'):
+                raise ImportError(
+                    "DOCX processing requires 'python-docx' library. "
+                    "Install it with: pip install python-docx"
+                )
+
+            from docx import Document
+            from io import BytesIO
+
+            # Create document from bytes
+            doc = Document(BytesIO(content))
+
+            # Extract text from paragraphs
+            text_parts = []
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip():
+                    text_parts.append(paragraph.text)
+
+            # Extract text from tables
+            for table in doc.tables:
+                for row in table.rows:
+                    row_text = []
+                    for cell in row.cells:
+                        if cell.text.strip():
+                            row_text.append(cell.text.strip())
+                    if row_text:
+                        text_parts.append(" | ".join(row_text))
+
+            if not text_parts:
+                raise ValueError("No text could be extracted from DOCX")
+
+            extracted_text = "\n\n".join(text_parts)
+            logger.info(f"Extracted text from DOCX: {len(extracted_text)} characters")
+            return extracted_text
+
         except Exception as e:
             logger.error(f"Failed to process DOCX file {filename}: {str(e)}")
             raise
@@ -1296,6 +1304,30 @@ class RevolutionaryProcessorRegistry:
         # Video processors
         self.register_processor('revolutionary_video', RevolutionaryVideoProcessor())
 
+        # Audio processors
+        self.register_processor('audio', AudioProcessor())
+
+        # Archive processors
+        self.register_processor('archive', ArchiveProcessor())
+
+        # Spreadsheet processors
+        self.register_processor('spreadsheet', SpreadsheetProcessor())
+
+        # Presentation processors
+        self.register_processor('presentation', PresentationProcessor())
+
+        # Email processors
+        self.register_processor('email', EmailProcessor())
+
+        # Code processors
+        self.register_processor('code', CodeProcessor())
+
+        # Document processors (existing)
+        self.register_processor('pdf', PDFProcessor())
+        self.register_processor('docx', DOCXProcessor())
+        self.register_processor('html', HTMLProcessor())
+        self.register_processor('json', JSONProcessor())
+
         logger.info("Revolutionary processor registry initialized with all advanced processors")
 
     def register_processor(self, name: str, processor: DocumentProcessor):
@@ -1311,7 +1343,95 @@ class RevolutionaryProcessorRegistry:
 
     def get_processor_for_mime_type(self, mime_type: str) -> Optional[DocumentProcessor]:
         """Get appropriate processor for MIME type with intelligent fallback."""
+        # Comprehensive MIME type mapping
+        mime_to_processor = {
+            # Audio
+            'audio/mpeg': 'audio',
+            'audio/mp3': 'audio',
+            'audio/wav': 'audio',
+            'audio/wave': 'audio',
+            'audio/x-wav': 'audio',
+            'audio/flac': 'audio',
+            'audio/ogg': 'audio',
+            'audio/x-m4a': 'audio',
+            'audio/aac': 'audio',
+
+            # Archives
+            'application/zip': 'archive',
+            'application/x-zip-compressed': 'archive',
+            'application/x-tar': 'archive',
+            'application/x-gzip': 'archive',
+            'application/gzip': 'archive',
+            'application/x-bzip2': 'archive',
+            'application/x-xz': 'archive',
+            'application/x-7z-compressed': 'archive',
+            'application/x-rar-compressed': 'archive',
+            'application/vnd.rar': 'archive',
+
+            # Spreadsheets
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'spreadsheet',  # XLSX
+            'application/vnd.ms-excel': 'spreadsheet',  # XLS
+            'text/csv': 'spreadsheet',
+            'application/vnd.oasis.opendocument.spreadsheet': 'spreadsheet',  # ODS
+
+            # Presentations
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'presentation',  # PPTX
+            'application/vnd.ms-powerpoint': 'presentation',  # PPT
+            'application/vnd.oasis.opendocument.presentation': 'presentation',  # ODP
+
+            # Email
+            'message/rfc822': 'email',  # EML
+            'application/vnd.ms-outlook': 'email',  # MSG
+
+            # Code (common types)
+            'text/x-python': 'code',
+            'text/x-java': 'code',
+            'text/x-c': 'code',
+            'text/x-c++': 'code',
+            'text/x-csharp': 'code',
+            'text/javascript': 'code',
+            'application/javascript': 'code',
+            'text/x-typescript': 'code',
+            'application/x-sh': 'code',
+            'text/x-shellscript': 'code',
+
+            # Documents
+            'application/pdf': 'pdf',
+            'application/msword': 'docx',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+            'text/html': 'html',
+            'application/xhtml+xml': 'html',
+            'application/json': 'json',
+
+            # Images
+            'image/png': 'revolutionary_image',
+            'image/jpeg': 'revolutionary_image',
+            'image/jpg': 'revolutionary_image',
+            'image/gif': 'revolutionary_image',
+            'image/tiff': 'revolutionary_image',
+            'image/bmp': 'revolutionary_image',
+            'image/webp': 'revolutionary_image',
+
+            # Video
+            'video/mp4': 'revolutionary_video',
+            'video/mpeg': 'revolutionary_video',
+            'video/x-msvideo': 'revolutionary_video',
+            'video/quicktime': 'revolutionary_video',
+            'video/x-matroska': 'revolutionary_video',
+
+            # Text
+            'text/plain': 'enhanced_text',
+            'text/markdown': 'enhanced_text',
+            'text/x-markdown': 'enhanced_text'
+        }
+
         # Direct mapping
+        if mime_type in mime_to_processor:
+            processor_name = mime_to_processor[mime_type]
+            if processor_name in self.processors:
+                return self.processors[processor_name]
+
+        # Legacy mapping
         if mime_type in self.mime_type_mapping:
             processor_name = self.mime_type_mapping[mime_type]
             return self.processors.get(processor_name)
