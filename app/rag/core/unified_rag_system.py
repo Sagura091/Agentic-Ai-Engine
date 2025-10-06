@@ -54,30 +54,75 @@ logger = structlog.get_logger(__name__)
 # Data classes for compatibility with existing code
 @dataclass
 class Document:
-    """Document representation for RAG system."""
+    """
+    Document representation for RAG system.
+
+    Enhanced to support the new ingestion pipeline with proper
+    metadata fields and deduplication support.
+    """
     id: str
     content: str
-    metadata: Dict[str, Any] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
     embedding: Optional[List[float]] = None
 
-    def __post_init__(self):
-        if self.metadata is None:
-            self.metadata = {}
+    # Enhanced fields for new pipeline
+    title: Optional[str] = None
+    document_type: Optional[str] = None
+    source: Optional[str] = None
+    chunk_count: int = 0
+
+    # Hashes for deduplication
+    content_sha: Optional[str] = None
+    norm_text_sha: Optional[str] = None
+
+    # Processing metadata
+    language: str = "unknown"
+    confidence: float = 1.0
+    processor_name: Optional[str] = None
+    processing_time_ms: Optional[float] = None
+    timestamp: Optional[datetime] = None
 
 
 @dataclass
 class DocumentChunk:
-    """Document chunk representation for RAG system."""
+    """
+    Document chunk representation for RAG system.
+
+    Enhanced to support semantic chunking, deduplication, and
+    advanced retrieval features.
+    """
     id: str
     content: str
     document_id: str
     chunk_index: int
-    metadata: Dict[str, Any] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
     embedding: Optional[List[float]] = None
 
-    def __post_init__(self):
-        if self.metadata is None:
-            self.metadata = {}
+    # Hashes for deduplication
+    content_sha: Optional[str] = None
+    norm_text_sha: Optional[str] = None
+
+    # Provenance
+    source_uri: Optional[str] = None
+    section_path: Optional[str] = None
+    page: Optional[int] = None
+
+    # Content metadata
+    lang: str = "en"
+    char_count: int = 0
+    token_count: Optional[int] = None
+
+    # Semantic metadata
+    entities: List[str] = field(default_factory=list)
+    keywords: List[str] = field(default_factory=list)
+
+    # Access control
+    labels: Dict[str, str] = field(default_factory=dict)
+
+    # Versioning
+    ts_ingested: Optional[datetime] = None
+    version: int = 1
+    embedding_model: Optional[str] = None
 
 
 @dataclass

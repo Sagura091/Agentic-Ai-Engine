@@ -44,6 +44,9 @@ from bs4 import BeautifulSoup
 from PIL import Image, ImageEnhance
 import numpy as np
 
+# Import safe subprocess wrapper
+from .subprocess_async import run_command
+
 logger = structlog.get_logger(__name__)
 
 
@@ -359,12 +362,18 @@ class RevolutionaryOCREngine:
 
 # Global OCR engine instance
 _ocr_engine = None
+_ocr_engine_lock = asyncio.Lock()
 
 async def get_ocr_engine() -> RevolutionaryOCREngine:
-    """Get the global OCR engine instance."""
+    """Get the global OCR engine instance (thread-safe singleton)."""
     global _ocr_engine
+
     if _ocr_engine is None:
-        _ocr_engine = RevolutionaryOCREngine()
+        async with _ocr_engine_lock:
+            # Double-check after acquiring lock
+            if _ocr_engine is None:
+                _ocr_engine = RevolutionaryOCREngine()
+
     return _ocr_engine
 
 
@@ -627,13 +636,13 @@ class RevolutionaryVideoProcessor(DocumentProcessor):
     async def _extract_video_metadata(self, video_path: str) -> Dict[str, Any]:
         """Extract video metadata using ffprobe."""
         try:
-            # Use ffprobe to get video information
+            # Use ffprobe to get video information (safe subprocess)
             cmd = [
                 'ffprobe', '-v', 'quiet', '-print_format', 'json',
                 '-show_format', '-show_streams', video_path
             ]
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = await run_command(cmd, timeout=30.0)
 
             if result.returncode == 0:
                 info = json.loads(result.stdout)
@@ -655,10 +664,27 @@ class RevolutionaryVideoProcessor(DocumentProcessor):
 
                 if video_streams:
                     video_stream = video_streams[0]
+
+                    # Safely parse frame rate (e.g., "30/1" -> 30.0)
+                    fps = 0.0
+                    try:
+                        frame_rate_str = video_stream.get('r_frame_rate', '0/1')
+                        if '/' in frame_rate_str:
+                            numerator, denominator = frame_rate_str.split('/', 1)
+                            num = float(numerator.strip())
+                            denom = float(denominator.strip())
+                            if denom != 0:
+                                fps = num / denom
+                        else:
+                            fps = float(frame_rate_str)
+                    except (ValueError, ZeroDivisionError, AttributeError) as e:
+                        logger.warning(f"Failed to parse frame rate: {frame_rate_str}", error=str(e))
+                        fps = 0.0
+
                     metadata.update({
                         'width': video_stream.get('width', 0),
                         'height': video_stream.get('height', 0),
-                        'fps': eval(video_stream.get('r_frame_rate', '0/1')),
+                        'fps': fps,
                         'video_codec': video_stream.get('codec_name', '')
                     })
 
@@ -683,9 +709,9 @@ class RevolutionaryVideoProcessor(DocumentProcessor):
             # Extract frames at regular intervals
             frame_texts = []
 
-            # Get video duration first
+            # Get video duration first (safe subprocess)
             cmd = ['ffprobe', '-v', 'quiet', '-show_entries', 'format=duration', '-of', 'csv=p=0', video_path]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            result = await run_command(cmd, timeout=10.0)
 
             if result.returncode != 0:
                 return []
@@ -700,17 +726,20 @@ class RevolutionaryVideoProcessor(DocumentProcessor):
 
                 # Extract frame at timestamp
                 with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_frame:
+                    temp_frame_path = temp_frame.name
+
+                try:
                     cmd = [
                         'ffmpeg', '-v', 'quiet', '-ss', str(timestamp),
                         '-i', video_path, '-vframes', '1', '-f', 'image2',
-                        temp_frame.name
+                        temp_frame_path
                     ]
 
-                    result = subprocess.run(cmd, timeout=30)
+                    result = await run_command(cmd, timeout=30.0)
 
                     if result.returncode == 0:
                         # Read frame and perform OCR
-                        with open(temp_frame.name, 'rb') as f:
+                        with open(temp_frame_path, 'rb') as f:
                             frame_data = f.read()
 
                         ocr_result = await ocr_engine.extract_text_from_image(frame_data)
@@ -718,8 +747,12 @@ class RevolutionaryVideoProcessor(DocumentProcessor):
                         if ocr_result['text'] and ocr_result['confidence'] > 0.5:
                             frame_texts.append(ocr_result['text'])
 
-                    # Clean up
-                    os.unlink(temp_frame.name)
+                finally:
+                    # Clean up (ensure cleanup even on error)
+                    try:
+                        os.unlink(temp_frame_path)
+                    except Exception:
+                        pass
 
             return frame_texts
 
@@ -732,13 +765,16 @@ class RevolutionaryVideoProcessor(DocumentProcessor):
         try:
             # Extract audio to temporary WAV file
             with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_audio:
+                temp_audio_path = temp_audio.name
+
+            try:
                 cmd = [
                     'ffmpeg', '-v', 'quiet', '-i', video_path,
                     '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1',
-                    temp_audio.name
+                    temp_audio_path
                 ]
 
-                result = subprocess.run(cmd, timeout=60)
+                result = await run_command(cmd, timeout=60.0)
 
                 if result.returncode == 0:
                     # Use speech recognition (if available)
@@ -746,7 +782,7 @@ class RevolutionaryVideoProcessor(DocumentProcessor):
                         import speech_recognition as sr
 
                         recognizer = sr.Recognizer()
-                        with sr.AudioFile(temp_audio.name) as source:
+                        with sr.AudioFile(temp_audio_path) as source:
                             audio = recognizer.record(source)
 
                         # Try multiple recognition engines
@@ -766,8 +802,12 @@ class RevolutionaryVideoProcessor(DocumentProcessor):
                     except ImportError:
                         logger.warning("speech_recognition library not available")
 
-                # Clean up
-                os.unlink(temp_audio.name)
+            finally:
+                # Clean up (ensure cleanup even on error)
+                try:
+                    os.unlink(temp_audio_path)
+                except Exception:
+                    pass
 
         except Exception as e:
             logger.warning(f"Failed to extract audio transcript: {e}")
@@ -1353,164 +1393,17 @@ class RevolutionaryProcessorRegistry:
 
 # Global revolutionary processor registry
 _revolutionary_registry = None
+_revolutionary_registry_lock = asyncio.Lock()
 
 async def get_revolutionary_processor_registry() -> RevolutionaryProcessorRegistry:
-    """Get the global revolutionary processor registry."""
+    """Get the global revolutionary processor registry (thread-safe singleton)."""
     global _revolutionary_registry
+
     if _revolutionary_registry is None:
-        _revolutionary_registry = RevolutionaryProcessorRegistry()
+        async with _revolutionary_registry_lock:
+            # Double-check after acquiring lock
+            if _revolutionary_registry is None:
+                _revolutionary_registry = RevolutionaryProcessorRegistry()
+
     return _revolutionary_registry
 
-
-# Legacy processors for compatibility
-class TextProcessor(DocumentProcessor):
-    """Basic text processor for plain text files."""
-
-    def __init__(self):
-        self.supported_formats = ['text/plain', 'text/markdown', 'text/csv']
-
-    async def process(self, content: bytes, filename: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        try:
-            text = content.decode('utf-8')
-            return {
-                'text': text,
-                'metadata': metadata or {},
-                'images': [],
-                'structure': {'type': 'text'},
-                'language': 'en',
-                'confidence': 1.0
-            }
-        except Exception as e:
-            return {
-                'text': f"Error processing text: {str(e)}",
-                'metadata': metadata or {},
-                'images': [],
-                'structure': {'type': 'error'},
-                'language': 'unknown',
-                'confidence': 0.0
-            }
-
-    def supports_mime_type(self, mime_type: str) -> bool:
-        return mime_type in self.supported_formats
-
-
-class PDFProcessor(DocumentProcessor):
-    """Basic PDF processor."""
-
-    def __init__(self):
-        self.supported_formats = ['application/pdf']
-
-    async def process(self, content: bytes, filename: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        try:
-            return {
-                'text': f"PDF content from {filename}",
-                'metadata': metadata or {},
-                'images': [],
-                'structure': {'type': 'pdf'},
-                'language': 'en',
-                'confidence': 0.8
-            }
-        except Exception as e:
-            return {
-                'text': f"Error processing PDF: {str(e)}",
-                'metadata': metadata or {},
-                'images': [],
-                'structure': {'type': 'error'},
-                'language': 'unknown',
-                'confidence': 0.0
-            }
-
-    def supports_mime_type(self, mime_type: str) -> bool:
-        return mime_type in self.supported_formats
-
-
-class DOCXProcessor(DocumentProcessor):
-    """Basic DOCX processor."""
-
-    def __init__(self):
-        self.supported_formats = ['application/vnd.openxmlformats-officedocument.wordprocessingml.document']
-
-    async def process(self, content: bytes, filename: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        try:
-            return {
-                'text': f"DOCX content from {filename}",
-                'metadata': metadata or {},
-                'images': [],
-                'structure': {'type': 'docx'},
-                'language': 'en',
-                'confidence': 0.8
-            }
-        except Exception as e:
-            return {
-                'text': f"Error processing DOCX: {str(e)}",
-                'metadata': metadata or {},
-                'images': [],
-                'structure': {'type': 'error'},
-                'language': 'unknown',
-                'confidence': 0.0
-            }
-
-    def supports_mime_type(self, mime_type: str) -> bool:
-        return mime_type in self.supported_formats
-
-
-class HTMLProcessor(DocumentProcessor):
-    """Basic HTML processor."""
-
-    def __init__(self):
-        self.supported_formats = ['text/html']
-
-    async def process(self, content: bytes, filename: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        try:
-            text = content.decode('utf-8')
-            return {
-                'text': text,
-                'metadata': metadata or {},
-                'images': [],
-                'structure': {'type': 'html'},
-                'language': 'en',
-                'confidence': 0.9
-            }
-        except Exception as e:
-            return {
-                'text': f"Error processing HTML: {str(e)}",
-                'metadata': metadata or {},
-                'images': [],
-                'structure': {'type': 'error'},
-                'language': 'unknown',
-                'confidence': 0.0
-            }
-
-    def supports_mime_type(self, mime_type: str) -> bool:
-        return mime_type in self.supported_formats
-
-
-class JSONProcessor(DocumentProcessor):
-    """Basic JSON processor."""
-
-    def __init__(self):
-        self.supported_formats = ['application/json']
-
-    async def process(self, content: bytes, filename: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        try:
-            text = content.decode('utf-8')
-            return {
-                'text': text,
-                'metadata': metadata or {},
-                'images': [],
-                'structure': {'type': 'json'},
-                'language': 'en',
-                'confidence': 1.0
-            }
-        except Exception as e:
-            return {
-                'text': f"Error processing JSON: {str(e)}",
-                'metadata': metadata or {},
-                'images': [],
-                'structure': {'type': 'error'},
-                'language': 'unknown',
-                'confidence': 0.0
-            }
-
-    def supports_mime_type(self, mime_type: str) -> bool:
-        return mime_type in self.supported_formats

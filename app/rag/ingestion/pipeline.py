@@ -185,11 +185,15 @@ class RevolutionaryIngestionPipeline:
         # Import revolutionary processor registry
         from .processors import get_revolutionary_processor_registry
         self.processor_registry = None  # Will be initialized async
-        
+
         # Job tracking
         self.jobs: Dict[str, IngestionJob] = {}
         self.processing_queue: asyncio.Queue = asyncio.Queue()
-        
+
+        # Background tasks tracking (prevent memory leak)
+        self._background_tasks: List[asyncio.Task] = []
+        self._shutdown_event = asyncio.Event()
+
         # Revolutionary statistics
         self.stats = {
             "jobs_created": 0,
@@ -216,8 +220,9 @@ class RevolutionaryIngestionPipeline:
             from .processors import get_revolutionary_processor_registry
             self.processor_registry = await get_revolutionary_processor_registry()
 
-            # Start background processing
-            asyncio.create_task(self._process_queue())
+            # Start background processing (track task to prevent memory leak)
+            task = asyncio.create_task(self._process_queue())
+            self._background_tasks.append(task)
 
             logger.info("🚀 Revolutionary ingestion pipeline ready with multi-modal capabilities!")
             logger.info(f"📊 Supported formats: {len(self.processor_registry.get_supported_formats())} categories")
@@ -341,20 +346,34 @@ class RevolutionaryIngestionPipeline:
     
     async def _process_queue(self) -> None:
         """Background task to process ingestion queue."""
-        while True:
+        logger.info("Queue processing started")
+
+        while not self._shutdown_event.is_set():
             try:
-                # Get job from queue
-                job, collection, metadata = await self.processing_queue.get()
-                
+                # Get job from queue with timeout to check shutdown periodically
+                try:
+                    job, collection, metadata = await asyncio.wait_for(
+                        self.processing_queue.get(),
+                        timeout=1.0
+                    )
+                except asyncio.TimeoutError:
+                    # No job available, check shutdown and continue
+                    continue
+
                 # Process job
                 await self._process_job(job, collection, metadata)
-                
+
                 # Mark task as done
                 self.processing_queue.task_done()
-                
+
+            except asyncio.CancelledError:
+                logger.info("Queue processing cancelled")
+                break
             except Exception as e:
                 logger.error(f"Error in queue processing: {str(e)}")
                 await asyncio.sleep(1)  # Brief pause before continuing
+
+        logger.info("Queue processing stopped")
     
     async def _process_job(
         self,
@@ -581,3 +600,33 @@ class RevolutionaryIngestionPipeline:
             "pending_jobs": self.processing_queue.qsize(),
             "total_jobs": len(self.jobs)
         }
+
+    async def shutdown(self, timeout: float = 30.0) -> None:
+        """
+        Gracefully shutdown the pipeline.
+
+        Args:
+            timeout: Maximum time to wait for shutdown in seconds
+        """
+        logger.info("Shutting down ingestion pipeline...")
+
+        # Signal shutdown
+        self._shutdown_event.set()
+
+        # Cancel all background tasks
+        for task in self._background_tasks:
+            if not task.done():
+                task.cancel()
+
+        # Wait for tasks to complete with timeout
+        if self._background_tasks:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*self._background_tasks, return_exceptions=True),
+                    timeout=timeout
+                )
+                logger.info("All background tasks completed")
+            except asyncio.TimeoutError:
+                logger.warning(f"Shutdown timeout after {timeout}s, some tasks may not have completed")
+
+        logger.info("Ingestion pipeline shutdown complete")
