@@ -48,6 +48,44 @@ from app.rag.core.vector_db_factory import get_vector_db_client, VectorItem, Sea
 # Internal imports
 from app.config.settings import get_settings
 
+# Advanced retrieval pipeline (optional)
+try:
+    from app.rag.retrieval.advanced_retrieval_pipeline import (
+        AdvancedRetrievalPipeline,
+        PipelineConfig,
+        RetrievalMode
+    )
+    ADVANCED_RETRIEVAL_AVAILABLE = True
+except ImportError:
+    ADVANCED_RETRIEVAL_AVAILABLE = False
+    AdvancedRetrievalPipeline = None
+    PipelineConfig = None
+    RetrievalMode = None
+
+# Structured KB components (optional)
+try:
+    from app.rag.core.metadata_index import (
+        get_metadata_index_manager,
+        TermFilter,
+        RangeFilter,
+        MetadataIndexManager
+    )
+    from app.rag.core.chunk_relationship_manager import (
+        get_chunk_relationship_manager,
+        ChunkRelationshipManager
+    )
+    from app.rag.core.multimodal_indexer import (
+        get_multimodal_indexer,
+        MultimodalIndexer,
+        ContentType as MultimodalContentType
+    )
+    STRUCTURED_KB_AVAILABLE = True
+except ImportError:
+    STRUCTURED_KB_AVAILABLE = False
+    get_metadata_index_manager = None
+    get_chunk_relationship_manager = None
+    get_multimodal_indexer = None
+
 logger = structlog.get_logger(__name__)
 
 
@@ -382,6 +420,12 @@ class UnifiedRAGSystem:
         self.vector_client = None
         self.embedding_function = None
         self.embedding_manager = None  # NEW: Integrated embedding manager
+        self.advanced_retrieval_pipeline: Optional[Any] = None  # Advanced retrieval pipeline
+
+        # Structured KB components (optional)
+        self.metadata_index_manager: Optional[Any] = None
+        self.chunk_relationship_manager: Optional[Any] = None
+        self.multimodal_indexer: Optional[Any] = None
 
         # Agent management
         self.agent_collections: Dict[str, AgentCollections] = {}
@@ -407,9 +451,63 @@ class UnifiedRAGSystem:
 
             logger.info("Initializing unified RAG system...")
 
+            # ========================================================================
+            # PHASE 0: ENSURE DEFAULT MODELS ARE AVAILABLE
+            # ========================================================================
+            # Silently ensure the 3 default models are downloaded:
+            # 1. all-MiniLM-L6-v2 (embedding)
+            # 2. bge-reranker-base (reranking)
+            # 3. clip-ViT-B-32 (vision)
+
+            try:
+                from app.rag.core.model_initialization_service import (
+                    get_model_initialization_service,
+                    ModelInitializationConfig
+                )
+
+                # Create model initialization service with silent mode
+                model_init_config = ModelInitializationConfig(
+                    check_huggingface_cache=True,
+                    reuse_cached_models=True,
+                    copy_to_centralized=True,
+                    validate_models=True,
+                    auto_download_defaults=True,  # Download 3 default models
+                    silent_mode=True  # No CLI output
+                )
+
+                model_service = await get_model_initialization_service(model_init_config)
+
+                # Ensure default models are available (silent)
+                model_locations = await model_service.ensure_models_available()
+
+                # Log simple success message
+                stats = model_service.get_statistics()
+                logger.info(
+                    "Default models ready",
+                    found=stats['models_found'],
+                    downloaded=stats['models_downloaded'],
+                    reused=stats['models_reused']
+                )
+
+            except Exception as e:
+                logger.warning(
+                    f"Model initialization failed: {e}. "
+                    "Models will be downloaded on first use."
+                )
+
+            # ========================================================================
+            # PHASE 1: INITIALIZE VECTOR DATABASE
+            # ========================================================================
+            logger.info("Phase 1: Initializing vector database...")
+
             # Initialize vector database client (will auto-detect type from config)
             self.vector_client = get_vector_db_client()
             logger.info("Vector database client initialized", type=type(self.vector_client).__name__)
+
+            # ========================================================================
+            # PHASE 2: INITIALIZE EMBEDDING MANAGER
+            # ========================================================================
+            logger.info("Phase 2: Initializing embedding manager...")
 
             # Initialize the revolutionary embedding manager
             try:
@@ -420,7 +518,7 @@ class UnifiedRAGSystem:
                     embedding_type=EmbeddingType.DENSE,  # Default to dense, can be changed per operation
                     batch_size=self.config.batch_size,
                     cache_embeddings=True,
-                    use_model_manager=True
+                    use_model_manager=True  # ALWAYS use model manager for centralized storage
                 )
 
                 self.embedding_manager = EmbeddingManager(embedding_config)
@@ -430,6 +528,11 @@ class UnifiedRAGSystem:
             except Exception as e:
                 logger.warning(f"Failed to initialize embedding manager: {str(e)}, using fallback")
                 self.embedding_manager = None
+
+            # ========================================================================
+            # PHASE 3: INITIALIZE CHROMADB EMBEDDING FUNCTION
+            # ========================================================================
+            logger.info("Phase 3: Initializing ChromaDB embedding function...")
 
             # Initialize embedding function and ChromaDB client if needed
             if CHROMADB_AVAILABLE and hasattr(self.vector_client, '__class__') and 'Chroma' in self.vector_client.__class__.__name__:
@@ -444,8 +547,66 @@ class UnifiedRAGSystem:
                 self.chroma_client = None
                 logger.info("Using embedding manager for non-ChromaDB vector database")
 
+            # ========================================================================
+            # PHASE 4: INITIALIZE ADVANCED RETRIEVAL PIPELINE
+            # ========================================================================
+            logger.info("Phase 4: Initializing advanced retrieval pipeline...")
+
+            # Initialize advanced retrieval pipeline if available
+            if ADVANCED_RETRIEVAL_AVAILABLE:
+                try:
+                    pipeline_config = PipelineConfig(
+                        mode=RetrievalMode.ADVANCED,
+                        enable_query_expansion=True,
+                        enable_bm25=True,
+                        enable_reranking=True,
+                        enable_mmr=True,
+                        enable_compression=False,  # Disabled by default
+                        initial_top_k=100,
+                        final_top_k=10
+                    )
+                    self.advanced_retrieval_pipeline = AdvancedRetrievalPipeline(pipeline_config)
+                    await self.advanced_retrieval_pipeline.initialize()
+                    logger.info("✅ Advanced retrieval pipeline initialized successfully")
+                except Exception as e:
+                    logger.warning(f"Failed to initialize advanced retrieval pipeline: {str(e)}")
+                    self.advanced_retrieval_pipeline = None
+            else:
+                logger.info("Advanced retrieval pipeline not available (optional dependency)")
+                self.advanced_retrieval_pipeline = None
+
+            # ========================================================================
+            # PHASE 5: INITIALIZE STRUCTURED KB COMPONENTS
+            # ========================================================================
+            logger.info("Phase 5: Initializing structured KB components...")
+
+            # Initialize structured KB components if available
+            if STRUCTURED_KB_AVAILABLE:
+                try:
+                    self.metadata_index_manager = await get_metadata_index_manager()
+                    self.chunk_relationship_manager = await get_chunk_relationship_manager()
+                    self.multimodal_indexer = await get_multimodal_indexer()
+                    logger.info("✅ Structured KB components initialized successfully")
+                except Exception as e:
+                    logger.warning(f"Failed to initialize structured KB components: {str(e)}")
+                    self.metadata_index_manager = None
+                    self.chunk_relationship_manager = None
+                    self.multimodal_indexer = None
+            else:
+                logger.info("Structured KB components not available (optional dependency)")
+
+            # ========================================================================
+            # INITIALIZATION COMPLETE
+            # ========================================================================
             self.is_initialized = True
-            logger.info("Unified RAG system initialized successfully")
+            logger.info("=" * 80)
+            logger.info("✅ UNIFIED RAG SYSTEM INITIALIZED SUCCESSFULLY")
+            logger.info("=" * 80)
+            logger.info(f"   Vector DB: {type(self.vector_client).__name__}")
+            logger.info(f"   Embedding Model: {self.config.embedding_model}")
+            logger.info(f"   Advanced Retrieval: {'Enabled' if self.advanced_retrieval_pipeline else 'Disabled'}")
+            logger.info(f"   Structured KB: {'Enabled' if self.metadata_index_manager else 'Disabled'}")
+            logger.info("=" * 80)
 
         except Exception as e:
             logger.error(f"Failed to initialize unified RAG system: {str(e)}")
@@ -524,7 +685,8 @@ class UnifiedRAGSystem:
         query: str,
         top_k: int = 10,
         filters: Optional[Dict[str, Any]] = None,
-        search_type: str = "dense"
+        search_type: str = "dense",
+        use_advanced_retrieval: bool = True
     ) -> List[Document]:
         """
         Search knowledge for a specific agent with advanced search types.
@@ -534,7 +696,8 @@ class UnifiedRAGSystem:
             query: Search query
             top_k: Number of results to return
             filters: Additional metadata filters
-            search_type: Type of search ("dense", "sparse", "hybrid", "vision")
+            search_type: Type of search ("dense", "sparse", "hybrid", "vision", "advanced")
+            use_advanced_retrieval: Use advanced retrieval pipeline if available
 
         Returns:
             List of matching documents
@@ -550,6 +713,119 @@ class UnifiedRAGSystem:
 
             # Get the knowledge collection
             collection = self._get_collection(agent_collections.knowledge_collection)
+
+            # Use advanced retrieval pipeline if available and requested
+            if (use_advanced_retrieval and
+                search_type in ["advanced", "hybrid"] and
+                self.advanced_retrieval_pipeline is not None):
+
+                logger.info(f"Using advanced retrieval pipeline for agent {agent_id}")
+
+                # Create dense retriever function for the pipeline
+                async def dense_retriever(q: str, k: int) -> List[Dict[str, Any]]:
+                    """Dense retrieval function for advanced pipeline."""
+                    if hasattr(collection, 'query') and asyncio.iscoroutinefunction(collection.query):
+                        results = await collection.query(
+                            query_texts=[q],
+                            n_results=k,
+                            where=filters
+                        )
+                    else:
+                        results = collection.query(
+                            query_texts=[q],
+                            n_results=k,
+                            where=filters
+                        )
+
+                    # Convert to standard format
+                    docs = []
+                    if results['documents'] and results['documents'][0]:
+                        for i, doc in enumerate(results['documents'][0]):
+                            metadata = results['metadatas'][0][i] if results['metadatas'] and results['metadatas'][0] else {}
+                            doc_id = results['ids'][0][i] if results['ids'] and results['ids'][0] else f"doc_{i}"
+
+                            # Get score
+                            score = 1.0
+                            if 'scores' in results and results['scores'] and results['scores'][0]:
+                                score = results['scores'][0][i] if i < len(results['scores'][0]) else 1.0
+                            elif 'distances' in results and results['distances'] and results['distances'][0]:
+                                dist = results['distances'][0][i] if i < len(results['distances'][0]) else 0.0
+                                score = max(0.0, 1.0 - dist)
+
+                            # Get embedding if available
+                            embedding = metadata.get('embedding')
+
+                            docs.append({
+                                'doc_id': doc_id,
+                                'content': doc,
+                                'score': score,
+                                'metadata': metadata,
+                                'embedding': embedding
+                            })
+
+                    return docs
+
+                # Get query embedding if available
+                query_embedding = None
+                if self.embedding_manager:
+                    try:
+                        from .embeddings import EmbeddingType
+                        embeddings = await self.embedding_manager.generate_embeddings(
+                            texts=[query],
+                            embedding_type=EmbeddingType.DENSE
+                        )
+                        if embeddings and len(embeddings) > 0:
+                            query_embedding = embeddings[0]
+                    except Exception as e:
+                        logger.warning(f"Failed to generate query embedding: {e}")
+
+                # Execute advanced retrieval
+                try:
+                    retrieval_results, metrics = await self.advanced_retrieval_pipeline.retrieve(
+                        query=query,
+                        dense_retriever=dense_retriever,
+                        query_embedding=query_embedding,
+                        top_k=top_k
+                    )
+
+                    # Convert to Document objects
+                    documents = []
+                    for result in retrieval_results:
+                        metadata = result.metadata.copy()
+                        metadata['similarity_score'] = result.score
+                        metadata['rank'] = result.rank
+
+                        # Add pipeline details
+                        if result.dense_score is not None:
+                            metadata['dense_score'] = result.dense_score
+                        if result.sparse_score is not None:
+                            metadata['sparse_score'] = result.sparse_score
+                        if result.rerank_score is not None:
+                            metadata['rerank_score'] = result.rerank_score
+                        if result.mmr_score is not None:
+                            metadata['mmr_score'] = result.mmr_score
+                        if result.diversity_score is not None:
+                            metadata['diversity_score'] = result.diversity_score
+
+                        documents.append(Document(
+                            id=result.doc_id,
+                            content=result.content,
+                            metadata=metadata
+                        ))
+
+                    logger.info(
+                        f"Advanced retrieval completed",
+                        agent_id=agent_id,
+                        results_count=len(documents),
+                        total_time_ms=metrics.total_time_ms
+                    )
+
+                    self.stats["total_queries"] += 1
+                    return documents
+
+                except Exception as e:
+                    logger.error(f"Advanced retrieval failed: {e}, falling back to basic search")
+                    # Fall through to basic search
 
             # Configure search based on type
             if search_type in ["sparse", "hybrid"] and self.embedding_manager:
@@ -622,6 +898,200 @@ class UnifiedRAGSystem:
         except Exception as e:
             logger.error(f"Failed to search knowledge for agent {agent_id}: {str(e)}")
             raise
+
+    async def search_agent_knowledge_structured(
+        self,
+        agent_id: str,
+        query: str,
+        top_k: int = 10,
+        content_types: Optional[List[str]] = None,
+        section_path: Optional[str] = None,
+        page_number: Optional[int] = None,
+        metadata_filters: Optional[Dict[str, Any]] = None,
+        expand_context: bool = False,
+        context_size: int = 2,
+        use_advanced_retrieval: bool = True
+    ) -> List[Document]:
+        """
+        Search knowledge with structured KB capabilities.
+
+        Enhanced search with:
+        - Content type filtering
+        - Section path filtering
+        - Page number filtering
+        - Metadata-based filtering
+        - Context expansion (surrounding chunks)
+        - Parent document retrieval
+
+        Args:
+            agent_id: Agent performing the search
+            query: Search query
+            top_k: Number of results to return
+            content_types: Filter by content types (e.g., ["text", "code", "table"])
+            section_path: Filter by section path
+            page_number: Filter by page number
+            metadata_filters: Additional metadata filters
+            expand_context: Whether to expand results with surrounding chunks
+            context_size: Number of surrounding chunks to include
+            use_advanced_retrieval: Use advanced retrieval pipeline
+
+        Returns:
+            List of matching documents
+        """
+        try:
+            if not self.is_initialized:
+                await self.initialize()
+
+            # Check if structured KB is available
+            if not STRUCTURED_KB_AVAILABLE or not self.metadata_index_manager:
+                logger.warning("Structured KB not available, falling back to basic search")
+                return await self.search_agent_knowledge(
+                    agent_id=agent_id,
+                    query=query,
+                    top_k=top_k,
+                    filters=metadata_filters,
+                    use_advanced_retrieval=use_advanced_retrieval
+                )
+
+            # Build metadata filters
+            term_filters = []
+            range_filters = []
+
+            if content_types:
+                term_filters.append(TermFilter(
+                    field='content_type',
+                    values=content_types
+                ))
+
+            if section_path:
+                term_filters.append(TermFilter(
+                    field='section_path',
+                    values=[section_path]
+                ))
+
+            if page_number is not None:
+                range_filters.append(RangeFilter(
+                    field='page_number',
+                    min_value=page_number,
+                    max_value=page_number
+                ))
+
+            # Add custom metadata filters
+            if metadata_filters:
+                for field, value in metadata_filters.items():
+                    if isinstance(value, (list, tuple)):
+                        term_filters.append(TermFilter(field=field, values=list(value)))
+                    elif isinstance(value, dict) and ('min' in value or 'max' in value):
+                        range_filters.append(RangeFilter(
+                            field=field,
+                            min_value=value.get('min'),
+                            max_value=value.get('max')
+                        ))
+                    else:
+                        term_filters.append(TermFilter(field=field, values=[value]))
+
+            # Query metadata index to get candidate chunk IDs
+            candidate_chunk_ids = self.metadata_index_manager.query(
+                term_filters=term_filters,
+                range_filters=range_filters
+            )
+
+            logger.debug(
+                f"Metadata filtering found {len(candidate_chunk_ids)} candidates",
+                content_types=content_types,
+                section_path=section_path,
+                page_number=page_number
+            )
+
+            # If no candidates, return empty
+            if not candidate_chunk_ids:
+                return []
+
+            # Perform vector search with candidate filtering
+            # Build filters for vector search
+            vector_filters = metadata_filters.copy() if metadata_filters else {}
+
+            # Perform basic search first
+            all_results = await self.search_agent_knowledge(
+                agent_id=agent_id,
+                query=query,
+                top_k=top_k * 3,  # Get more results for filtering
+                filters=vector_filters,
+                use_advanced_retrieval=use_advanced_retrieval
+            )
+
+            # Filter results to only include candidates from metadata index
+            filtered_results = [
+                doc for doc in all_results
+                if doc.id in candidate_chunk_ids
+            ][:top_k]
+
+            # Expand context if requested
+            if expand_context and self.chunk_relationship_manager:
+                expanded_results = []
+                seen_ids = set()
+
+                for doc in filtered_results:
+                    # Add the main document
+                    if doc.id not in seen_ids:
+                        expanded_results.append(doc)
+                        seen_ids.add(doc.id)
+
+                    # Get surrounding chunks
+                    surrounding_ids = self.chunk_relationship_manager.get_surrounding_chunks(
+                        chunk_id=doc.id,
+                        context_size=context_size,
+                        include_siblings=True
+                    )
+
+                    # Fetch surrounding chunks from vector DB
+                    for chunk_id in surrounding_ids:
+                        if chunk_id not in seen_ids:
+                            # Get chunk from vector DB
+                            agent_collections = await self.get_agent_collections(agent_id)
+                            if agent_collections:
+                                collection = self._get_collection(agent_collections.knowledge_collection)
+
+                                # Query by ID
+                                try:
+                                    if hasattr(collection, 'get') and asyncio.iscoroutinefunction(collection.get):
+                                        result = await collection.get(ids=[chunk_id])
+                                    else:
+                                        result = collection.get(ids=[chunk_id])
+
+                                    if result and result.get('documents'):
+                                        metadata = result['metadatas'][0] if result.get('metadatas') else {}
+                                        metadata['is_context'] = True
+                                        metadata['context_for'] = doc.id
+
+                                        expanded_results.append(Document(
+                                            id=chunk_id,
+                                            content=result['documents'][0],
+                                            metadata=metadata
+                                        ))
+                                        seen_ids.add(chunk_id)
+                                except Exception as e:
+                                    logger.warning(f"Failed to fetch context chunk {chunk_id}: {e}")
+
+                filtered_results = expanded_results
+
+            logger.info(
+                f"Structured search completed",
+                agent_id=agent_id,
+                results_count=len(filtered_results),
+                expanded=expand_context
+            )
+
+            return filtered_results
+
+        except Exception as e:
+            logger.error(f"Structured search failed: {e}, falling back to basic search")
+            return await self.search_agent_knowledge(
+                agent_id=agent_id,
+                query=query,
+                top_k=top_k,
+                use_advanced_retrieval=use_advanced_retrieval
+            )
 
     async def search_documents(
         self,
@@ -739,6 +1209,26 @@ class UnifiedRAGSystem:
 
             self.stats["total_documents"] += len(documents)
             logger.info(f"Added {len(documents)} documents to {collection_name}")
+
+            # Add to BM25 index if advanced retrieval is enabled and this is knowledge collection
+            if (self.advanced_retrieval_pipeline is not None and
+                collection_type == "knowledge"):
+                try:
+                    # Prepare documents for BM25
+                    bm25_docs = [
+                        {
+                            'doc_id': doc.id,
+                            'content': doc.content,
+                            'metadata': doc.metadata or {}
+                        }
+                        for doc in documents
+                    ]
+
+                    added_count = await self.advanced_retrieval_pipeline.add_documents_to_bm25(bm25_docs)
+                    logger.info(f"Added {added_count} documents to BM25 index")
+                except Exception as e:
+                    logger.warning(f"Failed to add documents to BM25 index: {e}")
+
             return True
 
         except Exception as e:
@@ -1119,5 +1609,220 @@ class UnifiedRAGSystem:
                 "success": False,
                 "error": f"Failed to reload system: {str(e)}"
             }
+
+    # ============================================================================
+    # MODEL MANAGEMENT API
+    # ============================================================================
+
+    async def download_model(
+        self,
+        model_id: str,
+        model_type: str = "embedding"
+    ) -> Dict[str, Any]:
+        """
+        Download a specific model for use in the RAG system.
+
+        This allows users to download additional models beyond the 3 defaults.
+
+        Args:
+            model_id: Model ID (short name like 'all-MiniLM-L6-v2' or full HuggingFace ID)
+            model_type: Type of model ('embedding', 'reranking', 'vision')
+
+        Returns:
+            Dictionary with download status and model location
+
+        Example:
+            # Download a larger embedding model
+            result = await rag_system.download_model('all-mpnet-base-v2', 'embedding')
+
+            # Download a different reranker
+            result = await rag_system.download_model('ms-marco-MiniLM-L-12-v2', 'reranking')
+        """
+        try:
+            from app.rag.config.required_models import get_model_by_id
+            from app.rag.core.model_initialization_service import get_model_initialization_service
+
+            # Get model spec
+            model_spec = get_model_by_id(model_id)
+            if not model_spec:
+                return {
+                    "success": False,
+                    "error": f"Unknown model: {model_id}",
+                    "available_models": self.list_available_models(model_type)
+                }
+
+            # Verify model type matches
+            if model_spec.model_type != model_type:
+                return {
+                    "success": False,
+                    "error": f"Model {model_id} is type '{model_spec.model_type}', not '{model_type}'"
+                }
+
+            logger.info(f"Downloading model: {model_id} ({model_type})")
+
+            # Get model service
+            service = await get_model_initialization_service()
+
+            # Download model
+            locations = await service.ensure_models_available([model_spec])
+            location = locations.get(model_spec.model_id)
+
+            if location and location.is_valid:
+                return {
+                    "success": True,
+                    "model_id": model_spec.model_id,
+                    "model_type": model_spec.model_type,
+                    "location": str(location.path),
+                    "size_mb": location.size_mb,
+                    "message": f"Model {model_id} is ready"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Failed to download model: {model_id}",
+                    "validation_errors": location.validation_errors if location else []
+                }
+
+        except Exception as e:
+            logger.error(f"Failed to download model {model_id}: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def switch_embedding_model(self, model_id: str) -> Dict[str, Any]:
+        """
+        Switch to a different embedding model.
+
+        Args:
+            model_id: Model ID (short name or full HuggingFace ID)
+
+        Returns:
+            Dictionary with switch status
+
+        Example:
+            # Switch to a larger, more accurate model
+            result = await rag_system.switch_embedding_model('all-mpnet-base-v2')
+        """
+        try:
+            from app.rag.config.required_models import get_model_by_id
+            from .embeddings import EmbeddingManager, EmbeddingConfig, EmbeddingType
+
+            # Get model spec
+            model_spec = get_model_by_id(model_id)
+            if not model_spec or model_spec.model_type != 'embedding':
+                return {
+                    "success": False,
+                    "error": f"Unknown embedding model: {model_id}",
+                    "available_models": self.list_available_models('embedding')
+                }
+
+            # Download if not available
+            download_result = await self.download_model(model_id, 'embedding')
+            if not download_result['success']:
+                return download_result
+
+            # Update config
+            old_model = self.config.embedding_model
+            self.config.embedding_model = model_spec.model_id
+
+            # Reinitialize embedding manager
+            if self.embedding_manager:
+                embedding_config = EmbeddingConfig(
+                    model_name=model_spec.model_id,
+                    embedding_type=EmbeddingType.DENSE,
+                    batch_size=self.config.batch_size,
+                    cache_embeddings=True,
+                    use_model_manager=True
+                )
+
+                self.embedding_manager = EmbeddingManager(embedding_config)
+                await self.embedding_manager.initialize()
+
+            logger.info(f"Switched embedding model: {old_model} → {model_spec.model_id}")
+
+            return {
+                "success": True,
+                "old_model": old_model,
+                "new_model": model_spec.model_id,
+                "message": f"Embedding model switched to {model_spec.model_id}"
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to switch embedding model: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    def list_available_models(self, model_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        List all available models.
+
+        Args:
+            model_type: Optional filter by type ('embedding', 'reranking', 'vision')
+
+        Returns:
+            List of model information dictionaries
+
+        Example:
+            # List all embedding models
+            models = rag_system.list_available_models('embedding')
+            for model in models:
+                print(f"{model['id']}: {model['description']} ({model['size']})")
+        """
+        try:
+            from app.rag.config.required_models import get_models_by_type, ALL_MODELS, format_size
+
+            if model_type:
+                models = get_models_by_type(model_type)
+            else:
+                models = list(ALL_MODELS.values())
+
+            return [
+                {
+                    "id": m.model_id,
+                    "short_name": m.local_name,
+                    "type": m.model_type,
+                    "priority": m.priority.value,
+                    "size": format_size(m.size_mb),
+                    "size_mb": m.size_mb,
+                    "description": m.description,
+                    "dimension": m.dimension,
+                    "requires_feature": m.requires_feature
+                }
+                for m in models
+            ]
+
+        except Exception as e:
+            logger.error(f"Failed to list models: {e}")
+            return []
+
+    def get_current_models(self) -> Dict[str, str]:
+        """
+        Get currently active models.
+
+        Returns:
+            Dictionary mapping model type to model ID
+
+        Example:
+            models = rag_system.get_current_models()
+            print(f"Embedding: {models['embedding']}")
+            print(f"Reranking: {models.get('reranking', 'Not configured')}")
+        """
+        current = {
+            "embedding": self.config.embedding_model
+        }
+
+        # Check if advanced retrieval is configured
+        if self.advanced_retrieval_pipeline:
+            try:
+                reranker_config = self.advanced_retrieval_pipeline.config
+                if hasattr(reranker_config, 'reranker_model'):
+                    current["reranking"] = reranker_config.reranker_model
+            except:
+                pass
+
+        return current
 
 

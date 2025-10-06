@@ -127,15 +127,47 @@ class RevolutionaryCLIPEmbedding:
             return await self._initialize_fallback()
     
     async def _load_clip_model(self) -> None:
-        """Load CLIP model and processors."""
+        """
+        Load CLIP model and processors.
+
+        Checks centralized storage first, then falls back to HuggingFace download.
+        """
         try:
+            model_path = None
+
+            # Try to use centralized model storage
+            try:
+                from app.rag.core.embedding_model_manager import embedding_model_manager
+                from app.rag.config.required_models import get_model_by_id
+
+                # Get model spec
+                model_spec = get_model_by_id(self.config.model_name)
+
+                if model_spec:
+                    # Check if model exists in centralized storage
+                    model_info = embedding_model_manager.get_model_info(model_spec.local_name)
+
+                    if model_info and model_info.is_downloaded:
+                        logger.info(
+                            f"Loading CLIP from centralized storage: {model_spec.local_name}",
+                            path=model_info.local_path
+                        )
+                        model_path = model_info.local_path
+
+            except ImportError:
+                logger.warning("Model manager not available, loading CLIP directly from HuggingFace")
+
             # Load sentence-transformers CLIP model
-            logger.info(f"Loading CLIP model: {self.config.model_name}")
-            self.model = SentenceTransformer(self.config.model_name, device=self.device)
-            
+            if model_path:
+                logger.info(f"Loading CLIP model from: {model_path}")
+                self.model = SentenceTransformer(model_path, device=self.device)
+            else:
+                logger.info(f"Loading CLIP model from HuggingFace: {self.config.model_name}")
+                self.model = SentenceTransformer(self.config.model_name, device=self.device)
+
             # Get embedding dimension
             self.embedding_dimension = self.model.get_sentence_embedding_dimension()
-            
+
             # Load additional processors for advanced features
             if "clip" in self.config.model_name.lower():
                 try:
@@ -145,7 +177,7 @@ class RevolutionaryCLIPEmbedding:
                     logger.info("Additional CLIP processors loaded")
                 except Exception as e:
                     logger.warning(f"Could not load additional processors: {str(e)}")
-            
+
             logger.info(f"CLIP model loaded successfully, embedding dimension: {self.embedding_dimension}")
             
         except Exception as e:
