@@ -18,18 +18,101 @@ global:
   # - developer: Conversation + selected module logs
   # - debug: Full verbose logging with all metadata
   mode: user
-  
+
   # Enable/disable the entire logging system
   enabled: true
-  
+
   # Show correlation IDs, session IDs, agent IDs
   show_ids: false
-  
+
   # Show timestamps in console output
   show_timestamps: false
-  
+
   # Timestamp format: simple (HH:MM:SS) | full (YYYY-MM-DD HH:MM:SS.mmm) | iso
   timestamp_format: simple
+
+  # ============================================================================
+  # COLOR CODING SETTINGS
+  # ============================================================================
+  # Enable color-coded console output for better readability
+  enable_colors: true
+
+  # Color scheme: default | dark | light | custom
+  # - default: Optimized for most terminals
+  # - dark: Optimized for dark backgrounds
+  # - light: Optimized for light backgrounds
+  # - custom: Use custom color mappings (advanced)
+  color_scheme: default
+
+  # Force colors even if not a TTY (useful for CI/CD with color support)
+  force_colors: false
+
+  # Note: Colors are automatically disabled in file logs to prevent ANSI codes
+  # in log files. Colors only appear in console output.
+
+  # ============================================================================
+  # COLOR REFERENCE (Built-in Color Scheme)
+  # ============================================================================
+  # The following colors are automatically applied when enable_colors: true
+  #
+  # LOG LEVELS:
+  #   DEBUG     → cyan
+  #   INFO      → green
+  #   WARNING   → yellow
+  #   ERROR     → red
+  #   CRITICAL  → bold red
+  #
+  # AGENT REASONING & RESPONSES (Special Colors):
+  #   Agent Thinking/Reasoning  → bright_green bold (easy to read)
+  #   Agent Responses           → bright_green bold (clear communication)
+  #   Agent Decisions           → bright_green bold (important choices)
+  #
+  # LOG CATEGORIES:
+  #   AGENT_OPERATIONS          → blue
+  #   RAG_OPERATIONS            → purple
+  #   MEMORY_OPERATIONS         → magenta
+  #   LLM_OPERATIONS            → bright_blue
+  #   TOOL_OPERATIONS           → orange3
+  #   API_LAYER                 → green
+  #   DATABASE_LAYER            → cyan
+  #   SECURITY_EVENTS           → red
+  #   ERROR_TRACKING            → bright_red
+  #   PERFORMANCE               → yellow
+  #   SYSTEM_HEALTH             → white
+  #   CONFIGURATION_MANAGEMENT  → bright_cyan
+  #   RESOURCE_MANAGEMENT       → bright_magenta
+  #   ORCHESTRATION             → bright_yellow
+  #   COMMUNICATION             → bright_green
+  #   SERVICE_OPERATIONS        → cyan
+  #   USER_INTERACTION          → bright_green
+  #
+  # MODULES:
+  #   app.agents                → blue
+  #   app.rag                   → purple
+  #   app.memory                → magenta
+  #   app.llm                   → bright_blue
+  #   app.tools                 → orange3
+  #   app.api                   → green
+  #   app.core                  → white
+  #   app.services              → cyan
+  #   app.config                → bright_cyan
+  #   app.models                → bright_white
+  #   app.optimization          → yellow
+  #   app.integrations          → orange3
+  #   app.orchestration         → bright_yellow
+  #   app.communication         → bright_green
+  #
+  # CONVERSATION ELEMENTS:
+  #   User Query                → bright_white
+  #   Agent Acknowledgment      → bright_cyan
+  #   Agent Goal                → bright_yellow
+  #   Tool Usage                → orange3
+  #   Tool Result               → cyan
+  #   Agent Action              → bright_blue
+  #   Agent Insight             → bright_yellow
+  #   Error Message             → red bold
+  #   Warning Message           → yellow
+  #   Success Message           → green
 
 # ============================================================================
 # LAYER 1: USER CONVERSATION LAYER

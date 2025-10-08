@@ -53,7 +53,14 @@ from .models import (
     PROVIDER_DEFAULTS
 )
 
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Legacy structlog for backward compatibility
 logger = structlog.get_logger(__name__)
+# Production backend logger
+backend_logger = get_logger()
 
 
 # ============================================================================
@@ -375,6 +382,19 @@ class LLMProvider(ABC):
                        temperature=config.temperature,
                        max_tokens=config.max_tokens)
 
+            # Backend logging for LLM operations
+            backend_logger.info(
+                f"Creating LLM instance: {self.provider_type.value}/{config.model_id}",
+                LogCategory.LLM_OPERATIONS,
+                "LLMProvider",
+                data={
+                    "provider": self.provider_type.value,
+                    "model": config.model_id,
+                    "temperature": config.temperature,
+                    "max_tokens": config.max_tokens
+                }
+            )
+
             # Get connection from pool
             llm = await self._connection_pool.get_connection(
                 provider_key,
@@ -398,6 +418,19 @@ class LLMProvider(ABC):
                        execution_time=execution_time,
                        pool_stats=self._connection_pool.get_stats())
 
+            # Backend logging for successful creation
+            backend_logger.info(
+                f"LLM instance created successfully: {self.provider_type.value}/{config.model_id}",
+                LogCategory.LLM_OPERATIONS,
+                "LLMProvider",
+                data={
+                    "provider": self.provider_type.value,
+                    "model": config.model_id,
+                    "execution_time_ms": execution_time * 1000,
+                    "pool_stats": self._connection_pool.get_stats()
+                }
+            )
+
             return llm
 
         except Exception as e:
@@ -413,6 +446,21 @@ class LLMProvider(ABC):
                         error_type=type(e).__name__,
                         execution_time=execution_time,
                         metrics=self._metrics.get_stats())
+
+            # Backend logging for errors
+            backend_logger.error(
+                f"Failed to create LLM instance: {self.provider_type.value}/{config.model_id}",
+                LogCategory.LLM_OPERATIONS,
+                "LLMProvider",
+                error=e,
+                data={
+                    "provider": self.provider_type.value,
+                    "model": config.model_id,
+                    "error_type": type(e).__name__,
+                    "execution_time_ms": execution_time * 1000,
+                    "metrics": self._metrics.get_stats()
+                }
+            )
             raise
 
     async def create_streaming_llm(self, config: LLMConfig) -> AsyncGenerator[str, None]:

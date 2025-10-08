@@ -13,7 +13,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Type, Union, Sequence
 
-import structlog
 from langchain_core.agents import AgentAction, AgentFinish
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models import BaseLanguageModel
@@ -30,8 +29,11 @@ from pydantic import BaseModel, Field
 from typing_extensions import Annotated, TypedDict
 
 from app.core.exceptions import AgentExecutionError, AgentTimeoutError
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
 
-logger = structlog.get_logger(__name__)
+# Get backend logger instance
+_backend_logger = get_backend_logger()
 
 
 class AgentStatus(str, Enum):
@@ -250,17 +252,25 @@ class LangGraphAgent(ABC):
                 # If bind_tools or test call fails, model doesn't support tool calling
                 error_msg = str(e).lower()
                 if "does not support tools" in error_msg or "tool" in error_msg:
-                    logger.info(
+                    _backend_logger.info(
                         "Model does not support tool calling, using manual tool calling",
-                        agent_id=self.agent_id,
-                        model=type(self.llm).__name__,
-                        error=str(e)[:100]
+                        LogCategory.AGENT_OPERATIONS,
+                        "app.agents.base.agent",
+                        data={
+                            "agent_id": self.agent_id,
+                            "model": type(self.llm).__name__,
+                            "error": str(e)[:100]
+                        }
                     )
                 else:
-                    logger.warning(
+                    _backend_logger.warn(
                         "Tool calling test failed, using manual tool calling",
-                        agent_id=self.agent_id,
-                        error=str(e)[:100]
+                        LogCategory.AGENT_OPERATIONS,
+                        "app.agents.base.agent",
+                        data={
+                            "agent_id": self.agent_id,
+                            "error": str(e)[:100]
+                        }
                     )
 
             if tool_calling_supported:
@@ -272,48 +282,68 @@ class LangGraphAgent(ABC):
                     )
                     self.supports_tool_calling = True
 
-                    logger.info(
+                    _backend_logger.info(
                         "Using automatic tool calling with FORCED tool usage",
-                        agent_id=self.agent_id,
-                        tools_available=list(self.tools.keys()),
-                        llm_type=type(self.llm).__name__,
-                        tool_choice="any"
+                        LogCategory.AGENT_OPERATIONS,
+                        "app.agents.base.agent",
+                        data={
+                            "agent_id": self.agent_id,
+                            "tools_available": list(self.tools.keys()),
+                            "llm_type": type(self.llm).__name__,
+                            "tool_choice": "any"
+                        }
                     )
 
                 except Exception as e:
                     # Even if basic bind_tools worked, tool_choice might not be supported
-                    logger.warning(
+                    _backend_logger.warn(
                         "tool_choice='any' not supported, trying without tool_choice",
-                        agent_id=self.agent_id,
-                        error=str(e)[:100]
+                        LogCategory.AGENT_OPERATIONS,
+                        "app.agents.base.agent",
+                        data={
+                            "agent_id": self.agent_id,
+                            "error": str(e)[:100]
+                        }
                     )
                     try:
                         self.llm_with_tools = self.llm.bind_tools(langchain_tools)
                         self.supports_tool_calling = True
-                        logger.info(
+                        _backend_logger.info(
                             "Using automatic tool calling without forced tool usage",
-                            agent_id=self.agent_id,
-                            tools_available=list(self.tools.keys()),
-                            llm_type=type(self.llm).__name__
+                            LogCategory.AGENT_OPERATIONS,
+                            "app.agents.base.agent",
+                            data={
+                                "agent_id": self.agent_id,
+                                "tools_available": list(self.tools.keys()),
+                                "llm_type": type(self.llm).__name__
+                            }
                         )
                     except Exception as e2:
                         # Complete fallback to manual tool calling
                         self.llm_with_tools = self.llm
                         self.supports_tool_calling = False
-                        logger.warning(
+                        _backend_logger.warn(
                             "All automatic tool calling failed, using manual tool calling",
-                            agent_id=self.agent_id,
-                            error=str(e2)[:100]
+                            LogCategory.AGENT_OPERATIONS,
+                            "app.agents.base.agent",
+                            data={
+                                "agent_id": self.agent_id,
+                                "error": str(e2)[:100]
+                            }
                         )
             else:
                 # Use manual tool calling
                 self.llm_with_tools = self.llm
                 self.supports_tool_calling = False
-                logger.info(
+                _backend_logger.info(
                     "Using manual tool calling for maximum compatibility",
-                    agent_id=self.agent_id,
-                    tools_available=list(self.tools.keys()),
-                    llm_type=type(self.llm).__name__
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.base.agent",
+                    data={
+                        "agent_id": self.agent_id,
+                        "tools_available": list(self.tools.keys()),
+                        "llm_type": type(self.llm).__name__
+                    }
                 )
         else:
             self.llm_with_tools = self.llm
@@ -331,12 +361,16 @@ class LangGraphAgent(ABC):
         # Initialize the agent graph
         self._build_agent_graph()
 
-        logger.info(
+        _backend_logger.info(
             "LangGraph agent initialized",
-            agent_id=self.agent_id,
-            name=config.name,
-            capabilities=config.capabilities,
-            tools_count=len(self.tools),
+            LogCategory.AGENT_OPERATIONS,
+            "app.agents.base.agent",
+            data={
+                "agent_id": self.agent_id,
+                "name": config.name,
+                "capabilities": config.capabilities,
+                "tools_count": len(self.tools)
+            }
         )
     
     @property
@@ -374,7 +408,12 @@ class LangGraphAgent(ABC):
             metadata: Additional metadata
         """
         if not self.has_memory:
-            logger.warning("No memory system assigned to agent", agent_id=self.agent_id)
+            _backend_logger.warn(
+                "No memory system assigned to agent",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.base.agent",
+                data={"agent_id": self.agent_id}
+            )
             return
 
         try:
@@ -389,9 +428,19 @@ class LangGraphAgent(ABC):
                 persistent_type = getattr(PersistentMemoryType, memory_type.upper(), PersistentMemoryType.EPISODIC)
                 await self.memory_system.store_memory(content, persistent_type, MemoryImportance.MEDIUM, metadata=metadata)
 
-            logger.debug("Memory added successfully", agent_id=self.agent_id, memory_type=memory_type)
+            _backend_logger.debug(
+                "Memory added successfully",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.base.agent",
+                data={"agent_id": self.agent_id, "memory_type": memory_type}
+            )
         except Exception as e:
-            logger.error("Failed to add memory", agent_id=self.agent_id, error=str(e))
+            _backend_logger.error(
+                "Failed to add memory",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.base.agent",
+                data={"agent_id": self.agent_id, "error": str(e)}
+            )
 
     async def retrieve_memories(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         """
@@ -405,7 +454,12 @@ class LangGraphAgent(ABC):
             List of memory entries
         """
         if not self.has_memory:
-            logger.warning("No memory system assigned to agent", agent_id=self.agent_id)
+            _backend_logger.warn(
+                "No memory system assigned to agent",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.base.agent",
+                data={"agent_id": self.agent_id}
+            )
             return []
 
         try:
@@ -419,7 +473,12 @@ class LangGraphAgent(ABC):
                 return [{"content": m.content, "metadata": m.metadata, "created_at": m.created_at} for m in memories]
 
         except Exception as e:
-            logger.error("Failed to retrieve memories", agent_id=self.agent_id, error=str(e))
+            _backend_logger.error(
+                "Failed to retrieve memories",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.base.agent",
+                data={"agent_id": self.agent_id, "error": str(e)}
+            )
             return []
     
     def _build_agent_graph(self) -> None:
@@ -464,11 +523,15 @@ class LangGraphAgent(ABC):
         if self.tools:
             self.tool_node = ToolNode(list(self.tools.values()))
 
-        logger.info(
+        _backend_logger.info(
             "LangGraph workflow built",
-            agent_id=self.agent_id,
-            nodes=["reasoning", "tool_execution", "decision"],
-            tools_available=len(self.tools)
+            LogCategory.AGENT_OPERATIONS,
+            "app.agents.base.agent",
+            data={
+                "agent_id": self.agent_id,
+                "nodes": ["reasoning", "tool_execution", "decision"],
+                "tools_available": len(self.tools)
+            }
         )
 
     async def execute(
@@ -831,11 +894,15 @@ class LangGraphAgent(ABC):
                     agent_metrics=agent_metrics
                 )
 
-                logger.error(
+                _backend_logger.error(
                     "Agent execution failed",
-                    agent_id=self.agent_id,
-                    task=task,
-                    error=str(e)
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.base.agent",
+                    data={
+                        "agent_id": self.agent_id,
+                        "task": task,
+                        "error": str(e)
+                    }
                 )
                 raise AgentExecutionError(self.agent_id, str(e))
 
@@ -945,10 +1012,14 @@ class LangGraphAgent(ABC):
                 }
             )
 
-            logger.debug(
+            _backend_logger.debug(
                 "Reasoning node completed",
-                agent_id=self.agent_id,
-                iteration=updated_state["iteration_count"]
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.base.agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "iteration": updated_state["iteration_count"]
+                }
             )
 
             return updated_state
@@ -971,10 +1042,14 @@ class LangGraphAgent(ABC):
                 }
             )
 
-            logger.error(
+            _backend_logger.error(
                 "Reasoning node failed",
-                agent_id=self.agent_id,
-                error=str(e)
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.base.agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "error": str(e)
+                }
             )
             updated_state = state.copy()
             updated_state["errors"].append(f"Reasoning failed: {str(e)}")
@@ -1115,10 +1190,14 @@ class LangGraphAgent(ABC):
                 }
             )
 
-            logger.debug(
+            _backend_logger.debug(
                 "Tool execution node completed",
-                agent_id=self.agent_id,
-                tools_executed=len(updated_state["tool_calls"])
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.base.agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "tools_executed": len(updated_state["tool_calls"])
+                }
             )
 
             return updated_state
@@ -1141,10 +1220,14 @@ class LangGraphAgent(ABC):
                 }
             )
 
-            logger.error(
+            _backend_logger.error(
                 "Tool execution node failed",
-                agent_id=self.agent_id,
-                error=str(e)
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.base.agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "error": str(e)
+                }
             )
             updated_state = state.copy()
             updated_state["errors"].append(f"Tool execution failed: {str(e)}")
@@ -1176,19 +1259,27 @@ class LangGraphAgent(ABC):
         """
         # Check iteration limit (reduce to prevent infinite loops)
         if state["iteration_count"] >= min(state["max_iterations"], 3):
-            logger.info(
+            _backend_logger.info(
                 "Agent reached max iterations",
-                agent_id=self.agent_id,
-                iterations=state["iteration_count"]
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.base.agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "iterations": state["iteration_count"]
+                }
             )
             return "end"
 
         # Check if there are errors
         if state["errors"]:
-            logger.warning(
+            _backend_logger.warn(
                 "Agent has errors, ending execution",
-                agent_id=self.agent_id,
-                errors=state["errors"]
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.base.agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "errors": state["errors"]
+                }
             )
             return "end"
 
@@ -1197,10 +1288,14 @@ class LangGraphAgent(ABC):
         if last_message and isinstance(last_message, AIMessage):
             # First priority: Check for tool calls
             if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-                logger.info(
+                _backend_logger.info(
                     "Agent wants to use tools, continuing to tool execution",
-                    agent_id=self.agent_id,
-                    tool_calls=len(last_message.tool_calls)
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.base.agent",
+                    data={
+                        "agent_id": self.agent_id,
+                        "tool_calls": len(last_message.tool_calls)
+                    }
                 )
                 return "continue"
 
@@ -1214,9 +1309,11 @@ class LangGraphAgent(ABC):
             ]
 
             if any(phrase in content for phrase in completion_phrases):
-                logger.info(
+                _backend_logger.info(
                     "Agent indicated task completion",
-                    agent_id=self.agent_id
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.base.agent",
+                    data={"agent_id": self.agent_id}
                 )
                 return "end"
 
@@ -1227,25 +1324,31 @@ class LangGraphAgent(ABC):
                 if re.search(r'\d+\s*[×*]\s*\d+\s*=\s*\d+', content) or \
                    re.search(r'=\s*\d+', content) or \
                    re.search(r'\b\d{2,}\b', content):  # Multi-digit numbers
-                    logger.info(
+                    _backend_logger.info(
                         "Agent provided mathematical answer",
-                        agent_id=self.agent_id
+                        LogCategory.AGENT_OPERATIONS,
+                        "app.agents.base.agent",
+                        data={"agent_id": self.agent_id}
                     )
                     return "end"
 
             # If the response is substantial (>100 chars) and addresses the task, consider it complete
             if len(content) > 100 and any(word in content for word in state["current_task"].lower().split()[:3]):
-                logger.info(
+                _backend_logger.info(
                     "Agent provided substantial response addressing the task",
-                    agent_id=self.agent_id
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.base.agent",
+                    data={"agent_id": self.agent_id}
                 )
                 return "end"
 
         # For simple tasks, end after 2 iterations if we have a response
         if state["iteration_count"] >= 2 and len(state["messages"]) > 1:
-            logger.info(
+            _backend_logger.info(
                 "Agent completed simple task after 2 iterations",
-                agent_id=self.agent_id
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.base.agent",
+                data={"agent_id": self.agent_id}
             )
             return "end"
 
@@ -1262,18 +1365,22 @@ class LangGraphAgent(ABC):
         self.tools[tool.name] = tool
         if tool.name not in self.config.tools:
             self.config.tools.append(tool.name)
-        
-        logger.info(
+
+        _backend_logger.info(
             "Tool added to agent",
-            agent_id=self.agent_id,
-            tool_name=tool.name,
-            total_tools=len(self.tools),
+            LogCategory.AGENT_OPERATIONS,
+            "app.agents.base.agent",
+            data={
+                "agent_id": self.agent_id,
+                "tool_name": tool.name,
+                "total_tools": len(self.tools)
+            }
         )
-    
+
     async def remove_tool(self, tool_name: str) -> None:
         """
         Remove a tool from the agent's toolkit.
-        
+
         Args:
             tool_name: Name of tool to remove
         """
@@ -1281,12 +1388,16 @@ class LangGraphAgent(ABC):
             del self.tools[tool_name]
             if tool_name in self.config.tools:
                 self.config.tools.remove(tool_name)
-            
-            logger.info(
+
+            _backend_logger.info(
                 "Tool removed from agent",
-                agent_id=self.agent_id,
-                tool_name=tool_name,
-                total_tools=len(self.tools),
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.base.agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "tool_name": tool_name,
+                    "total_tools": len(self.tools)
+                }
             )
     
     async def get_state(self) -> AgentState:
@@ -1306,29 +1417,43 @@ class LangGraphAgent(ABC):
             state: State to restore
         """
         self.state = state
-        logger.info(
+        _backend_logger.info(
             "Agent state restored",
-            agent_id=self.agent_id,
-            status=state.status,
-            execution_step=state.execution_step,
+            LogCategory.AGENT_OPERATIONS,
+            "app.agents.base.agent",
+            data={
+                "agent_id": self.agent_id,
+                "status": state.status,
+                "execution_step": state.execution_step
+            }
         )
-    
+
     async def reset(self) -> None:
         """Reset agent to initial state."""
         self.state = AgentState(
             agent_id=self.agent_id,
             session_id=str(uuid.uuid4())
         )
-        
-        logger.info("Agent reset", agent_id=self.agent_id)
-    
+
+        _backend_logger.info(
+            "Agent reset",
+            LogCategory.AGENT_OPERATIONS,
+            "app.agents.base.agent",
+            data={"agent_id": self.agent_id}
+        )
+
     async def cancel(self) -> None:
         """Cancel current execution."""
         if self.state.status == AgentStatus.RUNNING:
             self.state.status = AgentStatus.CANCELLED
             self.state.updated_at = datetime.utcnow()
-            
-            logger.info("Agent execution cancelled", agent_id=self.agent_id)
+
+            _backend_logger.info(
+                "Agent execution cancelled",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.base.agent",
+                data={"agent_id": self.agent_id}
+            )
     
     def _update_state(self, **kwargs) -> None:
         """
@@ -1455,7 +1580,12 @@ class LangGraphAgent(ABC):
                         tool_call = await self._create_tool_call(tool_name, state)
                         if tool_call:
                             tool_calls.append(tool_call)
-                            logger.info(f"🔧 Detected explicit tool usage: {tool_name}")
+                            _backend_logger.info(
+                                f"🔧 Detected explicit tool usage: {tool_name}",
+                                LogCategory.AGENT_OPERATIONS,
+                                "app.agents.base.agent",
+                                data={"tool_name": tool_name}
+                            )
 
             # If no explicit tool usage found, check for natural language patterns
             if not tool_calls:
@@ -1481,7 +1611,11 @@ class LangGraphAgent(ABC):
                             tool_call = await self._create_tool_call('web_research', state)
                             if tool_call:
                                 tool_calls.append(tool_call)
-                                logger.info(f"🔧 Detected natural research intent, using web_research tool")
+                                _backend_logger.info(
+                                    "🔧 Detected natural research intent, using web_research tool",
+                                    LogCategory.AGENT_OPERATIONS,
+                                    "app.agents.base.agent"
+                                )
                                 break
 
                 # Check for calculation patterns
@@ -1501,18 +1635,32 @@ class LangGraphAgent(ABC):
                                 tool_call = await self._create_tool_call('calculator', state)
                                 if tool_call:
                                     tool_calls.append(tool_call)
-                                    logger.info(f"🔧 Detected natural calculation intent, using calculator tool")
+                                    _backend_logger.info(
+                                        "🔧 Detected natural calculation intent, using calculator tool",
+                                        LogCategory.AGENT_OPERATIONS,
+                                        "app.agents.base.agent"
+                                    )
                                     break
 
             # If tool calls were detected, create a new response with tool calls
             if tool_calls:
                 response.tool_calls = tool_calls
-                logger.info(f"✅ Created {len(tool_calls)} tool calls")
+                _backend_logger.info(
+                    f"✅ Created {len(tool_calls)} tool calls",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.base.agent",
+                    data={"tool_calls_count": len(tool_calls)}
+                )
 
             return response
 
         except Exception as e:
-            logger.error(f"Error in manual tool calling: {e}")
+            _backend_logger.error(
+                f"Error in manual tool calling: {e}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.base.agent",
+                data={"error": str(e)}
+            )
             return response
 
     async def _create_tool_call(self, tool_name: str, state: AgentGraphState) -> Optional[Dict]:
@@ -1564,7 +1712,12 @@ class LangGraphAgent(ABC):
             return None
 
         except Exception as e:
-            logger.error(f"Error creating tool call for {tool_name}: {e}")
+            _backend_logger.error(
+                f"Error creating tool call for {tool_name}: {e}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.base.agent",
+                data={"tool_name": tool_name, "error": str(e)}
+            )
             return None
 
     async def _inject_knowledge_base_context(self, query: str) -> str:
@@ -1587,7 +1740,11 @@ class LangGraphAgent(ABC):
 
             hybrid_rag = await get_hybrid_rag_integration()
             if not hybrid_rag or not hybrid_rag.is_initialized:
-                logger.debug("Hybrid RAG integration not available")
+                _backend_logger.debug(
+                    "Hybrid RAG integration not available",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.base.agent"
+                )
                 return ""
 
             # Get knowledge base context using the hybrid system
@@ -1598,14 +1755,29 @@ class LangGraphAgent(ABC):
             )
 
             if context:
-                logger.debug(f"🧠 Injected knowledge base context for agent {self.agent_id}")
+                _backend_logger.debug(
+                    f"🧠 Injected knowledge base context for agent {self.agent_id}",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.base.agent",
+                    data={"agent_id": self.agent_id}
+                )
                 return context
             else:
-                logger.debug(f"No knowledge base context found for query: {query[:50]}...")
+                _backend_logger.debug(
+                    f"No knowledge base context found for query: {query[:50]}...",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.base.agent",
+                    data={"query_preview": query[:50]}
+                )
                 return ""
 
         except Exception as e:
-            logger.warning(f"⚠️ Error injecting knowledge base context: {e}")
+            _backend_logger.warn(
+                f"⚠️ Error injecting knowledge base context: {e}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.base.agent",
+                data={"error": str(e)}
+            )
             return ""
 
 

@@ -8,7 +8,6 @@ registration, session management, and user profile operations.
 from typing import Optional
 from datetime import datetime
 
-import structlog
 from fastapi import APIRouter, HTTPException, Depends, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
@@ -17,7 +16,13 @@ from app.services.auth_service import auth_service
 from app.models.auth import UserCreate, UserLogin, TokenResponse, UserResponse
 from app.backend_logging.backend_logger import get_logger, LogCategory
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
+# Get backend logger instance
+_backend_logger = get_backend_logger()
+
+
 security = HTTPBearer(auto_error=False)
 
 router = APIRouter(tags=["Authentication"])

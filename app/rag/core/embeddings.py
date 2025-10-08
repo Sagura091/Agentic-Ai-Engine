@@ -13,9 +13,15 @@ from datetime import datetime
 from enum import Enum
 
 import numpy as np
-import structlog
 from pydantic import BaseModel, Field
 import torch
+
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
+# Get backend logger instance
+_backend_logger = get_backend_logger()
 
 # Import performance enhancements
 from .intelligent_cache import get_cache, EmbeddingCache
@@ -25,8 +31,12 @@ try:
     from sentence_transformers import SentenceTransformer
     SENTENCE_TRANSFORMERS_AVAILABLE = True
 except ImportError as e:
-    logger = structlog.get_logger(__name__)
-    logger.warning("sentence_transformers not available, using fallback", error=str(e))
+    _backend_logger.warn(
+        "sentence_transformers not available, using fallback",
+        LogCategory.RAG_OPERATIONS,
+        "app.rag.core.embeddings",
+        data={"error": str(e)}
+    )
     SentenceTransformer = None
     SENTENCE_TRANSFORMERS_AVAILABLE = False
 
@@ -34,20 +44,27 @@ try:
     from transformers import AutoTokenizer, AutoModel
     TRANSFORMERS_AVAILABLE = True
 except ImportError as e:
-    logger = structlog.get_logger(__name__)
-    logger.warning("transformers not available, using fallback", error=str(e))
+    _backend_logger.warn(
+        "transformers not available, using fallback",
+        LogCategory.RAG_OPERATIONS,
+        "app.rag.core.embeddings",
+        data={"error": str(e)}
+    )
     AutoTokenizer = None
     AutoModel = None
     TRANSFORMERS_AVAILABLE = False
-
-logger = structlog.get_logger(__name__)
 
 # Import revolutionary CLIP vision embeddings
 try:
     from app.rag.vision.clip_embeddings import clip_embedder, CLIPConfig
     CLIP_AVAILABLE = True
 except ImportError as e:
-    logger.warning("CLIP embeddings not available", error=str(e))
+    _backend_logger.warn(
+        "CLIP embeddings not available",
+        LogCategory.RAG_OPERATIONS,
+        "app.rag.core.embeddings",
+        data={"error": str(e)}
+    )
     clip_embedder = None
     CLIPConfig = None
     CLIP_AVAILABLE = False
@@ -130,12 +147,16 @@ class EmbeddingManager:
         else:
             self.device = config.device
 
-        logger.info(
+        _backend_logger.info(
             "🚀 Unified Embedding Manager initialized",
-            model=config.model_name,
-            type=config.embedding_type.value,
-            device=self.device,
-            use_centralized_storage=config.use_model_manager
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.core.embeddings",
+            data={
+                "model": config.model_name,
+                "type": config.embedding_type.value,
+                "device": self.device,
+                "use_centralized_storage": config.use_model_manager
+            }
         )
     
     async def initialize(self) -> None:
@@ -159,10 +180,18 @@ class EmbeddingManager:
             if self.config.vision_model:
                 await self._load_vision_model()
 
-            logger.info("Embedding models loaded successfully with intelligent caching")
+            _backend_logger.info(
+                "Embedding models loaded successfully with intelligent caching",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.embeddings"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to initialize embedding models: {str(e)}")
+            _backend_logger.error(
+                f"Failed to initialize embedding models: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.embeddings"
+            )
             raise
     
     async def _load_primary_model(self) -> None:
@@ -178,7 +207,11 @@ class EmbeddingManager:
                     if model_info and model_info.is_downloaded:
                         # Use local model from model manager
                         if not SENTENCE_TRANSFORMERS_AVAILABLE:
-                            logger.warning("sentence_transformers not available, using fallback")
+                            _backend_logger.warn(
+                                "sentence_transformers not available, using fallback",
+                                LogCategory.RAG_OPERATIONS,
+                                "app.rag.core.embeddings"
+                            )
                             self.models["primary"] = "fallback"
                             self.config.dense_dimension = 384
                             return
@@ -189,12 +222,20 @@ class EmbeddingManager:
                         if self.config.dense_dimension is None:
                             self.config.dense_dimension = model.get_sentence_embedding_dimension()
 
-                        logger.info(f"✅ Loaded model from centralized storage: {self.config.model_name}",
-                                   path=model_info.local_path)
+                        _backend_logger.info(
+                            f"✅ Loaded model from centralized storage: {self.config.model_name}",
+                            LogCategory.RAG_OPERATIONS,
+                            "app.rag.core.embeddings",
+                            data={"path": model_info.local_path}
+                        )
                         return
 
                 except ImportError:
-                    logger.warning("Model manager not available, falling back to direct loading")
+                    _backend_logger.warn(
+                        "Model manager not available, falling back to direct loading",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.core.embeddings"
+                    )
 
             # Fallback to direct model loading
             # Remove sentence-transformers/ prefix if present
@@ -204,7 +245,11 @@ class EmbeddingManager:
 
             # Load SentenceTransformer model
             if not SENTENCE_TRANSFORMERS_AVAILABLE:
-                logger.warning("sentence_transformers not available, using hash-based fallback embedding")
+                _backend_logger.warn(
+                    "sentence_transformers not available, using hash-based fallback embedding",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.embeddings"
+                )
                 # Use a hash-based fallback that actually generates embeddings
                 self.models["primary"] = "hash_fallback"
                 self.config.dense_dimension = 384  # Default dimension
@@ -217,20 +262,26 @@ class EmbeddingManager:
             if self.config.dense_dimension is None:
                 self.config.dense_dimension = model.get_sentence_embedding_dimension()
 
-            logger.info(f"Primary model loaded: {self.config.model_name}")
+            _backend_logger.info(
+                f"Primary model loaded: {self.config.model_name}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.embeddings"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to load primary model: {str(e)}")
+            _backend_logger.error(
+                f"Failed to load primary model: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.embeddings"
+            )
             # Fallback to hash-based embeddings
-            logger.warning("Using hash-based fallback embeddings")
+            _backend_logger.warn(
+                "Using hash-based fallback embeddings",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.embeddings"
+            )
             self.models["primary"] = "hash_fallback"
             self.config.dense_dimension = 384
-                
-            logger.info(f"Primary model loaded: {self.config.model_name}")
-            
-        except Exception as e:
-            logger.error(f"Failed to load primary model: {str(e)}")
-            raise
     
     async def _load_sparse_model(self) -> None:
         """Load sparse embedding model for hybrid retrieval."""
@@ -244,11 +295,19 @@ class EmbeddingManager:
                 stop_words='english',
                 ngram_range=(1, 2)
             )
-            
-            logger.info("Sparse model initialized")
-            
+
+            _backend_logger.info(
+                "Sparse model initialized",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.embeddings"
+            )
+
         except Exception as e:
-            logger.error(f"Failed to load sparse model: {str(e)}")
+            _backend_logger.error(
+                f"Failed to load sparse model: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.embeddings"
+            )
             raise
     
     async def _load_vision_model(self) -> None:
@@ -257,7 +316,11 @@ class EmbeddingManager:
             if self.config.vision_model:
                 # Try to use revolutionary CLIP embedder first
                 if CLIP_AVAILABLE and clip_embedder:
-                    logger.info("Initializing revolutionary CLIP vision embeddings...")
+                    _backend_logger.info(
+                        "Initializing revolutionary CLIP vision embeddings...",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.core.embeddings"
+                    )
 
                     # Configure CLIP with our settings
                     clip_config = CLIPConfig(
@@ -274,13 +337,25 @@ class EmbeddingManager:
                     if success:
                         self.models["vision"] = clip_embedder
                         self.tokenizers["vision"] = "clip_embedder"
-                        logger.info("Revolutionary CLIP vision model loaded successfully!")
+                        _backend_logger.info(
+                            "Revolutionary CLIP vision model loaded successfully!",
+                            LogCategory.RAG_OPERATIONS,
+                            "app.rag.core.embeddings"
+                        )
                         return
                     else:
-                        logger.warning("CLIP embedder initialization failed, falling back to basic CLIP")
+                        _backend_logger.warn(
+                            "CLIP embedder initialization failed, falling back to basic CLIP",
+                            LogCategory.RAG_OPERATIONS,
+                            "app.rag.core.embeddings"
+                        )
 
                 # Fallback to basic CLIP model
-                logger.info("Loading basic CLIP vision model...")
+                _backend_logger.info(
+                    "Loading basic CLIP vision model...",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.embeddings"
+                )
                 from transformers import CLIPProcessor, CLIPModel
 
                 processor = CLIPProcessor.from_pretrained(self.config.vision_model)
@@ -290,12 +365,24 @@ class EmbeddingManager:
                 self.tokenizers["vision"] = processor
                 self.models["vision"] = model
 
-                logger.info(f"Basic vision model loaded: {self.config.vision_model}")
+                _backend_logger.info(
+                    f"Basic vision model loaded: {self.config.vision_model}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.embeddings"
+                )
 
         except Exception as e:
-            logger.error(f"Failed to load vision model: {str(e)}")
+            _backend_logger.error(
+                f"Failed to load vision model: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.embeddings"
+            )
             # Don't raise - allow system to continue without vision capabilities
-            logger.warning("Continuing without vision model capabilities")
+            _backend_logger.warn(
+                "Continuing without vision model capabilities",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.embeddings"
+            )
     
     async def generate_embeddings(
         self,
@@ -388,7 +475,11 @@ class EmbeddingManager:
             )
             
         except Exception as e:
-            logger.error(f"Failed to generate embeddings: {str(e)}")
+            _backend_logger.error(
+                f"Failed to generate embeddings: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.embeddings"
+            )
             raise
 
     async def _generate_dense_embeddings(self, texts: List[str]) -> List[List[float]]:
@@ -396,7 +487,11 @@ class EmbeddingManager:
         try:
             # Check if we have a primary model
             if "primary" not in self.models:
-                logger.warning("No primary model available, using fallback")
+                _backend_logger.warn(
+                    "No primary model available, using fallback",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.embeddings"
+                )
                 # Generate simple hash-based embeddings as fallback
                 embeddings = []
                 for text in texts:
@@ -416,7 +511,11 @@ class EmbeddingManager:
 
             # Handle fallback case
             if model in ["fallback", "hash_fallback"]:
-                logger.warning("Using fallback embedding generation")
+                _backend_logger.warn(
+                    "Using fallback embedding generation",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.embeddings"
+                )
                 # Generate simple hash-based embeddings as fallback
                 embeddings = []
                 for text in texts:
@@ -468,7 +567,11 @@ class EmbeddingManager:
             return [embedding.tolist() for embedding in embeddings]
 
         except Exception as e:
-            logger.error(f"Failed to generate dense embeddings: {str(e)}")
+            _backend_logger.error(
+                f"Failed to generate dense embeddings: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.embeddings"
+            )
             raise
 
     async def _generate_sparse_embeddings(self, texts: List[str]) -> List[List[float]]:
@@ -488,7 +591,11 @@ class EmbeddingManager:
             return [embedding.tolist() for embedding in dense_matrix]
 
         except Exception as e:
-            logger.error(f"Failed to generate sparse embeddings: {str(e)}")
+            _backend_logger.error(
+                f"Failed to generate sparse embeddings: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.embeddings"
+            )
             raise
 
     async def _generate_hybrid_embeddings(self, texts: List[str]) -> List[List[float]]:
@@ -520,7 +627,11 @@ class EmbeddingManager:
             return hybrid_embeddings
 
         except Exception as e:
-            logger.error(f"Failed to generate hybrid embeddings: {str(e)}")
+            _backend_logger.error(
+                f"Failed to generate hybrid embeddings: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.embeddings"
+            )
             raise
 
 
@@ -553,7 +664,11 @@ async def get_global_embedding_manager() -> EmbeddingManager:
             _global_embedding_manager = EmbeddingManager(config)
             await _global_embedding_manager.initialize()
 
-            logger.info("🚀 Global embedding manager initialized")
+            _backend_logger.info(
+                "🚀 Global embedding manager initialized",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.embeddings"
+            )
 
     return _global_embedding_manager
 
@@ -582,7 +697,11 @@ def update_global_embedding_config(config: Dict[str, Any]) -> None:
     # Reset the global manager to force reinitialization with new config
     _global_embedding_manager = None
 
-    logger.info("🔄 Global embedding configuration updated - will reinitialize on next use")
+    _backend_logger.info(
+        "🔄 Global embedding configuration updated - will reinitialize on next use",
+        LogCategory.RAG_OPERATIONS,
+        "app.rag.core.embeddings"
+    )
 
 
 def get_global_embedding_config() -> Optional[Dict[str, Any]]:

@@ -29,8 +29,14 @@ from enum import Enum
 from pathlib import Path
 import json
 
-import structlog
 from pydantic import BaseModel, Field
+
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
+# Get backend logger instance
+_backend_logger = get_backend_logger()
 
 # Core RAG components
 try:
@@ -85,8 +91,6 @@ except ImportError:
     get_metadata_index_manager = None
     get_chunk_relationship_manager = None
     get_multimodal_indexer = None
-
-logger = structlog.get_logger(__name__)
 
 
 # Data classes for compatibility with existing code
@@ -267,9 +271,17 @@ class VectorCollectionWrapper:
             try:
                 from sentence_transformers import SentenceTransformer
                 self._fallback_model = SentenceTransformer('all-MiniLM-L6-v2')
-                logger.info("✅ Fallback SentenceTransformer model loaded for VectorCollectionWrapper")
+                _backend_logger.info(
+                    "✅ Fallback SentenceTransformer model loaded for VectorCollectionWrapper",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
+                )
             except ImportError:
-                logger.warning("⚠️ No embedding manager and SentenceTransformers unavailable - using hash-based fallback")
+                _backend_logger.warn(
+                    "⚠️ No embedding manager and SentenceTransformers unavailable - using hash-based fallback",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
+                )
                 self._fallback_model = None
 
     async def add(self, ids: List[str], documents: List[str], metadatas: List[dict] = None):
@@ -307,10 +319,18 @@ class VectorCollectionWrapper:
                         embedding.append(0.0)
                     vectors.append(embedding[:384])
 
-            logger.debug(f"Generated {len(vectors)} real embeddings for documents")
+            _backend_logger.debug(
+                f"Generated {len(vectors)} real embeddings for documents",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to generate embeddings: {str(e)}")
+            _backend_logger.error(
+                f"Failed to generate embeddings: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             # Emergency fallback - still better than all zeros
             vectors = [[0.1] * 384 for _ in documents]  # At least not all zeros
 
@@ -372,7 +392,11 @@ class VectorCollectionWrapper:
                     'scores': scores  # Add real similarity scores
                 }
         except Exception as e:
-            logger.error(f"Query failed: {str(e)}")
+            _backend_logger.error(
+                f"Query failed: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
 
         return {'ids': [[]], 'distances': [[]], 'documents': [[]], 'metadatas': [[]], 'scores': [[]]}
 
@@ -440,16 +464,28 @@ class UnifiedRAGSystem:
 
         self.is_initialized = False
         self._config_lock = asyncio.Lock()  # For thread-safe config updates
-        logger.info("Unified RAG System initialized")
-    
+        _backend_logger.info(
+            "Unified RAG System initialized",
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.core.unified_rag_system"
+        )
+
     async def initialize(self) -> None:
         """Initialize the unified RAG system with integrated embedding manager."""
         try:
             if self.is_initialized:
-                logger.warning("Unified RAG system already initialized")
+                _backend_logger.warn(
+                    "Unified RAG system already initialized",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
+                )
                 return
 
-            logger.info("Initializing unified RAG system...")
+            _backend_logger.info(
+                "Initializing unified RAG system...",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
 
             # ========================================================================
             # PHASE 0: ENSURE DEFAULT MODELS ARE AVAILABLE
@@ -482,32 +518,50 @@ class UnifiedRAGSystem:
 
                 # Log simple success message
                 stats = model_service.get_statistics()
-                logger.info(
+                _backend_logger.info(
                     "Default models ready",
-                    found=stats['models_found'],
-                    downloaded=stats['models_downloaded'],
-                    reused=stats['models_reused']
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system",
+                    data={
+                        "found": stats['models_found'],
+                        "downloaded": stats['models_downloaded'],
+                        "reused": stats['models_reused']
+                    }
                 )
 
             except Exception as e:
-                logger.warning(
-                    f"Model initialization failed: {e}. "
-                    "Models will be downloaded on first use."
+                _backend_logger.warn(
+                    f"Model initialization failed: {e}. Models will be downloaded on first use.",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
                 )
 
             # ========================================================================
             # PHASE 1: INITIALIZE VECTOR DATABASE
             # ========================================================================
-            logger.info("Phase 1: Initializing vector database...")
+            _backend_logger.info(
+                "Phase 1: Initializing vector database...",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
 
             # Initialize vector database client (will auto-detect type from config)
             self.vector_client = get_vector_db_client()
-            logger.info("Vector database client initialized", type=type(self.vector_client).__name__)
+            _backend_logger.info(
+                "Vector database client initialized",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system",
+                data={"type": type(self.vector_client).__name__}
+            )
 
             # ========================================================================
             # PHASE 2: INITIALIZE EMBEDDING MANAGER
             # ========================================================================
-            logger.info("Phase 2: Initializing embedding manager...")
+            _backend_logger.info(
+                "Phase 2: Initializing embedding manager...",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
 
             # Initialize the revolutionary embedding manager
             try:
@@ -523,16 +577,28 @@ class UnifiedRAGSystem:
 
                 self.embedding_manager = EmbeddingManager(embedding_config)
                 await self.embedding_manager.initialize()
-                logger.info("✅ Revolutionary embedding manager initialized successfully")
+                _backend_logger.info(
+                    "✅ Revolutionary embedding manager initialized successfully",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
+                )
 
             except Exception as e:
-                logger.warning(f"Failed to initialize embedding manager: {str(e)}, using fallback")
+                _backend_logger.warn(
+                    f"Failed to initialize embedding manager: {str(e)}, using fallback",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
+                )
                 self.embedding_manager = None
 
             # ========================================================================
             # PHASE 3: INITIALIZE CHROMADB EMBEDDING FUNCTION
             # ========================================================================
-            logger.info("Phase 3: Initializing ChromaDB embedding function...")
+            _backend_logger.info(
+                "Phase 3: Initializing ChromaDB embedding function...",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
 
             # Initialize embedding function and ChromaDB client if needed
             if CHROMADB_AVAILABLE and hasattr(self.vector_client, '__class__') and 'Chroma' in self.vector_client.__class__.__name__:
@@ -541,16 +607,28 @@ class UnifiedRAGSystem:
                 self.embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
                     model_name=self.config.embedding_model
                 )
-                logger.info("ChromaDB client reused from vector client to avoid conflicts")
+                _backend_logger.info(
+                    "ChromaDB client reused from vector client to avoid conflicts",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
+                )
             else:
                 # For other vector databases, we'll handle embeddings through our manager
                 self.chroma_client = None
-                logger.info("Using embedding manager for non-ChromaDB vector database")
+                _backend_logger.info(
+                    "Using embedding manager for non-ChromaDB vector database",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
+                )
 
             # ========================================================================
             # PHASE 4: INITIALIZE ADVANCED RETRIEVAL PIPELINE
             # ========================================================================
-            logger.info("Phase 4: Initializing advanced retrieval pipeline...")
+            _backend_logger.info(
+                "Phase 4: Initializing advanced retrieval pipeline...",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
 
             # Initialize advanced retrieval pipeline if available
             if ADVANCED_RETRIEVAL_AVAILABLE:
@@ -567,18 +645,34 @@ class UnifiedRAGSystem:
                     )
                     self.advanced_retrieval_pipeline = AdvancedRetrievalPipeline(pipeline_config)
                     await self.advanced_retrieval_pipeline.initialize()
-                    logger.info("✅ Advanced retrieval pipeline initialized successfully")
+                    _backend_logger.info(
+                        "✅ Advanced retrieval pipeline initialized successfully",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.core.unified_rag_system"
+                    )
                 except Exception as e:
-                    logger.warning(f"Failed to initialize advanced retrieval pipeline: {str(e)}")
+                    _backend_logger.warn(
+                        f"Failed to initialize advanced retrieval pipeline: {str(e)}",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.core.unified_rag_system"
+                    )
                     self.advanced_retrieval_pipeline = None
             else:
-                logger.info("Advanced retrieval pipeline not available (optional dependency)")
+                _backend_logger.info(
+                    "Advanced retrieval pipeline not available (optional dependency)",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
+                )
                 self.advanced_retrieval_pipeline = None
 
             # ========================================================================
             # PHASE 5: INITIALIZE STRUCTURED KB COMPONENTS
             # ========================================================================
-            logger.info("Phase 5: Initializing structured KB components...")
+            _backend_logger.info(
+                "Phase 5: Initializing structured KB components...",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
 
             # Initialize structured KB components if available
             if STRUCTURED_KB_AVAILABLE:
@@ -586,30 +680,78 @@ class UnifiedRAGSystem:
                     self.metadata_index_manager = await get_metadata_index_manager()
                     self.chunk_relationship_manager = await get_chunk_relationship_manager()
                     self.multimodal_indexer = await get_multimodal_indexer()
-                    logger.info("✅ Structured KB components initialized successfully")
+                    _backend_logger.info(
+                        "✅ Structured KB components initialized successfully",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.core.unified_rag_system"
+                    )
                 except Exception as e:
-                    logger.warning(f"Failed to initialize structured KB components: {str(e)}")
+                    _backend_logger.warn(
+                        f"Failed to initialize structured KB components: {str(e)}",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.core.unified_rag_system"
+                    )
                     self.metadata_index_manager = None
                     self.chunk_relationship_manager = None
                     self.multimodal_indexer = None
             else:
-                logger.info("Structured KB components not available (optional dependency)")
+                _backend_logger.info(
+                    "Structured KB components not available (optional dependency)",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
+                )
 
             # ========================================================================
             # INITIALIZATION COMPLETE
             # ========================================================================
             self.is_initialized = True
-            logger.info("=" * 80)
-            logger.info("✅ UNIFIED RAG SYSTEM INITIALIZED SUCCESSFULLY")
-            logger.info("=" * 80)
-            logger.info(f"   Vector DB: {type(self.vector_client).__name__}")
-            logger.info(f"   Embedding Model: {self.config.embedding_model}")
-            logger.info(f"   Advanced Retrieval: {'Enabled' if self.advanced_retrieval_pipeline else 'Disabled'}")
-            logger.info(f"   Structured KB: {'Enabled' if self.metadata_index_manager else 'Disabled'}")
-            logger.info("=" * 80)
+            _backend_logger.info(
+                "=" * 80,
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
+            _backend_logger.info(
+                "✅ UNIFIED RAG SYSTEM INITIALIZED SUCCESSFULLY",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
+            _backend_logger.info(
+                "=" * 80,
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
+            _backend_logger.info(
+                f"   Vector DB: {type(self.vector_client).__name__}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
+            _backend_logger.info(
+                f"   Embedding Model: {self.config.embedding_model}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
+            _backend_logger.info(
+                f"   Advanced Retrieval: {'Enabled' if self.advanced_retrieval_pipeline else 'Disabled'}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
+            _backend_logger.info(
+                f"   Structured KB: {'Enabled' if self.metadata_index_manager else 'Disabled'}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
+            _backend_logger.info(
+                "=" * 80,
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to initialize unified RAG system: {str(e)}")
+            _backend_logger.error(
+                f"Failed to initialize unified RAG system: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             raise
     
     def _get_collection(self, collection_name: str):
@@ -624,7 +766,11 @@ class UnifiedRAGSystem:
 
             # For other vector databases, ensure collection exists
             if not self.vector_client.has_collection(collection_name):
-                logger.info(f"Collection {collection_name} will be created on first use")
+                _backend_logger.info(
+                    f"Collection {collection_name} will be created on first use",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
+                )
 
             # Return a collection wrapper with embedding manager integration
             return VectorCollectionWrapper(
@@ -634,7 +780,11 @@ class UnifiedRAGSystem:
             )
 
         except Exception as e:
-            logger.error(f"Failed to get/create collection {collection_name}: {str(e)}")
+            _backend_logger.error(
+                f"Failed to get/create collection {collection_name}: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             raise
 
     async def create_agent_ecosystem(self, agent_id: str) -> AgentCollections:
@@ -652,7 +802,11 @@ class UnifiedRAGSystem:
                 await self.initialize()
 
             if agent_id in self.agent_collections:
-                logger.warning(f"Agent ecosystem already exists for {agent_id}")
+                _backend_logger.warn(
+                    f"Agent ecosystem already exists for {agent_id}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
+                )
                 return self.agent_collections[agent_id]
 
             # Create agent collections using simplified naming
@@ -668,11 +822,19 @@ class UnifiedRAGSystem:
             self.stats["total_agents"] += 1
             self.stats["total_collections"] += 3  # KB + short memory + long memory
 
-            logger.info(f"Created agent ecosystem for {agent_id} with collections: {agent_collections.knowledge_collection}, {agent_collections.short_memory_collection}, {agent_collections.long_memory_collection}")
+            _backend_logger.info(
+                f"Created agent ecosystem for {agent_id} with collections: {agent_collections.knowledge_collection}, {agent_collections.short_memory_collection}, {agent_collections.long_memory_collection}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             return agent_collections
 
         except Exception as e:
-            logger.error(f"Failed to create agent ecosystem for {agent_id}: {str(e)}")
+            _backend_logger.error(
+                f"Failed to create agent ecosystem for {agent_id}: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             raise
 
     async def get_agent_collections(self, agent_id: str) -> Optional[AgentCollections]:
@@ -719,7 +881,11 @@ class UnifiedRAGSystem:
                 search_type in ["advanced", "hybrid"] and
                 self.advanced_retrieval_pipeline is not None):
 
-                logger.info(f"Using advanced retrieval pipeline for agent {agent_id}")
+                _backend_logger.info(
+                    f"Using advanced retrieval pipeline for agent {agent_id}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
+                )
 
                 # Create dense retriever function for the pipeline
                 async def dense_retriever(q: str, k: int) -> List[Dict[str, Any]]:
@@ -777,7 +943,11 @@ class UnifiedRAGSystem:
                         if embeddings and len(embeddings) > 0:
                             query_embedding = embeddings[0]
                     except Exception as e:
-                        logger.warning(f"Failed to generate query embedding: {e}")
+                        _backend_logger.warn(
+                            f"Failed to generate query embedding: {e}",
+                            LogCategory.RAG_OPERATIONS,
+                            "app.rag.core.unified_rag_system"
+                        )
 
                 # Execute advanced retrieval
                 try:
@@ -813,18 +983,26 @@ class UnifiedRAGSystem:
                             metadata=metadata
                         ))
 
-                    logger.info(
-                        f"Advanced retrieval completed",
-                        agent_id=agent_id,
-                        results_count=len(documents),
-                        total_time_ms=metrics.total_time_ms
+                    _backend_logger.info(
+                        "Advanced retrieval completed",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.core.unified_rag_system",
+                        data={
+                            "agent_id": agent_id,
+                            "results_count": len(documents),
+                            "total_time_ms": metrics.total_time_ms
+                        }
                     )
 
                     self.stats["total_queries"] += 1
                     return documents
 
                 except Exception as e:
-                    logger.error(f"Advanced retrieval failed: {e}, falling back to basic search")
+                    _backend_logger.error(
+                        f"Advanced retrieval failed: {e}, falling back to basic search",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.core.unified_rag_system"
+                    )
                     # Fall through to basic search
 
             # Configure search based on type
@@ -844,9 +1022,17 @@ class UnifiedRAGSystem:
                         texts=[query],
                         embedding_type=embedding_type
                     )
-                    logger.debug(f"Generated {search_type} embeddings for query")
+                    _backend_logger.debug(
+                        f"Generated {search_type} embeddings for query",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.core.unified_rag_system"
+                    )
                 except Exception as e:
-                    logger.warning(f"Failed to generate {search_type} embeddings: {str(e)}, falling back to dense")
+                    _backend_logger.warn(
+                        f"Failed to generate {search_type} embeddings: {str(e)}, falling back to dense",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.core.unified_rag_system"
+                    )
                     search_type = "dense"
 
             # Perform search
@@ -896,7 +1082,11 @@ class UnifiedRAGSystem:
             return documents
 
         except Exception as e:
-            logger.error(f"Failed to search knowledge for agent {agent_id}: {str(e)}")
+            _backend_logger.error(
+                f"Failed to search knowledge for agent {agent_id}: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             raise
 
     async def search_agent_knowledge_structured(
@@ -944,7 +1134,11 @@ class UnifiedRAGSystem:
 
             # Check if structured KB is available
             if not STRUCTURED_KB_AVAILABLE or not self.metadata_index_manager:
-                logger.warning("Structured KB not available, falling back to basic search")
+                _backend_logger.warn(
+                    "Structured KB not available, falling back to basic search",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
+                )
                 return await self.search_agent_knowledge(
                     agent_id=agent_id,
                     query=query,
@@ -996,11 +1190,15 @@ class UnifiedRAGSystem:
                 range_filters=range_filters
             )
 
-            logger.debug(
+            _backend_logger.debug(
                 f"Metadata filtering found {len(candidate_chunk_ids)} candidates",
-                content_types=content_types,
-                section_path=section_path,
-                page_number=page_number
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system",
+                data={
+                    "content_types": content_types,
+                    "section_path": section_path,
+                    "page_number": page_number
+                }
             )
 
             # If no candidates, return empty
@@ -1071,21 +1269,33 @@ class UnifiedRAGSystem:
                                         ))
                                         seen_ids.add(chunk_id)
                                 except Exception as e:
-                                    logger.warning(f"Failed to fetch context chunk {chunk_id}: {e}")
+                                    _backend_logger.warn(
+                                        f"Failed to fetch context chunk {chunk_id}: {e}",
+                                        LogCategory.RAG_OPERATIONS,
+                                        "app.rag.core.unified_rag_system"
+                                    )
 
                 filtered_results = expanded_results
 
-            logger.info(
-                f"Structured search completed",
-                agent_id=agent_id,
-                results_count=len(filtered_results),
-                expanded=expand_context
+            _backend_logger.info(
+                "Structured search completed",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system",
+                data={
+                    "agent_id": agent_id,
+                    "results_count": len(filtered_results),
+                    "expanded": expand_context
+                }
             )
 
             return filtered_results
 
         except Exception as e:
-            logger.error(f"Structured search failed: {e}, falling back to basic search")
+            _backend_logger.error(
+                f"Structured search failed: {e}, falling back to basic search",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             return await self.search_agent_knowledge(
                 agent_id=agent_id,
                 query=query,
@@ -1142,7 +1352,11 @@ class UnifiedRAGSystem:
             return results
 
         except Exception as e:
-            logger.error(f"Failed to search documents for agent {agent_id}: {str(e)}")
+            _backend_logger.error(
+                f"Failed to search documents for agent {agent_id}: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             return []
 
     async def add_documents(
@@ -1208,7 +1422,11 @@ class UnifiedRAGSystem:
                 )
 
             self.stats["total_documents"] += len(documents)
-            logger.info(f"Added {len(documents)} documents to {collection_name}")
+            _backend_logger.info(
+                f"Added {len(documents)} documents to {collection_name}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
 
             # Add to BM25 index if advanced retrieval is enabled and this is knowledge collection
             if (self.advanced_retrieval_pipeline is not None and
@@ -1225,14 +1443,26 @@ class UnifiedRAGSystem:
                     ]
 
                     added_count = await self.advanced_retrieval_pipeline.add_documents_to_bm25(bm25_docs)
-                    logger.info(f"Added {added_count} documents to BM25 index")
+                    _backend_logger.info(
+                        f"Added {added_count} documents to BM25 index",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.core.unified_rag_system"
+                    )
                 except Exception as e:
-                    logger.warning(f"Failed to add documents to BM25 index: {e}")
+                    _backend_logger.warn(
+                        f"Failed to add documents to BM25 index: {e}",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.core.unified_rag_system"
+                    )
 
             return True
 
         except Exception as e:
-            logger.error(f"Failed to add documents for agent {agent_id}: {str(e)}")
+            _backend_logger.error(
+                f"Failed to add documents for agent {agent_id}: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             raise
 
     async def delete_agent_ecosystem(self, agent_id: str) -> bool:
@@ -1247,7 +1477,11 @@ class UnifiedRAGSystem:
         """
         try:
             if agent_id not in self.agent_collections:
-                logger.warning(f"No ecosystem found for agent {agent_id}")
+                _backend_logger.warn(
+                    f"No ecosystem found for agent {agent_id}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
+                )
                 return True
 
             agent_collections = self.agent_collections[agent_id]
@@ -1267,20 +1501,36 @@ class UnifiedRAGSystem:
                     else:
                         # For other vector databases
                         self.vector_client.delete_collection(collection_name)
-                    logger.debug(f"Deleted collection: {collection_name}")
+                    _backend_logger.debug(
+                        f"Deleted collection: {collection_name}",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.core.unified_rag_system"
+                    )
                 except Exception as e:
-                    logger.warning(f"Error deleting collection {collection_name}: {str(e)}")
+                    _backend_logger.warn(
+                        f"Error deleting collection {collection_name}: {str(e)}",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.core.unified_rag_system"
+                    )
 
             # Remove from tracking
             del self.agent_collections[agent_id]
             self.stats["total_agents"] -= 1
             self.stats["total_collections"] -= 3
 
-            logger.info(f"Deleted agent ecosystem for {agent_id}")
+            _backend_logger.info(
+                f"Deleted agent ecosystem for {agent_id}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to delete agent ecosystem for {agent_id}: {str(e)}")
+            _backend_logger.error(
+                f"Failed to delete agent ecosystem for {agent_id}: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             return False
 
     async def search_agent_memory(
@@ -1359,7 +1609,11 @@ class UnifiedRAGSystem:
             return all_documents[:top_k]  # Limit to top_k results
 
         except Exception as e:
-            logger.error(f"Failed to search memory for agent {agent_id}: {str(e)}")
+            _backend_logger.error(
+                f"Failed to search memory for agent {agent_id}: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             raise
 
     def get_stats(self) -> Dict[str, Any]:
@@ -1404,13 +1658,21 @@ class UnifiedRAGSystem:
             if results['ids']:
                 # Delete expired memories
                 collection.delete(ids=results['ids'])
-                logger.info(f"Cleaned up {len(results['ids'])} expired memories for agent {agent_id}")
+                _backend_logger.info(
+                    f"Cleaned up {len(results['ids'])} expired memories for agent {agent_id}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
+                )
                 return len(results['ids'])
 
             return 0
 
         except Exception as e:
-            logger.error(f"Failed to cleanup memories for agent {agent_id}: {str(e)}")
+            _backend_logger.error(
+                f"Failed to cleanup memories for agent {agent_id}: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             return 0
 
     async def get_agent_stats(self, agent_id: str) -> Dict[str, Any]:
@@ -1439,12 +1701,20 @@ class UnifiedRAGSystem:
                     stats[f"{collection_type}_count"] = count_result
                 except Exception as e:
                     stats[f"{collection_type}_count"] = 0
-                    logger.warning(f"Could not get count for {collection_name}: {str(e)}")
+                    _backend_logger.warn(
+                        f"Could not get count for {collection_name}: {str(e)}",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.core.unified_rag_system"
+                    )
 
             return stats
 
         except Exception as e:
-            logger.error(f"Failed to get stats for agent {agent_id}: {str(e)}")
+            _backend_logger.error(
+                f"Failed to get stats for agent {agent_id}: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             return {"error": str(e)}
 
     # ============================================================================
@@ -1464,7 +1734,11 @@ class UnifiedRAGSystem:
         """
         async with self._config_lock:
             try:
-                logger.info("🔄 Starting dynamic RAG configuration update...")
+                _backend_logger.info(
+                    "🔄 Starting dynamic RAG configuration update...",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
+                )
 
                 # Track what was updated
                 updates_applied = []
@@ -1478,7 +1752,11 @@ class UnifiedRAGSystem:
                 try:
                     new_rag_config = UnifiedRAGConfig(**current_config_dict)
                 except Exception as e:
-                    logger.error(f"❌ Invalid configuration: {str(e)}")
+                    _backend_logger.error(
+                        f"❌ Invalid configuration: {str(e)}",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.core.unified_rag_system"
+                    )
                     return {
                         "success": False,
                         "error": f"Invalid configuration: {str(e)}",
@@ -1521,7 +1799,11 @@ class UnifiedRAGSystem:
                 # Apply the new configuration
                 self.config = new_rag_config
 
-                logger.info(f"✅ RAG configuration updated successfully. Applied {len(updates_applied)} changes.")
+                _backend_logger.info(
+                    f"✅ RAG configuration updated successfully. Applied {len(updates_applied)} changes.",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
+                )
 
                 return {
                     "success": True,
@@ -1532,7 +1814,11 @@ class UnifiedRAGSystem:
                 }
 
             except Exception as e:
-                logger.error(f"❌ Failed to update RAG configuration: {str(e)}")
+                _backend_logger.error(
+                    f"❌ Failed to update RAG configuration: {str(e)}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.core.unified_rag_system"
+                )
                 return {
                     "success": False,
                     "error": f"Failed to update configuration: {str(e)}",
@@ -1543,7 +1829,11 @@ class UnifiedRAGSystem:
     async def _update_embedding_model(self, new_model: str) -> None:
         """Update the embedding model dynamically."""
         try:
-            logger.info(f"🔄 Updating embedding model to: {new_model}")
+            _backend_logger.info(
+                f"🔄 Updating embedding model to: {new_model}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
 
             # Create new embedding function
             if new_model.startswith("openai/"):
@@ -1564,10 +1854,18 @@ class UnifiedRAGSystem:
                     model_name=new_model
                 )
 
-            logger.info(f"✅ Embedding model updated to: {new_model}")
+            _backend_logger.info(
+                f"✅ Embedding model updated to: {new_model}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
 
         except Exception as e:
-            logger.error(f"❌ Failed to update embedding model: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to update embedding model: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             raise
 
     async def get_current_configuration(self) -> Dict[str, Any]:
@@ -1585,7 +1883,11 @@ class UnifiedRAGSystem:
         with current configuration (useful for major changes).
         """
         try:
-            logger.info("🔄 Reloading RAG system...")
+            _backend_logger.info(
+                "🔄 Reloading RAG system...",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
 
             # Store current config
             current_config = self.config
@@ -1594,7 +1896,11 @@ class UnifiedRAGSystem:
             self.is_initialized = False
             await self.initialize()
 
-            logger.info("✅ RAG system reloaded successfully")
+            _backend_logger.info(
+                "✅ RAG system reloaded successfully",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
 
             return {
                 "success": True,
@@ -1604,7 +1910,11 @@ class UnifiedRAGSystem:
             }
 
         except Exception as e:
-            logger.error(f"❌ Failed to reload RAG system: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to reload RAG system: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             return {
                 "success": False,
                 "error": f"Failed to reload system: {str(e)}"
@@ -1658,7 +1968,11 @@ class UnifiedRAGSystem:
                     "error": f"Model {model_id} is type '{model_spec.model_type}', not '{model_type}'"
                 }
 
-            logger.info(f"Downloading model: {model_id} ({model_type})")
+            _backend_logger.info(
+                f"Downloading model: {model_id} ({model_type})",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
 
             # Get model service
             service = await get_model_initialization_service()
@@ -1684,7 +1998,11 @@ class UnifiedRAGSystem:
                 }
 
         except Exception as e:
-            logger.error(f"Failed to download model {model_id}: {e}")
+            _backend_logger.error(
+                f"Failed to download model {model_id}: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             return {
                 "success": False,
                 "error": str(e)
@@ -1739,7 +2057,11 @@ class UnifiedRAGSystem:
                 self.embedding_manager = EmbeddingManager(embedding_config)
                 await self.embedding_manager.initialize()
 
-            logger.info(f"Switched embedding model: {old_model} → {model_spec.model_id}")
+            _backend_logger.info(
+                f"Switched embedding model: {old_model} → {model_spec.model_id}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
 
             return {
                 "success": True,
@@ -1749,7 +2071,11 @@ class UnifiedRAGSystem:
             }
 
         except Exception as e:
-            logger.error(f"Failed to switch embedding model: {e}")
+            _backend_logger.error(
+                f"Failed to switch embedding model: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             return {
                 "success": False,
                 "error": str(e)
@@ -1795,7 +2121,11 @@ class UnifiedRAGSystem:
             ]
 
         except Exception as e:
-            logger.error(f"Failed to list models: {e}")
+            _backend_logger.error(
+                f"Failed to list models: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.core.unified_rag_system"
+            )
             return []
 
     def get_current_models(self) -> Dict[str, str]:

@@ -7,7 +7,6 @@ while maintaining complete isolation from permanent storage.
 
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
-import structlog
 import numpy as np
 
 from app.rag.core.embeddings import get_global_embedding_manager
@@ -16,7 +15,13 @@ from app.rag.ingestion.pipeline import RevolutionaryIngestionPipeline
 from app.config.session_document_config import session_document_config
 from app.models.session_document_models import SessionDocument
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
+# Get backend logger instance
+_backend_logger = get_backend_logger()
+
+
 
 
 class SessionVectorStore:
@@ -66,10 +71,18 @@ class SessionVectorStore:
             await self.ingestion_pipeline.initialize()
 
             self.is_initialized = True
-            logger.info("Session vector store initialized")
+            _backend_logger.info(
+                "Session vector store initialized",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.session_vector_store"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to initialize session vector store: {e}")
+            _backend_logger.error(
+                f"Failed to initialize session vector store: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.session_vector_store"
+            )
             self.is_initialized = True
     
     async def create_session_collection(self, session_id: str) -> bool:
@@ -91,11 +104,19 @@ class SessionVectorStore:
             }
 
             self.stats["total_sessions"] += 1
-            logger.info(f"Session collection created: {session_id}")
+            _backend_logger.info(
+                f"Session collection created: {session_id}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.session_vector_store"
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to create session collection {session_id}: {e}")
+            _backend_logger.error(
+                f"Failed to create session collection {session_id}: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.session_vector_store"
+            )
             return False
     
     async def add_document_to_session(self, session_id: str, document: SessionDocument) -> bool:
@@ -130,11 +151,19 @@ class SessionVectorStore:
             collection["document_count"] += 1
             self.stats["total_documents"] += 1
 
-            logger.info(f"Document added to session {session_id}: {document.document_id}")
+            _backend_logger.info(
+                f"Document added to session {session_id}: {document.document_id}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.session_vector_store"
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to add document to session {session_id}: {e}")
+            _backend_logger.error(
+                f"Failed to add document to session {session_id}: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.session_vector_store"
+            )
             return False
     
     async def search_session_documents(self, session_id: str, query: str, top_k: int = None) -> List[Dict[str, Any]]:
@@ -181,7 +210,11 @@ class SessionVectorStore:
             return results
 
         except Exception as e:
-            logger.error(f"Session search failed for {session_id}: {e}")
+            _backend_logger.error(
+                f"Session search failed for {session_id}: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.session_vector_store"
+            )
             return []
     
     async def _process_document(self, document: SessionDocument) -> List[str]:
@@ -209,7 +242,11 @@ class SessionVectorStore:
             return chunks if chunks else [text_content]
 
         except Exception as e:
-            logger.error(f"Failed to process document: {e}")
+            _backend_logger.error(
+                f"Failed to process document: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.session_vector_store"
+            )
             return []
     
     async def _generate_embeddings(self, text_chunks: List[str]) -> Optional[List[np.ndarray]]:
@@ -231,7 +268,11 @@ class SessionVectorStore:
                     return [np.array(emb) for emb in result]
             return None
         except Exception as e:
-            logger.error(f"Failed to generate embeddings: {e}")
+            _backend_logger.error(
+                f"Failed to generate embeddings: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.session_vector_store"
+            )
             return None
 
     async def _generate_query_embedding(self, query: str) -> Optional[np.ndarray]:
@@ -245,7 +286,11 @@ class SessionVectorStore:
                     return np.array(result[0]) if result else None
             return None
         except Exception as e:
-            logger.error(f"Failed to generate query embedding: {e}")
+            _backend_logger.error(
+                f"Failed to generate query embedding: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.session_vector_store"
+            )
             return None
     
     def _calculate_cosine_similarity(self, vec1: np.ndarray, vec2: np.ndarray) -> float:
@@ -262,7 +307,11 @@ class SessionVectorStore:
             return float(similarity)
             
         except Exception as e:
-            logger.error(f"Failed to calculate cosine similarity: {e}")
+            _backend_logger.error(
+                f"Failed to calculate cosine similarity: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.session_vector_store"
+            )
             return 0.0
     
     async def remove_session_collection(self, session_id: str) -> bool:
@@ -271,11 +320,19 @@ class SessionVectorStore:
             if session_id in self.session_collections:
                 del self.session_collections[session_id]
                 self.stats["total_sessions"] -= 1
-                logger.info(f"Session collection removed: {session_id}")
+                _backend_logger.info(
+                    f"Session collection removed: {session_id}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.session_vector_store"
+                )
                 return True
             return False
         except Exception as e:
-            logger.error(f"Failed to remove session collection {session_id}: {e}")
+            _backend_logger.error(
+                f"Failed to remove session collection {session_id}: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.session_vector_store"
+            )
             return False
 
     async def cleanup_expired_sessions(self) -> Dict[str, int]:
@@ -295,7 +352,11 @@ class SessionVectorStore:
             return {"sessions_cleaned": len(expired_sessions)}
 
         except Exception as e:
-            logger.error(f"Session cleanup failed: {e}")
+            _backend_logger.error(
+                f"Session cleanup failed: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.session_vector_store"
+            )
             return {"error": str(e)}
 
     def get_global_stats(self) -> Dict[str, Any]:

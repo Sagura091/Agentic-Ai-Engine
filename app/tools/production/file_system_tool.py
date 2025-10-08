@@ -26,7 +26,14 @@ from langchain_core.tools import BaseTool
 
 from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
 
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Legacy structlog for backward compatibility
 logger = structlog.get_logger(__name__)
+# Production backend logger
+backend_logger = get_logger()
 
 
 class FileOperation(str, Enum):
@@ -738,6 +745,18 @@ class FileSystemTool(BaseTool):
             # Get safe path
             safe_path = self._get_safe_path(input_data.path)
 
+            # Backend logging for tool operations
+            backend_logger.info(
+                f"File system operation started: {input_data.operation.value}",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={
+                    "operation": input_data.operation.value,
+                    "path": str(safe_path),
+                    "destination": input_data.destination if input_data.destination else None
+                }
+            )
+
             # Validate file size and type for existing files
             if safe_path.exists():
                 self._validate_file_size(safe_path, input_data.max_size)
@@ -822,6 +841,19 @@ class FileSystemTool(BaseTool):
                        execution_time=execution_time,
                        success=True)
 
+            # Backend logging for successful operations
+            backend_logger.info(
+                f"File system operation completed: {input_data.operation.value}",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={
+                    "operation": input_data.operation.value,
+                    "path": str(safe_path),
+                    "execution_time_ms": execution_time * 1000,
+                    "success_rate": (self._success_count + 1) / (self._operation_count + 1)
+                }
+            )
+
             return str(result)
 
         except Exception as e:
@@ -840,6 +872,20 @@ class FileSystemTool(BaseTool):
                         path=kwargs.get('path'),
                         error=str(e),
                         execution_time=execution_time)
+
+            # Backend logging for errors
+            backend_logger.error(
+                f"File system operation failed: {kwargs.get('operation', 'unknown')}",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                error=e,
+                data={
+                    "operation": kwargs.get('operation', 'unknown'),
+                    "path": kwargs.get('path', 'unknown'),
+                    "error_type": type(e).__name__,
+                    "execution_time_ms": execution_time * 1000
+                }
+            )
 
             return str(error_result)
 

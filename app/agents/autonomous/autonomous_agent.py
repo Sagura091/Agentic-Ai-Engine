@@ -15,7 +15,6 @@ from datetime import datetime, timedelta
 from enum import Enum
 from abc import ABC, abstractmethod
 
-import structlog
 from langchain_core.language_models import BaseLanguageModel
 from langchain_core.tools import BaseTool
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
@@ -27,10 +26,13 @@ from langgraph.prebuilt import ToolNode
 from pydantic import BaseModel, Field
 from typing_extensions import Annotated, TypedDict
 
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
 from app.agents.base.agent import LangGraphAgent, AgentConfig, AgentCapability
 from app.core.exceptions import AgentExecutionError
 
-logger = structlog.get_logger(__name__)
+_backend_logger = get_backend_logger()
 
 
 # PHASE 1 ENHANCEMENT: Master Orchestrator Agent Capabilities
@@ -259,12 +261,16 @@ class AutonomousLangGraphAgent(LangGraphAgent):
         # Initialize Phase 1 components asynchronously
         asyncio.create_task(self._initialize_autonomous_components())
 
-        logger.info(
+        _backend_logger.info(
             "Autonomous LangGraph agent initialized",
-            agent_id=self.agent_id,
-            autonomy_level=config.autonomy_level,
-            learning_mode=config.learning_mode,
-            capabilities=config.capabilities
+            LogCategory.AGENT_OPERATIONS,
+            "app.agents.autonomous.autonomous_agent",
+            data={
+                "agent_id": self.agent_id,
+                "autonomy_level": config.autonomy_level,
+                "learning_mode": config.learning_mode,
+                "capabilities": config.capabilities
+            }
         )
 
     async def _initialize_autonomous_components(self):
@@ -276,24 +282,37 @@ class AutonomousLangGraphAgent(LangGraphAgent):
             # Load persistent state if available
             await self._load_persistent_state()
 
-            logger.info(
+            _backend_logger.info(
                 "Autonomous components initialized",
-                agent_id=self.agent_id,
-                memory_initialized=self.memory_system.is_initialized
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "memory_initialized": self.memory_system.is_initialized
+                }
             )
 
         except Exception as e:
-            logger.error(
+            _backend_logger.error(
                 "Failed to initialize autonomous components",
-                agent_id=self.agent_id,
-                error=str(e)
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "error": str(e)
+                }
             )
 
     async def _load_persistent_state(self):
         """Load persistent state from database."""
         try:
             if not self.persistence_service:
-                logger.debug("No persistence service available", agent_id=self.agent_id)
+                _backend_logger.debug(
+                    "No persistence service available",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.autonomous.autonomous_agent",
+                    data={"agent_id": self.agent_id}
+                )
                 return
 
             # Load agent state
@@ -303,14 +322,26 @@ class AutonomousLangGraphAgent(LangGraphAgent):
                 self.decision_history = agent_state.get("decision_history", [])
                 self.adaptation_data = agent_state.get("adaptation_data", {})
 
-                logger.info("Persistent state loaded",
-                           agent_id=self.agent_id,
-                           decisions_loaded=len(self.decision_history))
+                _backend_logger.info(
+                    "Persistent state loaded",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.autonomous.autonomous_agent",
+                    data={
+                        "agent_id": self.agent_id,
+                        "decisions_loaded": len(self.decision_history)
+                    }
+                )
 
         except Exception as e:
-            logger.error("Failed to load persistent state",
-                        agent_id=self.agent_id,
-                        error=str(e))
+            _backend_logger.error(
+                "Failed to load persistent state",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "error": str(e)
+                }
+            )
 
     def _build_autonomous_graph(self) -> None:
         """Build enhanced LangGraph workflow with autonomous capabilities."""
@@ -365,13 +396,17 @@ class AutonomousLangGraphAgent(LangGraphAgent):
             )
         else:
             self.compiled_graph = self.graph.compile()
-        
-        logger.info(
+
+        _backend_logger.info(
             "Autonomous LangGraph workflow built",
-            agent_id=self.agent_id,
-            nodes=["autonomous_planning", "decision_making", "action_execution",
-                   "learning_reflection", "adaptation", "goal_management"],
-            autonomy_features=["decision_engine", "learning_system", "goal_manager"]
+            LogCategory.AGENT_OPERATIONS,
+            "app.agents.autonomous.autonomous_agent",
+            data={
+                "agent_id": self.agent_id,
+                "nodes": ["autonomous_planning", "decision_making", "action_execution",
+                          "learning_reflection", "adaptation", "goal_management"],
+                "autonomy_features": ["decision_engine", "learning_system", "goal_manager"]
+            }
         )
 
     async def execute(
@@ -568,18 +603,27 @@ class AutonomousLangGraphAgent(LangGraphAgent):
             # CRITICAL FIX: Increment iteration count to track progress
             updated_state["iteration_count"] = state.get("iteration_count", 0) + 1
 
-            logger.debug(
+            _backend_logger.debug(
                 "Autonomous planning completed",
-                agent_id=self.agent_id,
-                goals_count=len(plan.get("goals", [])),
-                plan_complexity=plan.get("complexity", "unknown"),
-                iteration=updated_state["iteration_count"]
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "goals_count": len(plan.get("goals", [])),
+                    "plan_complexity": plan.get("complexity", "unknown"),
+                    "iteration": updated_state["iteration_count"]
+                }
             )
 
             return updated_state
-            
+
         except Exception as e:
-            logger.error("Autonomous planning failed", agent_id=self.agent_id, error=str(e))
+            _backend_logger.error(
+                "Autonomous planning failed",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent",
+                data={"agent_id": self.agent_id, "error": str(e)}
+            )
             updated_state = state.copy()
             updated_state["errors"].append(f"Planning failed: {str(e)}")
             return updated_state
@@ -659,19 +703,28 @@ class AutonomousLangGraphAgent(LangGraphAgent):
                 AIMessage(content=f"Decision made: {decision.chosen_option.get('action', 'Unknown')} "
                                 f"(confidence: {decision.confidence:.2f})")
             )
-            
-            logger.info(
+
+            _backend_logger.info(
                 "Autonomous decision made",
-                agent_id=self.agent_id,
-                decision_type=decision.decision_type,
-                confidence=decision.confidence,
-                chosen_action=decision.chosen_option.get("action", "unknown")
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "decision_type": decision.decision_type,
+                    "confidence": decision.confidence,
+                    "chosen_action": decision.chosen_option.get("action", "unknown")
+                }
             )
-            
+
             return updated_state
-            
+
         except Exception as e:
-            logger.error("Decision making failed", agent_id=self.agent_id, error=str(e))
+            _backend_logger.error(
+                "Decision making failed",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent",
+                data={"agent_id": self.agent_id, "error": str(e)}
+            )
             updated_state = state.copy()
             updated_state["errors"].append(f"Decision making failed: {str(e)}")
             return updated_state
@@ -703,19 +756,35 @@ class AutonomousLangGraphAgent(LangGraphAgent):
 
                 print(f"🔧 **TOOL SELECTED**: {tool_name}")
                 print(f"📋 **PARAMETERS**: {tool_args}")
-                logger.debug(f"Attempting to execute tool: {tool_name} with args: {tool_args}")
-                logger.debug(f"Available tools: {list(self.tools.keys())}")
+                _backend_logger.debug(
+                    f"Attempting to execute tool: {tool_name} with args: {tool_args}",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.autonomous.autonomous_agent"
+                )
+                _backend_logger.debug(
+                    f"Available tools: {list(self.tools.keys())}",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.autonomous.autonomous_agent"
+                )
 
                 if tool_name and tool_name in self.tools:
                     tool = self.tools[tool_name]
                     print(f"⚡ **EXECUTING TOOL**: {tool_name} - Starting execution...")
-                    logger.info(f"Executing autonomous tool: {tool_name}")
+                    _backend_logger.info(
+                        f"Executing autonomous tool: {tool_name}",
+                        LogCategory.AGENT_OPERATIONS,
+                        "app.agents.autonomous.autonomous_agent"
+                    )
 
                     try:
                         result = await tool.ainvoke(tool_args)
                         print(f"✅ **TOOL EXECUTION COMPLETE**: {tool_name}")
                         print(f"📊 **RESULTS SUMMARY**: {str(result)[:200]}{'...' if len(str(result)) > 200 else ''}")
-                        logger.info(f"Tool execution successful: {tool_name} -> {result}")
+                        _backend_logger.info(
+                            f"Tool execution successful: {tool_name} -> {result}",
+                            LogCategory.AGENT_OPERATIONS,
+                            "app.agents.autonomous.autonomous_agent"
+                        )
 
                         # AGENT COMMUNICATION: Let the agent analyze and communicate the results
                         analysis_prompt = f"""
@@ -761,12 +830,20 @@ class AutonomousLangGraphAgent(LangGraphAgent):
                         )
 
                     except Exception as tool_error:
-                        logger.error(f"Tool execution failed: {tool_name} - {str(tool_error)}")
+                        _backend_logger.error(
+                            f"Tool execution failed: {tool_name} - {str(tool_error)}",
+                            LogCategory.AGENT_OPERATIONS,
+                            "app.agents.autonomous.autonomous_agent"
+                        )
                         updated_state["errors"].append(f"Tool execution failed: {tool_name} - {str(tool_error)}")
 
                 else:
                     error_msg = f"Tool not found or invalid: {tool_name}. Available: {list(self.tools.keys())}"
-                    logger.error(error_msg)
+                    _backend_logger.error(
+                        error_msg,
+                        LogCategory.AGENT_OPERATIONS,
+                        "app.agents.autonomous.autonomous_agent"
+                    )
                     updated_state["errors"].append(error_msg)
 
             elif action_type == "reasoning":
@@ -789,17 +866,26 @@ class AutonomousLangGraphAgent(LangGraphAgent):
                     AIMessage(content=f"Goal pursuit: {goal_result.get('status', 'unknown')}")
                 )
 
-            logger.debug(
+            _backend_logger.debug(
                 "Autonomous action executed",
-                agent_id=self.agent_id,
-                action_type=action_type,
-                success=len(updated_state["errors"]) == len(state["errors"])
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "action_type": action_type,
+                    "success": len(updated_state["errors"]) == len(state["errors"])
+                }
             )
 
             return updated_state
 
         except Exception as e:
-            logger.error("Action execution failed", agent_id=self.agent_id, error=str(e))
+            _backend_logger.error(
+                "Action execution failed",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent",
+                data={"agent_id": self.agent_id, "error": str(e)}
+            )
             updated_state = state.copy()
             updated_state["errors"].append(f"Action execution failed: {str(e)}")
             return updated_state
@@ -864,17 +950,26 @@ class AutonomousLangGraphAgent(LangGraphAgent):
                 AIMessage(content=f"Learning reflection completed: {learning_insights.get('summary', 'Insights gained')}")
             )
 
-            logger.info(
+            _backend_logger.info(
                 "Learning reflection completed",
-                agent_id=self.agent_id,
-                insights_count=len(learning_insights.get("insights", [])),
-                adaptation_score=learning_insights.get("adaptation_score", 0.0)
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "insights_count": len(learning_insights.get("insights", [])),
+                    "adaptation_score": learning_insights.get("adaptation_score", 0.0)
+                }
             )
 
             return updated_state
 
         except Exception as e:
-            logger.error("Learning reflection failed", agent_id=self.agent_id, error=str(e))
+            _backend_logger.error(
+                "Learning reflection failed",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent",
+                data={"agent_id": self.agent_id, "error": str(e)}
+            )
             updated_state = state.copy()
             updated_state["errors"].append(f"Learning reflection failed: {str(e)}")
             return updated_state
@@ -932,17 +1027,26 @@ class AutonomousLangGraphAgent(LangGraphAgent):
                 AIMessage(content=f"Behavioral adaptation completed: {len(applied_adaptations)} changes applied")
             )
 
-            logger.info(
+            _backend_logger.info(
                 "Behavioral adaptation completed",
-                agent_id=self.agent_id,
-                adaptations_applied=len(applied_adaptations),
-                changes=applied_adaptations
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "adaptations_applied": len(applied_adaptations),
+                    "changes": applied_adaptations
+                }
             )
 
             return updated_state
 
         except Exception as e:
-            logger.error("Adaptation failed", agent_id=self.agent_id, error=str(e))
+            _backend_logger.error(
+                "Adaptation failed",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent",
+                data={"agent_id": self.agent_id, "error": str(e)}
+            )
             updated_state = state.copy()
             updated_state["errors"].append(f"Adaptation failed: {str(e)}")
             return updated_state
@@ -968,16 +1072,25 @@ class AutonomousLangGraphAgent(LangGraphAgent):
                 AIMessage(content=f"Goal management: {len(updated_goals)} active goals")
             )
 
-            logger.debug(
+            _backend_logger.debug(
                 "Goal management completed",
-                agent_id=self.agent_id,
-                active_goals=len(updated_goals)
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "active_goals": len(updated_goals)
+                }
             )
 
             return updated_state
 
         except Exception as e:
-            logger.error("Goal management failed", agent_id=self.agent_id, error=str(e))
+            _backend_logger.error(
+                "Goal management failed",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent",
+                data={"agent_id": self.agent_id, "error": str(e)}
+            )
             updated_state = state.copy()
             updated_state["errors"].append(f"Goal management failed: {str(e)}")
             return updated_state
@@ -991,13 +1104,22 @@ class AutonomousLangGraphAgent(LangGraphAgent):
 
         # Safety check - end if too many errors
         if len(errors) > 5:
-            logger.warning("Too many errors, ending execution", agent_id=self.agent_id)
+            _backend_logger.warn(
+                "Too many errors, ending execution",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent",
+                data={"agent_id": self.agent_id}
+            )
             return "end"
 
         # CRITICAL FIX: Always prioritize action execution for the first few iterations
         # to ensure the agent actually uses tools instead of getting stuck in learning loops
         if iteration_count < 3:
-            logger.debug(f"Early iteration {iteration_count}, routing to decision making for action execution")
+            _backend_logger.debug(
+                f"Early iteration {iteration_count}, routing to decision making for action execution",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             return "make_decision"
 
         # Route based on autonomy level
@@ -1039,21 +1161,37 @@ class AutonomousLangGraphAgent(LangGraphAgent):
         if tools_used > 0 and state.get("outputs"):
             task_complete = self._is_task_truly_complete(state)
             if task_complete:
-                logger.info(f"Task completed successfully with {tools_used} tools used, ending execution")
+                _backend_logger.info(
+                    f"Task completed successfully with {tools_used} tools used, ending execution",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.autonomous.autonomous_agent"
+                )
                 return "end"
             else:
-                logger.debug(f"Task partially complete ({tools_used} tools used), continuing execution")
+                _backend_logger.debug(
+                    f"Task partially complete ({tools_used} tools used), continuing execution",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.autonomous.autonomous_agent"
+                )
                 # Continue execution to complete remaining requirements
                 return "continue"
 
         # CRITICAL FIX: Prevent infinite loops - limit total iterations
         if iteration_count >= max_iterations:
-            logger.warning(f"Maximum iterations ({max_iterations}) reached, ending execution")
+            _backend_logger.warn(
+                f"Maximum iterations ({max_iterations}) reached, ending execution",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             return "end"
 
         # CRITICAL FIX: End if we've been running too long without tool usage
         if iteration_count > 10 and tools_used == 0:
-            logger.warning(f"No tools used after {iteration_count} iterations, ending execution")
+            _backend_logger.warn(
+                f"No tools used after {iteration_count} iterations, ending execution",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             return "end"
 
         # Check if adaptation is needed
@@ -1064,7 +1202,11 @@ class AutonomousLangGraphAgent(LangGraphAgent):
 
         # Don't adapt too frequently
         if len(recent_adaptations) > 2:
-            logger.debug("Too many recent adaptations, ending execution")
+            _backend_logger.debug(
+                "Too many recent adaptations, ending execution",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             return "end"
 
         # Adapt if performance is declining
@@ -1083,11 +1225,19 @@ class AutonomousLangGraphAgent(LangGraphAgent):
         # Only continue if we haven't used tools yet and haven't exceeded reasonable limits
         goal_stack = state.get("goal_stack", [])
         if goal_stack and tools_used == 0 and iteration_count < 5:
-            logger.debug(f"Goals remain and no tools used yet (iteration {iteration_count}), continuing")
+            _backend_logger.debug(
+                f"Goals remain and no tools used yet (iteration {iteration_count}), continuing",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             return "continue"
 
         # End execution by default to prevent infinite loops
-        logger.info(f"Ending execution after {iteration_count} iterations with {tools_used} tools used")
+        _backend_logger.info(
+            f"Ending execution after {iteration_count} iterations with {tools_used} tools used",
+            LogCategory.AGENT_OPERATIONS,
+            "app.agents.autonomous.autonomous_agent"
+        )
         return "end"
 
     def _is_task_truly_complete(self, state: AutonomousAgentState) -> bool:
@@ -1119,13 +1269,25 @@ class AutonomousLangGraphAgent(LangGraphAgent):
                 ])
 
                 if has_analysis and not has_generation:
-                    logger.debug("Task requires both analysis and generation - analysis complete, generation pending")
+                    _backend_logger.debug(
+                        "Task requires both analysis and generation - analysis complete, generation pending",
+                        LogCategory.AGENT_OPERATIONS,
+                        "app.agents.autonomous.autonomous_agent"
+                    )
                     return False
                 elif has_analysis and has_generation:
-                    logger.debug("Task requires both analysis and generation - both complete")
+                    _backend_logger.debug(
+                        "Task requires both analysis and generation - both complete",
+                        LogCategory.AGENT_OPERATIONS,
+                        "app.agents.autonomous.autonomous_agent"
+                    )
                     return True
                 else:
-                    logger.debug("Task requires both analysis and generation - analysis pending")
+                    _backend_logger.debug(
+                        "Task requires both analysis and generation - analysis pending",
+                        LogCategory.AGENT_OPERATIONS,
+                        "app.agents.autonomous.autonomous_agent"
+                    )
                     return False
 
             # For single-requirement tasks, check if requirement is met
@@ -1145,7 +1307,11 @@ class AutonomousLangGraphAgent(LangGraphAgent):
             return bool(outputs)
 
         except Exception as e:
-            logger.warning(f"Task completion check failed: {e}")
+            _backend_logger.warn(
+                f"Task completion check failed: {e}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             # Default to incomplete to be safe
             return False
 
@@ -1329,14 +1495,26 @@ Make autonomous decisions about which tools to use and when to use them while ma
             try:
                 context_json = json.dumps(context_info, indent=2)
             except Exception as e:
-                logger.error(f"JSON serialization still failing: {e}")
+                _backend_logger.error(
+                    f"JSON serialization still failing: {e}",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.autonomous.autonomous_agent"
+                )
                 # Fallback: serialize everything as strings
                 context_info = {k: str(v) for k, v in context_info.items()}
                 context_json = json.dumps(context_info, indent=2)
 
             # Debug: Log what we're sending to the LLM
-            logger.debug(f"Sending to LLM - Prompt: {prompt[:100]}...")
-            logger.debug(f"Context length: {len(context_json)}")
+            _backend_logger.debug(
+                f"Sending to LLM - Prompt: {prompt[:100]}...",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
+            _backend_logger.debug(
+                f"Context length: {len(context_json)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
 
             response = await chain.ainvoke({
                 "prompt": prompt,
@@ -1345,20 +1523,41 @@ Make autonomous decisions about which tools to use and when to use them while ma
             })
 
             # Debug: Log what we got back
-            logger.debug(f"LLM response type: {type(response)}")
-            logger.debug(f"LLM response: {response}")
+            _backend_logger.debug(
+                f"LLM response type: {type(response)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
+            _backend_logger.debug(
+                f"LLM response: {response}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
 
             if hasattr(response, 'content'):
                 result = response.content
-                logger.debug(f"Response content: '{result}'")
+                _backend_logger.debug(
+                    f"Response content: '{result}'",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.autonomous.autonomous_agent"
+                )
             else:
                 result = str(response)
-                logger.debug(f"Response as string: '{result}'")
+                _backend_logger.debug(
+                    f"Response as string: '{result}'",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.autonomous.autonomous_agent"
+                )
 
             return result
 
         except Exception as e:
-            logger.error("Autonomous reasoning failed", agent_id=self.agent_id, error=str(e))
+            _backend_logger.error(
+                "Autonomous reasoning failed",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent",
+                data={"agent_id": self.agent_id, "error": str(e)}
+            )
             return f"Reasoning failed: {str(e)}"
 
     async def execute_orchestrated_task(self, task: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -1376,7 +1575,11 @@ Make autonomous decisions about which tools to use and when to use them while ma
             Dict containing orchestrated execution results
         """
         try:
-            logger.info(f"Starting orchestrated task execution: {task[:100]}...")
+            _backend_logger.info(
+                f"Starting orchestrated task execution: {task[:100]}...",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             start_time = time.time()
 
             # Initialize context
@@ -1388,36 +1591,96 @@ Make autonomous decisions about which tools to use and when to use them while ma
             })
 
             # STEP 1: Analyze the task
-            logger.info("🧠 Analyzing task complexity and requirements...")
+            _backend_logger.info(
+                "🧠 Analyzing task complexity and requirements...",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             task_analysis = await self.task_analyzer.analyze_task(task, execution_context)
 
-            logger.info(f"📊 Task Analysis Complete:")
-            logger.info(f"   - Complexity: {task_analysis.complexity}")
-            logger.info(f"   - Required Tools: {task_analysis.required_tools}")
-            logger.info(f"   - Strategy: {task_analysis.orchestration_strategy}")
+            _backend_logger.info(
+                f"📊 Task Analysis Complete:",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
+            _backend_logger.info(
+                f"   - Complexity: {task_analysis.complexity}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
+            _backend_logger.info(
+                f"   - Required Tools: {task_analysis.required_tools}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
+            _backend_logger.info(
+                f"   - Strategy: {task_analysis.orchestration_strategy}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
 
             # STEP 2: Select optimal agents
-            logger.info("🎯 Selecting specialized agents...")
+            _backend_logger.info(
+                "🎯 Selecting specialized agents...",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             agent_selection = await self.agent_selector.select_agents(task_analysis, execution_context)
 
-            logger.info(f"🤖 Agent Selection Complete:")
-            logger.info(f"   - Selected Agents: {len(agent_selection.selected_agents)}")
-            logger.info(f"   - Confidence: {agent_selection.confidence_score:.2f}")
+            _backend_logger.info(
+                f"🤖 Agent Selection Complete:",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
+            _backend_logger.info(
+                f"   - Selected Agents: {len(agent_selection.selected_agents)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
+            _backend_logger.info(
+                f"   - Confidence: {agent_selection.confidence_score:.2f}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
 
             # STEP 3: Create orchestrated workflow
-            logger.info("🎭 Creating orchestrated workflow...")
+            _backend_logger.info(
+                "🎭 Creating orchestrated workflow...",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             workflow = await self.workflow_orchestrator.create_workflow(agent_selection, execution_context)
 
-            logger.info(f"🔄 Workflow Created:")
-            logger.info(f"   - Execution Steps: {len(workflow.execution_steps)}")
-            logger.info(f"   - Coordination Points: {len(workflow.coordination_points)}")
+            _backend_logger.info(
+                f"🔄 Workflow Created:",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
+            _backend_logger.info(
+                f"   - Execution Steps: {len(workflow.execution_steps)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
+            _backend_logger.info(
+                f"   - Coordination Points: {len(workflow.coordination_points)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
 
             # STEP 4: Create shared context for multi-agent coordination
-            logger.info("🌐 Setting up cross-agent context...")
+            _backend_logger.info(
+                "🌐 Setting up cross-agent context...",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             context_id = await self.context_manager.create_shared_context(workflow.execution_id, execution_context)
 
             # STEP 5: Execute the orchestrated workflow
-            logger.info("🚀 Executing orchestrated workflow...")
+            _backend_logger.info(
+                "🚀 Executing orchestrated workflow...",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             workflow_results = await self.workflow_orchestrator.execute_workflow(workflow, execution_context)
 
             # STEP 6: Compile final results
@@ -1457,13 +1720,25 @@ Make autonomous decisions about which tools to use and when to use them while ma
                 "execution_time": execution_time
             })
 
-            logger.info(f"✅ Orchestrated execution completed in {execution_time:.2f} seconds")
-            logger.info(f"🎉 Coordinated {len(agent_selection.selected_agents)} specialized agents successfully!")
+            _backend_logger.info(
+                f"✅ Orchestrated execution completed in {execution_time:.2f} seconds",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
+            _backend_logger.info(
+                f"🎉 Coordinated {len(agent_selection.selected_agents)} specialized agents successfully!",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
 
             return final_results
 
         except Exception as e:
-            logger.error(f"Orchestrated execution failed: {str(e)}")
+            _backend_logger.error(
+                f"Orchestrated execution failed: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             return {
                 "status": "error",
                 "error": str(e),
@@ -1511,7 +1786,11 @@ class AutonomousDecisionEngine:
                         for mem in past_decisions
                     ]
             except Exception as e:
-                logger.debug(f"Failed to retrieve past decisions: {e}")
+                _backend_logger.debug(
+                    f"Failed to retrieve past decisions: {e}",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.autonomous.autonomous_agent"
+                )
 
         # Use full YAML config which contains decision_patterns and behavioral_rules
         metadata_engine = MetadataDrivenDecisionEngine(self.full_yaml_config)
@@ -1609,11 +1888,19 @@ class TaskAnalysisEngine:
             analysis = self._parse_analysis_response(task, response.content, context)
             self.analysis_history.append(analysis)
 
-            logger.info(f"Task analysis completed: {analysis.complexity} complexity, {len(analysis.required_tools)} tools needed")
+            _backend_logger.info(
+                f"Task analysis completed: {analysis.complexity} complexity, {len(analysis.required_tools)} tools needed",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             return analysis
 
         except Exception as e:
-            logger.error(f"Task analysis failed: {str(e)}")
+            _backend_logger.error(
+                f"Task analysis failed: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             # Return fallback analysis
             return TaskAnalysis(
                 original_task=task,
@@ -1717,12 +2004,20 @@ class AgentSelectionIntelligence:
             )
 
             self.selection_history.append(selection)
-            logger.info(f"Agent selection completed: {len(selected_agents)} agents selected with {confidence:.2f} confidence")
+            _backend_logger.info(
+                f"Agent selection completed: {len(selected_agents)} agents selected with {confidence:.2f} confidence",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
 
             return selection
 
         except Exception as e:
-            logger.error(f"Agent selection failed: {str(e)}")
+            _backend_logger.error(
+                f"Agent selection failed: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             # Return fallback selection
             return AgentSelection(
                 task_analysis=task_analysis,
@@ -1888,18 +2183,30 @@ class WorkflowOrchestrator:
             )
 
             self.active_executions[workflow.execution_id] = workflow
-            logger.info(f"Workflow created: {workflow.execution_id} with {len(execution_steps)} steps")
+            _backend_logger.info(
+                f"Workflow created: {workflow.execution_id} with {len(execution_steps)} steps",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
 
             return workflow
 
         except Exception as e:
-            logger.error(f"Workflow creation failed: {str(e)}")
+            _backend_logger.error(
+                f"Workflow creation failed: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             raise AgentExecutionError(f"Failed to create workflow: {str(e)}")
 
     async def execute_workflow(self, workflow: WorkflowExecution, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the orchestrated workflow."""
         try:
-            logger.info(f"Starting workflow execution: {workflow.execution_id}")
+            _backend_logger.info(
+                f"Starting workflow execution: {workflow.execution_id}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
 
             # Initialize execution context
             execution_context = {
@@ -1926,11 +2233,19 @@ class WorkflowOrchestrator:
             if workflow.execution_id in self.active_executions:
                 del self.active_executions[workflow.execution_id]
 
-            logger.info(f"Workflow execution completed: {workflow.execution_id}")
+            _backend_logger.info(
+                f"Workflow execution completed: {workflow.execution_id}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             return results
 
         except Exception as e:
-            logger.error(f"Workflow execution failed: {str(e)}")
+            _backend_logger.error(
+                f"Workflow execution failed: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             return {
                 "status": "error",
                 "error": str(e),
@@ -1943,7 +2258,11 @@ class WorkflowOrchestrator:
 
         for step in workflow.execution_steps:
             try:
-                logger.info(f"Executing step: {step['step_id']}")
+                _backend_logger.info(
+                    f"Executing step: {step['step_id']}",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.autonomous.autonomous_agent"
+                )
 
                 # For now, simulate agent execution (Phase 2 will implement actual agents)
                 step_result = await self._simulate_agent_execution(step, execution_context)
@@ -1952,10 +2271,18 @@ class WorkflowOrchestrator:
                 # Update execution context with results
                 execution_context["step_results"][step["step_id"]] = step_result
 
-                logger.info(f"Step completed: {step['step_id']}")
+                _backend_logger.info(
+                    f"Step completed: {step['step_id']}",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.autonomous.autonomous_agent"
+                )
 
             except Exception as e:
-                logger.error(f"Step execution failed: {step['step_id']} - {str(e)}")
+                _backend_logger.error(
+                    f"Step execution failed: {step['step_id']} - {str(e)}",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.autonomous.autonomous_agent"
+                )
                 results["status"] = "partial_failure"
                 results["failed_step"] = step["step_id"]
                 results["error"] = str(e)
@@ -1982,9 +2309,17 @@ class WorkflowOrchestrator:
             try:
                 step_result = await task
                 results["step_results"][step_id] = step_result
-                logger.info(f"Parallel step completed: {step_id}")
+                _backend_logger.info(
+                    f"Parallel step completed: {step_id}",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.autonomous.autonomous_agent"
+                )
             except Exception as e:
-                logger.error(f"Parallel step failed: {step_id} - {str(e)}")
+                _backend_logger.error(
+                    f"Parallel step failed: {step_id} - {str(e)}",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.autonomous.autonomous_agent"
+                )
                 results["status"] = "partial_failure"
                 results[f"error_{step_id}"] = str(e)
 
@@ -2049,14 +2384,22 @@ class CrossAgentContextManager:
             "coordination_state": "active"
         }
 
-        logger.info(f"Shared context created: {context_id} for workflow {workflow_id}")
+        _backend_logger.info(
+            f"Shared context created: {context_id} for workflow {workflow_id}",
+            LogCategory.AGENT_OPERATIONS,
+            "app.agents.autonomous.autonomous_agent"
+        )
         return context_id
 
     async def update_shared_context(self, context_id: str, agent_id: str, data: Dict[str, Any]) -> bool:
         """Update shared context with agent contribution."""
         try:
             if context_id not in self.shared_contexts:
-                logger.error(f"Shared context not found: {context_id}")
+                _backend_logger.error(
+                    f"Shared context not found: {context_id}",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.autonomous.autonomous_agent"
+                )
                 return False
 
             context = self.shared_contexts[context_id]
@@ -2079,11 +2422,19 @@ class CrossAgentContextManager:
 
             context["shared_data"]["results"][agent_id] = data
 
-            logger.info(f"Context updated by agent {agent_id} in context {context_id}")
+            _backend_logger.info(
+                f"Context updated by agent {agent_id} in context {context_id}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to update shared context: {str(e)}")
+            _backend_logger.error(
+                f"Failed to update shared context: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             return False
 
     async def get_shared_context(self, context_id: str, requesting_agent_id: str) -> Optional[Dict[str, Any]]:
@@ -2107,7 +2458,11 @@ class CrossAgentContextManager:
             }
 
         except Exception as e:
-            logger.error(f"Failed to get shared context: {str(e)}")
+            _backend_logger.error(
+                f"Failed to get shared context: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             return None
 
     async def coordinate_agents(self, context_id: str, coordination_type: str, data: Dict[str, Any]) -> bool:
@@ -2132,11 +2487,19 @@ class CrossAgentContextManager:
             elif coordination_type == "synchronization":
                 await self._handle_synchronization(context_id, data)
 
-            logger.info(f"Coordination event processed: {coordination_type} for context {context_id}")
+            _backend_logger.info(
+                f"Coordination event processed: {coordination_type} for context {context_id}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Coordination failed: {str(e)}")
+            _backend_logger.error(
+                f"Coordination failed: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )
             return False
 
     async def _handle_result_handoff(self, context_id: str, data: Dict[str, Any]):
@@ -2197,13 +2560,25 @@ class CrossAgentContextManager:
                 context["completed_at"] = datetime.utcnow()
 
                 # Archive context (in production, this might go to persistent storage)
-                logger.info(f"Context archived: {context_id}")
+                _backend_logger.info(
+                    f"Context archived: {context_id}",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.agents.autonomous.autonomous_agent"
+                )
 
                 # Remove from active contexts after a delay
                 await asyncio.sleep(60)  # Keep for 1 minute for any final access
                 if context_id in self.shared_contexts:
                     del self.shared_contexts[context_id]
-                    logger.info(f"Context cleaned up: {context_id}")
+                    _backend_logger.info(
+                        f"Context cleaned up: {context_id}",
+                        LogCategory.AGENT_OPERATIONS,
+                        "app.agents.autonomous.autonomous_agent"
+                    )
 
         except Exception as e:
-            logger.error(f"Context cleanup failed: {str(e)}")
+            _backend_logger.error(
+                f"Context cleanup failed: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.autonomous.autonomous_agent"
+            )

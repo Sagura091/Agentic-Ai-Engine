@@ -49,7 +49,14 @@ from .metrics import get_metrics_collector, MetricsCollector
 from .dlq import get_dlq, DeadLetterQueue, FailureReason
 from .health import get_health_registry, HealthCheckRegistry, check_pipeline_health
 
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Legacy structlog for backward compatibility
 logger = structlog.get_logger(__name__)
+# Production backend logger
+backend_logger = get_logger()
 
 
 class RevolutionaryIngestionConfig(BaseModel):
@@ -438,17 +445,44 @@ class RevolutionaryIngestionPipeline:
             
             # Store job
             self.jobs[job.id] = job
-            
+
             # Add to processing queue
             await self.processing_queue.put((job, collection, metadata or {}))
-            
+
             self.stats["jobs_created"] += 1
-            
+
             logger.info(f"File ingestion job created: {job.id}")
+
+            # Backend logging for RAG operations
+            backend_logger.info(
+                f"File ingestion job created: {file_path.name}",
+                LogCategory.RAG_OPERATIONS,
+                "IngestionPipeline",
+                data={
+                    "job_id": job.id,
+                    "file_name": file_path.name,
+                    "mime_type": mime_type,
+                    "collection": collection,
+                    "file_size_bytes": file_path.stat().st_size if file_path.exists() else 0
+                }
+            )
+
             return job.id
-            
+
         except Exception as e:
             logger.error(f"Failed to create file ingestion job: {str(e)}")
+
+            # Backend logging for errors
+            backend_logger.error(
+                f"Failed to create file ingestion job: {file_path}",
+                LogCategory.RAG_OPERATIONS,
+                "IngestionPipeline",
+                error=e,
+                data={
+                    "file_path": str(file_path),
+                    "error_type": type(e).__name__
+                }
+            )
             raise
     
     async def ingest_content(

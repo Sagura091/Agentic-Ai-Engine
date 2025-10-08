@@ -20,7 +20,6 @@ from enum import Enum
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import structlog
 from pydantic import BaseModel, Field, validator
 from sqlalchemy import Column, String, DateTime, JSON, Text, Integer, Boolean, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
@@ -28,9 +27,15 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-logger = structlog.get_logger(__name__)
 
 # Use existing Base from the application
+
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
+# Get backend logger instance
+_backend_logger = get_backend_logger()
+
 try:
     from app.models.enhanced_user import Base
 except ImportError:
@@ -387,4 +392,8 @@ class SessionWorkspaceFullError(SessionDocumentError):
     pass
 
 
-logger.info("🔥 Revolutionary Session Document Models initialized")
+_backend_logger.info(
+    "🔥 Revolutionary Session Document Models initialized",
+    LogCategory.DATA_MODELS,
+    "app.models.session_document_models"
+)

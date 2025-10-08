@@ -24,7 +24,6 @@ import uuid
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 
-import structlog
 from langchain_core.language_models import BaseLanguageModel
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -42,7 +41,12 @@ from app.agents.autonomous.learning_system import AdaptiveLearningSystem
 from app.agents.autonomous.persistent_memory import PersistentMemorySystem, MemoryType, MemoryImportance, MemoryTrace
 from app.agents.autonomous.decision_engine import DecisionOption, DecisionResult
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
+# Get backend logger instance
+_backend_logger = get_backend_logger()
 
 
 # ============================================================================
@@ -182,15 +186,19 @@ class ReActLangGraphAgent(LangGraphAgent):
         # Override the graph with ReAct-specific workflow
         self._build_react_graph()
 
-        logger.info(
+        _backend_logger.info(
             "🚀 Revolutionary ReAct agent initialized with autonomous intelligence",
-            agent_id=self.agent_id,
-            tools_available=len(self.tools),
-            thought_logging=config.enable_thought_logging,
-            decision_logging=config.enable_decision_logging,
-            memory_enabled=True,
-            learning_enabled=True,
-            decision_engine="metadata_driven"
+            LogCategory.AGENT_OPERATIONS,
+            "app.agents.react.react_agent",
+            data={
+                "agent_id": self.agent_id,
+                "tools_available": len(self.tools),
+                "thought_logging": config.enable_thought_logging,
+                "decision_logging": config.enable_decision_logging,
+                "memory_enabled": True,
+                "learning_enabled": True,
+                "decision_engine": "metadata_driven"
+            }
         )
     
     def _build_react_graph(self) -> None:
@@ -244,11 +252,15 @@ class ReActLangGraphAgent(LangGraphAgent):
             self.compiled_graph = self.graph.compile(checkpointer=self.checkpoint_saver)
         else:
             self.compiled_graph = self.graph.compile()
-        
-        logger.info(
+
+        _backend_logger.info(
             "ReAct LangGraph workflow built",
-            agent_id=self.agent_id,
-            nodes=["thought", "decision", "action", "tool_execution"]
+            LogCategory.AGENT_OPERATIONS,
+            "app.agents.react.react_agent",
+            data={
+                "agent_id": self.agent_id,
+                "nodes": ["thought", "decision", "action", "tool_execution"]
+            }
         )
     
     async def _thought_node(self, state: AgentGraphState) -> AgentGraphState:
@@ -266,11 +278,8 @@ class ReActLangGraphAgent(LangGraphAgent):
         Returns:
             Updated state with thought
         """
-        from app.backend_logging.backend_logger import get_logger
-        from app.backend_logging.models import LogCategory
         from app.core.clean_logging import get_conversation_logger
 
-        backend_logger = get_logger()
         conversation_logger = get_conversation_logger(self.name)
         thought_start_time = time.time()
 
@@ -332,10 +341,10 @@ Provide your reasoning in a clear, structured way. Be honest about what you can 
 
             chain = reasoning_prompt | self.llm  # ← CRITICAL: Regular LLM, NOT self.llm_with_tools
 
-            backend_logger.debug(
+            _backend_logger.debug(
                 "Invoking LLM for THOUGHT step (pure reasoning with memory)",
                 LogCategory.AGENT_OPERATIONS,
-                "ReActAgent",
+                "app.agents.react.react_agent",
                 data={
                     "agent_id": state["agent_id"],
                     "task": state["current_task"][:100],
@@ -353,10 +362,10 @@ Provide your reasoning in a clear, structured way. Be honest about what you can 
 
             thought_time_ms = (time.time() - thought_start_time) * 1000
 
-            backend_logger.info(
+            _backend_logger.info(
                 "THOUGHT step completed with memory",
                 LogCategory.AGENT_OPERATIONS,
-                "ReActAgent",
+                "app.agents.react.react_agent",
                 data={
                     "agent_id": state["agent_id"],
                     "thought_length": len(thought_text),
@@ -387,10 +396,14 @@ Provide your reasoning in a clear, structured way. Be honest about what you can 
             return updated_state
 
         except Exception as e:
-            logger.error(
+            _backend_logger.error(
                 "THOUGHT node failed",
-                agent_id=self.agent_id,
-                error=str(e)
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.react.react_agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "error": str(e)
+                }
             )
             updated_state = state.copy()
             updated_state["errors"].append(f"Thought failed: {str(e)}")
@@ -414,11 +427,8 @@ Provide your reasoning in a clear, structured way. Be honest about what you can 
         Returns:
             Updated state with decision
         """
-        from app.backend_logging.backend_logger import get_logger
-        from app.backend_logging.models import LogCategory
         from app.core.clean_logging import get_conversation_logger
 
-        backend_logger = get_logger()
         conversation_logger = get_conversation_logger(self.name)
         decision_start_time = time.time()
 
@@ -436,10 +446,10 @@ Provide your reasoning in a clear, structured way. Be honest about what you can 
                 "agent_id": state["agent_id"]
             }
 
-            backend_logger.debug(
+            _backend_logger.debug(
                 "Using MetadataDrivenDecisionEngine for DECISION step",
                 LogCategory.AGENT_OPERATIONS,
-                "ReActAgent",
+                "app.agents.react.react_agent",
                 data={
                     "agent_id": state["agent_id"],
                     "task": state["current_task"][:100],
@@ -497,14 +507,14 @@ Provide your reasoning in a clear, structured way. Be honest about what you can 
 
             decision_time_ms = (time.time() - decision_start_time) * 1000
 
-            backend_logger.info(
+            _backend_logger.info(
                 "DECISION step completed",
                 LogCategory.AGENT_OPERATIONS,
-                "ReActAgent",
+                "app.agents.react.react_agent",
                 data={
                     "agent_id": state["agent_id"],
                     "decision": decision_type,
-                    "confidence": confidence,
+                    "confidence": engine_decision.confidence,
                     "tools_selected": len(selected_tools),
                     "decision_time_ms": decision_time_ms
                 }
@@ -527,10 +537,14 @@ Provide your reasoning in a clear, structured way. Be honest about what you can 
             return updated_state
 
         except Exception as e:
-            logger.error(
+            _backend_logger.error(
                 "DECISION node failed",
-                agent_id=self.agent_id,
-                error=str(e)
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.react.react_agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "error": str(e)
+                }
             )
             updated_state = state.copy()
             updated_state["errors"].append(f"Decision failed: {str(e)}")
@@ -556,10 +570,6 @@ Provide your reasoning in a clear, structured way. Be honest about what you can 
         Returns:
             Updated state with action response
         """
-        from app.backend_logging.backend_logger import get_logger
-        from app.backend_logging.models import LogCategory
-
-        backend_logger = get_logger()
         action_start_time = time.time()
 
         try:
@@ -567,10 +577,10 @@ Provide your reasoning in a clear, structured way. Be honest about what you can 
             thought = state["custom_state"].get("current_thought", "")
             decision_type = decision.get("decision", "RESPOND")
 
-            backend_logger.debug(
+            _backend_logger.debug(
                 f"Executing ACTION: {decision_type}",
                 LogCategory.AGENT_OPERATIONS,
-                "ReActAgent",
+                "app.agents.react.react_agent",
                 data={
                     "agent_id": state["agent_id"],
                     "decision": decision_type
@@ -601,10 +611,10 @@ Provide a natural, helpful response. Be conversational and friendly."""
 
                 action_time_ms = (time.time() - action_start_time) * 1000
 
-                backend_logger.info(
+                _backend_logger.info(
                     "ACTION: Conversational response generated",
                     LogCategory.AGENT_OPERATIONS,
-                    "ReActAgent",
+                    "app.agents.react.react_agent",
                     data={
                         "agent_id": state["agent_id"],
                         "response_length": len(response.content) if hasattr(response, 'content') else 0,
@@ -636,10 +646,10 @@ Ask specific questions to clarify what the user needs."""
 
                 action_time_ms = (time.time() - action_start_time) * 1000
 
-                backend_logger.info(
+                _backend_logger.info(
                     "ACTION: Clarification request generated",
                     LogCategory.AGENT_OPERATIONS,
-                    "ReActAgent",
+                    "app.agents.react.react_agent",
                     data={
                         "agent_id": state["agent_id"],
                         "response_length": len(response.content) if hasattr(response, 'content') else 0,
@@ -677,10 +687,14 @@ Ask specific questions to clarify what the user needs."""
             return updated_state
 
         except Exception as e:
-            logger.error(
+            _backend_logger.error(
                 "ACTION node failed",
-                agent_id=self.agent_id,
-                error=str(e)
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.react.react_agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "error": str(e)
+                }
             )
 
             # Learn from failure
@@ -749,17 +763,25 @@ Ask specific questions to clarify what the user needs."""
             if self.learning_system.learning_stats["total_experiences"] % 10 == 0:
                 insights = await self.learning_system.analyze_and_learn()
                 if insights:
-                    logger.info(
+                    _backend_logger.info(
                         "Learning insights generated",
-                        agent_id=self.agent_id,
-                        insights_count=len(insights)
+                        LogCategory.AGENT_OPERATIONS,
+                        "app.agents.react.react_agent",
+                        data={
+                            "agent_id": self.agent_id,
+                            "insights_count": len(insights)
+                        }
                     )
 
         except Exception as e:
-            logger.warning(
+            _backend_logger.warn(
                 "Learning from interaction failed",
-                agent_id=self.agent_id,
-                error=str(e)
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.react.react_agent",
+                data={
+                    "agent_id": self.agent_id,
+                    "error": str(e)
+                }
             )
 
     def _route_after_decision(self, state: AgentGraphState) -> str:

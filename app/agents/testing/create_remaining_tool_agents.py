@@ -102,7 +102,6 @@ import uuid
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 
-import structlog
 from langchain_core.language_models import BaseLanguageModel
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
@@ -115,7 +114,13 @@ from app.tools.production.{config["tool_name"]} import {config["tool_name"]}
 from app.llm.manager import get_enhanced_llm_manager
 from app.llm.models import LLMConfig, ProviderType
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
+# Get backend logger instance
+_backend_logger = get_backend_logger()
+
+
 
 
 class {class_name}:
@@ -171,7 +176,14 @@ When handling operations:
 
 Think step by step and explain your reasoning for each operation."""
         
-        logger.info("{config["agent_name"]} initialized", agent_id=self.agent_id)
+        _backend_logger.info(
+            "{config["agent_name"]} initialized",
+            LogCategory.AGENT_OPERATIONS,
+            "app.agents.testing.create_remaining_tool_agents"
+            data={
+                "agent_id": self.agent_id
+            }
+        )
     
     async def initialize(self) -> bool:
         """Initialize the agent with LLM and tools."""
@@ -195,11 +207,22 @@ Think step by step and explain your reasoning for each operation."""
             factory = AgentBuilderFactory(self.llm_manager)
             self.agent = await factory.build_agent(config)
             
-            logger.info("{config["agent_name"]} initialized successfully")
+            _backend_logger.info(
+                "{config["agent_name"]} initialized successfully",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.testing.create_remaining_tool_agents"
+            )
             return True
             
         except Exception as e:
-            logger.error("Failed to initialize {config["agent_name"]}", error=str(e))
+            _backend_logger.error(
+                "Failed to initialize {config["agent_name"]}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.testing.create_remaining_tool_agents"
+                data={
+                    "error": str(e)
+                }
+            )
             return False
     
     async def process_request(self, user_query: str) -> Dict[str, Any]:
@@ -279,7 +302,14 @@ Think step by step and explain your reasoning for each operation."""
             }
             
         except Exception as e:
-            logger.error("{config["agent_name"]} request failed", error=str(e))
+            _backend_logger.error(
+                "{config["agent_name"]} request failed",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.testing.create_remaining_tool_agents"
+                data={
+                    "error": str(e)
+                }
+            )
             
             # Log error
             if self.session_id:
@@ -324,7 +354,14 @@ Think step by step and explain your reasoning for each operation."""
                 
         except Exception as e:
             execution_time = (datetime.now() - start_time).total_seconds()
-            logger.error("Operation failed", error=str(e))
+            _backend_logger.error(
+                "Operation failed",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.testing.create_remaining_tool_agents"
+                data={
+                    "error": str(e)
+                }
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -367,7 +404,14 @@ Is there anything else you'd like me to help you with?"""
         results = []
         
         for query in demo_queries:
-            logger.info("Demonstrating capability", query=query)
+            _backend_logger.info(
+                "Demonstrating capability",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.testing.create_remaining_tool_agents"
+                data={
+                    "query": query
+                }
+            )
             result = await self.process_request(query)
             results.append({{
                 "query": query,

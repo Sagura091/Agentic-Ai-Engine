@@ -10,11 +10,16 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 import asyncio
-import structlog
 
-logger = structlog.get_logger(__name__)
 
 T = TypeVar('T')
+
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
+# Get backend logger instance
+_backend_logger = get_backend_logger()
+
 
 
 class ServiceLifetime(Enum):
@@ -330,7 +335,11 @@ def register_services(container: ServiceContainer):
     container.register_singleton(AgentCommunicationSystem, AgentCommunicationSystem)
     
     # Register other services as needed
-    logger.info("All services registered successfully")
+    _backend_logger.info(
+        "All services registered successfully",
+        LogCategory.SYSTEM_HEALTH,
+        "app.core.dependency_injection"
+    )
 
 
 # Dependency injection decorators

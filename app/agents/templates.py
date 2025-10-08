@@ -25,13 +25,14 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
-import structlog
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
 
 from app.agents.factory import AgentType, AgentTemplate, AgentBuilderConfig
 from app.agents.base.agent import AgentCapability
 from app.llm.models import LLMConfig, ProviderType
 
-logger = structlog.get_logger(__name__)
+_backend_logger = get_backend_logger()
 
 
 class AgentComponent:
@@ -654,16 +655,25 @@ Always focus on business impact and provide clear, actionable recommendations ba
                 "created_at": datetime.utcnow().isoformat()
             }
 
-            logger.info(
+            _backend_logger.info(
                 "Component agent created from template",
-                component_agent_id=component_agent_id,
-                template_name=template_name
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.templates",
+                data={
+                    "component_agent_id": component_agent_id,
+                    "template_name": template_name
+                }
             )
 
             return component_agent
 
         except Exception as e:
-            logger.error("Failed to create component agent from template", error=str(e))
+            _backend_logger.error(
+                "Failed to create component agent from template",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.templates",
+                data={"error": str(e)}
+            )
             raise
 
     async def execute_workflow_from_components(
@@ -686,11 +696,15 @@ Always focus on business impact and provide clear, actionable recommendations ba
                 "results": {}
             }
 
-            logger.info(
+            _backend_logger.info(
                 "Starting component workflow execution",
-                workflow_id=workflow_id,
-                num_components=len(components),
-                execution_mode=execution_mode
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.templates",
+                data={
+                    "workflow_id": workflow_id,
+                    "num_components": len(components),
+                    "execution_mode": execution_mode
+                }
             )
 
             # Execute components based on mode
@@ -710,17 +724,26 @@ Always focus on business impact and provide clear, actionable recommendations ba
                 workflow_context["end_time"] - workflow_context["start_time"]
             ).total_seconds()
 
-            logger.info(
+            _backend_logger.info(
                 "Component workflow execution completed",
-                workflow_id=workflow_id,
-                execution_time=workflow_context["execution_time"],
-                num_results=len(results)
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.templates",
+                data={
+                    "workflow_id": workflow_id,
+                    "execution_time": workflow_context["execution_time"],
+                    "num_results": len(results)
+                }
             )
 
             return workflow_context
 
         except Exception as e:
-            logger.error("Component workflow execution failed", error=str(e))
+            _backend_logger.error(
+                "Component workflow execution failed",
+                LogCategory.AGENT_OPERATIONS,
+                "app.agents.templates",
+                data={"error": str(e)}
+            )
             raise
 
     async def _execute_sequential_components(

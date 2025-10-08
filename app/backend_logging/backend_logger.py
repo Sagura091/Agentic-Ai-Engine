@@ -11,6 +11,9 @@ import json
 import logging
 import sys
 import traceback
+import re
+import random
+import hashlib
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Union
@@ -19,6 +22,17 @@ import queue
 import time
 import yaml
 import os
+from collections import defaultdict
+
+# Optional cryptography imports for log encryption
+try:
+    from cryptography.fernet import Fernet
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+    from cryptography.hazmat.backends import default_backend
+    CRYPTOGRAPHY_AVAILABLE = True
+except ImportError:
+    CRYPTOGRAPHY_AVAILABLE = False
 
 from .models import (
     LogEntry, LogLevel, LogCategory, LogContext,
@@ -27,7 +41,7 @@ from .models import (
     LoggingMode, ModuleConfig, ConversationConfig, TierConfig
 )
 from .context import CorrelationContext, SystemContext
-from .formatters import JSONFormatter, StructuredFormatter, ConversationFormatter
+from .formatters import JSONFormatter, StructuredFormatter, ConversationFormatter, ColoredStructuredFormatter
 from .handlers import AsyncFileHandler
 
 
@@ -101,6 +115,11 @@ def load_config_from_yaml(yaml_path: str = "config/logging.yaml") -> LogConfigur
             show_timestamps=global_config.get('show_timestamps', False),
             timestamp_format=global_config.get('timestamp_format', 'simple'),
 
+            # Color settings
+            enable_colors=global_config.get('enable_colors', True),
+            color_scheme=global_config.get('color_scheme', 'default'),
+            force_colors=global_config.get('force_colors', False),
+
             # Module configs
             module_configs=module_configs,
 
@@ -131,6 +150,568 @@ def load_config_from_yaml(yaml_path: str = "config/logging.yaml") -> LogConfigur
     except Exception as e:
         logging.error(f"Failed to load YAML config: {e}")
         return LogConfiguration()
+
+
+# ============================================================================
+# PII REDACTION ENGINE
+# ============================================================================
+
+class PIIRedactor:
+    """
+    Production-ready PII redaction engine for log sanitization.
+
+    Redacts sensitive information including:
+    - Email addresses
+    - Phone numbers
+    - Credit card numbers
+    - Social Security Numbers
+    - IP addresses
+    - Custom patterns
+    """
+
+    # Regex patterns for common PII
+    EMAIL_PATTERN = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b')
+    PHONE_PATTERN = re.compile(r'\b(?:\+?1[-.]?)?\(?([0-9]{3})\)?[-.]?([0-9]{3})[-.]?([0-9]{4})\b')
+    CREDIT_CARD_PATTERN = re.compile(r'\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|6(?:011|5[0-9]{2})[0-9]{12}|(?:2131|1800|35\d{3})\d{11})\b')
+    SSN_PATTERN = re.compile(r'\b(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b')
+    IP_ADDRESS_PATTERN = re.compile(r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b')
+
+    def __init__(self, config: LogConfiguration):
+        self.config = config
+        self.custom_patterns = [re.compile(pattern) for pattern in config.custom_redaction_patterns]
+
+    def redact(self, text: str) -> str:
+        """Redact PII from text."""
+        if not self.config.enable_pii_redaction:
+            return text
+
+        if not isinstance(text, str):
+            return text
+
+        # Redact email addresses
+        if self.config.redact_email_addresses:
+            text = self.EMAIL_PATTERN.sub('[EMAIL_REDACTED]', text)
+
+        # Redact phone numbers
+        if self.config.redact_phone_numbers:
+            text = self.PHONE_PATTERN.sub('[PHONE_REDACTED]', text)
+
+        # Redact credit cards
+        if self.config.redact_credit_cards:
+            text = self.CREDIT_CARD_PATTERN.sub('[CREDIT_CARD_REDACTED]', text)
+
+        # Redact SSNs
+        if self.config.redact_ssn:
+            text = self.SSN_PATTERN.sub('[SSN_REDACTED]', text)
+
+        # Redact IP addresses
+        if self.config.redact_ip_addresses:
+            text = self.IP_ADDRESS_PATTERN.sub('[IP_REDACTED]', text)
+
+        # Redact custom patterns
+        for pattern in self.custom_patterns:
+            text = pattern.sub('[REDACTED]', text)
+
+        return text
+
+    def redact_dict(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Recursively redact PII from dictionary."""
+        if not self.config.enable_pii_redaction:
+            return data
+
+        if not isinstance(data, dict):
+            return data
+
+        redacted = {}
+        for key, value in data.items():
+            if isinstance(value, str):
+                redacted[key] = self.redact(value)
+            elif isinstance(value, dict):
+                redacted[key] = self.redact_dict(value)
+            elif isinstance(value, list):
+                redacted[key] = [self.redact(item) if isinstance(item, str) else item for item in value]
+            else:
+                redacted[key] = value
+
+        return redacted
+
+
+# ============================================================================
+# LOG SAMPLING ENGINE
+# ============================================================================
+
+class LogSampler:
+    """
+    Production-ready log sampling engine for high-volume scenarios.
+
+    Features:
+    - Adaptive sampling based on QPS
+    - Always sample errors and critical logs
+    - Category-based sampling rules
+    - Deterministic sampling for correlation
+    """
+
+    def __init__(self, config: LogConfiguration):
+        self.config = config
+        self.request_count = 0
+        self.last_reset = time.time()
+        self.current_qps = 0.0
+        self._lock = threading.Lock()
+
+    def should_sample(self, log_entry: LogEntry) -> bool:
+        """Determine if log entry should be sampled."""
+        if not self.config.enable_sampling:
+            return True
+
+        # Always sample errors
+        if self.config.always_sample_errors and log_entry.level in [LogLevel.ERROR, LogLevel.FATAL]:
+            return True
+
+        # Always sample specific categories
+        if log_entry.category in self.config.always_sample_categories:
+            return True
+
+        # Update QPS calculation
+        with self._lock:
+            self.request_count += 1
+            current_time = time.time()
+            elapsed = current_time - self.last_reset
+
+            if elapsed >= 1.0:
+                self.current_qps = self.request_count / elapsed
+                self.request_count = 0
+                self.last_reset = current_time
+
+        # Only sample if QPS exceeds threshold
+        if self.current_qps < self.config.sampling_threshold_qps:
+            return True
+
+        # Deterministic sampling based on correlation ID for consistency
+        if log_entry.context and log_entry.context.correlation_id:
+            # Use hash of correlation ID for deterministic sampling
+            hash_value = int(hashlib.md5(log_entry.context.correlation_id.encode()).hexdigest(), 16)
+            return (hash_value % 10000) < (self.config.sampling_rate * 10000)
+
+        # Random sampling as fallback
+        return random.random() < self.config.sampling_rate
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get sampling statistics."""
+        return {
+            "enabled": self.config.enable_sampling,
+            "current_qps": self.current_qps,
+            "sampling_rate": self.config.sampling_rate,
+            "threshold_qps": self.config.sampling_threshold_qps
+        }
+
+
+# ============================================================================
+# ERROR AGGREGATION ENGINE
+# ============================================================================
+
+class ErrorAggregator:
+    """
+    Production-ready error aggregation engine for centralized error tracking.
+
+    Supports:
+    - Sentry integration
+    - Rollbar integration
+    - Custom error tracking services
+    - Breadcrumb tracking
+    - Error grouping
+    """
+
+    def __init__(self, config: LogConfiguration):
+        self.config = config
+        self.sentry_sdk = None
+        self.breadcrumbs = []
+        self._lock = threading.Lock()
+
+        if config.enable_error_aggregation:
+            self._initialize_service()
+
+    def _initialize_service(self):
+        """Initialize error aggregation service."""
+        try:
+            if self.config.error_aggregation_service == "sentry":
+                self._initialize_sentry()
+            elif self.config.error_aggregation_service == "rollbar":
+                self._initialize_rollbar()
+        except Exception as e:
+            logging.error(f"Failed to initialize error aggregation service: {e}")
+
+    def _initialize_sentry(self):
+        """Initialize Sentry SDK."""
+        try:
+            import sentry_sdk
+            from sentry_sdk.integrations.logging import LoggingIntegration
+
+            if not self.config.error_aggregation_dsn:
+                logging.warning("Sentry DSN not configured, skipping initialization")
+                return
+
+            sentry_sdk.init(
+                dsn=self.config.error_aggregation_dsn,
+                environment=self.config.error_aggregation_environment,
+                traces_sample_rate=self.config.error_aggregation_traces_sample_rate,
+                sample_rate=self.config.error_aggregation_sample_rate,
+                max_breadcrumbs=self.config.max_breadcrumbs,
+                integrations=[
+                    LoggingIntegration(
+                        level=logging.INFO,
+                        event_level=logging.ERROR
+                    )
+                ]
+            )
+
+            self.sentry_sdk = sentry_sdk
+            logging.info("Sentry error aggregation initialized successfully")
+
+        except ImportError:
+            logging.warning("sentry-sdk not installed, error aggregation disabled")
+        except Exception as e:
+            logging.error(f"Failed to initialize Sentry: {e}")
+
+    def _initialize_rollbar(self):
+        """Initialize Rollbar SDK."""
+        try:
+            import rollbar
+
+            if not self.config.error_aggregation_dsn:
+                logging.warning("Rollbar access token not configured, skipping initialization")
+                return
+
+            rollbar.init(
+                access_token=self.config.error_aggregation_dsn,
+                environment=self.config.error_aggregation_environment
+            )
+
+            logging.info("Rollbar error aggregation initialized successfully")
+
+        except ImportError:
+            logging.warning("rollbar not installed, error aggregation disabled")
+        except Exception as e:
+            logging.error(f"Failed to initialize Rollbar: {e}")
+
+    def capture_error(self, log_entry: LogEntry):
+        """Capture error in aggregation service."""
+        if not self.config.enable_error_aggregation:
+            return
+
+        if log_entry.level not in [LogLevel.ERROR, LogLevel.FATAL]:
+            return
+
+        try:
+            if self.config.error_aggregation_service == "sentry" and self.sentry_sdk:
+                self._capture_sentry_error(log_entry)
+            elif self.config.error_aggregation_service == "rollbar":
+                self._capture_rollbar_error(log_entry)
+        except Exception as e:
+            logging.error(f"Failed to capture error in aggregation service: {e}")
+
+    def _capture_sentry_error(self, log_entry: LogEntry):
+        """Capture error in Sentry."""
+        if not self.sentry_sdk:
+            return
+
+        with self.sentry_sdk.push_scope() as scope:
+            # Add context
+            if log_entry.context:
+                scope.set_context("log_context", log_entry.context.dict(exclude_none=True))
+
+            # Add tags
+            scope.set_tag("category", log_entry.category.value)
+            scope.set_tag("component", log_entry.component)
+            scope.set_tag("level", log_entry.level.value)
+
+            # Add extra data
+            if log_entry.data:
+                scope.set_context("log_data", log_entry.data)
+
+            if log_entry.performance:
+                scope.set_context("performance", log_entry.performance.dict(exclude_none=True))
+
+            # Add breadcrumbs
+            if self.config.capture_breadcrumbs:
+                for breadcrumb in self.breadcrumbs:
+                    self.sentry_sdk.add_breadcrumb(breadcrumb)
+
+            # Capture exception or message
+            if log_entry.error_details and log_entry.error_details.stack_trace:
+                self.sentry_sdk.capture_message(
+                    log_entry.message,
+                    level=log_entry.level.value.lower()
+                )
+            else:
+                self.sentry_sdk.capture_message(
+                    log_entry.message,
+                    level=log_entry.level.value.lower()
+                )
+
+    def _capture_rollbar_error(self, log_entry: LogEntry):
+        """Capture error in Rollbar."""
+        try:
+            import rollbar
+
+            extra_data = {
+                "category": log_entry.category.value,
+                "component": log_entry.component,
+                "context": log_entry.context.dict(exclude_none=True) if log_entry.context else {}
+            }
+
+            if log_entry.data:
+                extra_data["data"] = log_entry.data
+
+            if log_entry.performance:
+                extra_data["performance"] = log_entry.performance.dict(exclude_none=True)
+
+            rollbar.report_message(
+                log_entry.message,
+                level=log_entry.level.value.lower(),
+                extra_data=extra_data
+            )
+        except Exception as e:
+            logging.error(f"Failed to capture error in Rollbar: {e}")
+
+    def add_breadcrumb(self, message: str, category: str = "default", level: str = "info", data: Dict[str, Any] = None):
+        """Add breadcrumb for error context."""
+        if not self.config.capture_breadcrumbs:
+            return
+
+        with self._lock:
+            breadcrumb = {
+                "message": message,
+                "category": category,
+                "level": level,
+                "timestamp": datetime.utcnow().isoformat(),
+                "data": data or {}
+            }
+
+            self.breadcrumbs.append(breadcrumb)
+
+            # Limit breadcrumbs
+            if len(self.breadcrumbs) > self.config.max_breadcrumbs:
+                self.breadcrumbs.pop(0)
+
+
+# ============================================================================
+# OPENTELEMETRY INTEGRATION
+# ============================================================================
+
+class OpenTelemetryIntegration:
+    """
+    Production-ready OpenTelemetry integration for distributed tracing.
+
+    Features:
+    - Trace context propagation
+    - Span creation and management
+    - Metrics collection
+    - Log correlation
+    """
+
+    def __init__(self, config: LogConfiguration):
+        self.config = config
+        self.tracer = None
+        self.meter = None
+        self.logger_provider = None
+
+        if config.enable_opentelemetry:
+            self._initialize_opentelemetry()
+
+    def _initialize_opentelemetry(self):
+        """Initialize OpenTelemetry SDK."""
+        try:
+            from opentelemetry import trace, metrics
+            from opentelemetry.sdk.trace import TracerProvider
+            from opentelemetry.sdk.trace.export import BatchSpanProcessor
+            from opentelemetry.sdk.metrics import MeterProvider
+            from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+            from opentelemetry.sdk.resources import Resource
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+            from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+
+            # Create resource
+            resource_attributes = {
+                "service.name": self.config.otel_service_name,
+                **self.config.otel_resource_attributes
+            }
+            resource = Resource.create(resource_attributes)
+
+            # Initialize tracing
+            if self.config.otel_traces_enabled and self.config.otel_exporter_endpoint:
+                tracer_provider = TracerProvider(resource=resource)
+
+                otlp_exporter = OTLPSpanExporter(
+                    endpoint=self.config.otel_exporter_endpoint,
+                    insecure=True  # Use TLS in production
+                )
+
+                span_processor = BatchSpanProcessor(otlp_exporter)
+                tracer_provider.add_span_processor(span_processor)
+
+                trace.set_tracer_provider(tracer_provider)
+                self.tracer = trace.get_tracer(__name__)
+
+                logging.info("OpenTelemetry tracing initialized successfully")
+
+            # Initialize metrics
+            if self.config.otel_metrics_enabled and self.config.otel_exporter_endpoint:
+                metric_exporter = OTLPMetricExporter(
+                    endpoint=self.config.otel_exporter_endpoint,
+                    insecure=True  # Use TLS in production
+                )
+
+                metric_reader = PeriodicExportingMetricReader(metric_exporter)
+                meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
+
+                metrics.set_meter_provider(meter_provider)
+                self.meter = metrics.get_meter(__name__)
+
+                logging.info("OpenTelemetry metrics initialized successfully")
+
+        except ImportError:
+            logging.warning("OpenTelemetry SDK not installed, distributed tracing disabled")
+        except Exception as e:
+            logging.error(f"Failed to initialize OpenTelemetry: {e}")
+
+    def create_span(self, name: str, attributes: Dict[str, Any] = None):
+        """Create a new span for tracing."""
+        if not self.tracer:
+            return None
+
+        try:
+            span = self.tracer.start_span(name)
+
+            if attributes:
+                for key, value in attributes.items():
+                    span.set_attribute(key, value)
+
+            return span
+        except Exception as e:
+            logging.error(f"Failed to create span: {e}")
+            return None
+
+    def add_log_to_span(self, log_entry: LogEntry):
+        """Add log entry as span event."""
+        if not self.tracer:
+            return
+
+        try:
+            from opentelemetry import trace
+
+            current_span = trace.get_current_span()
+            if current_span and current_span.is_recording():
+                current_span.add_event(
+                    log_entry.message,
+                    attributes={
+                        "log.level": log_entry.level.value,
+                        "log.category": log_entry.category.value,
+                        "log.component": log_entry.component
+                    }
+                )
+        except Exception as e:
+            logging.error(f"Failed to add log to span: {e}")
+
+
+# ============================================================================
+# LOG METRICS COLLECTOR
+# ============================================================================
+
+class LogMetricsCollector:
+    """
+    Production-ready metrics collector for log analytics.
+
+    Tracks:
+    - Total log count by level/category
+    - Error rates
+    - Performance percentiles
+    - Log volume trends
+    """
+
+    def __init__(self, config: LogConfiguration):
+        self.config = config
+        self.metrics = {
+            "total_logs": 0,
+            "logs_by_level": defaultdict(int),
+            "logs_by_category": defaultdict(int),
+            "logs_by_component": defaultdict(int),
+            "error_count": 0,
+            "warning_count": 0,
+            "performance_samples": []
+        }
+        self._lock = threading.Lock()
+        self.last_aggregation = time.time()
+
+    def record_log(self, log_entry: LogEntry):
+        """Record log entry metrics."""
+        if not self.config.enable_log_metrics:
+            return
+
+        with self._lock:
+            self.metrics["total_logs"] += 1
+            self.metrics["logs_by_level"][log_entry.level.value] += 1
+            self.metrics["logs_by_category"][log_entry.category.value] += 1
+            self.metrics["logs_by_component"][log_entry.component] += 1
+
+            if log_entry.level in [LogLevel.ERROR, LogLevel.FATAL]:
+                self.metrics["error_count"] += 1
+            elif log_entry.level == LogLevel.WARN:
+                self.metrics["warning_count"] += 1
+
+            # Track performance metrics
+            if self.config.track_performance_percentiles and log_entry.performance:
+                if log_entry.performance.duration_ms:
+                    self.metrics["performance_samples"].append(log_entry.performance.duration_ms)
+
+                    # Limit samples
+                    if len(self.metrics["performance_samples"]) > 10000:
+                        self.metrics["performance_samples"] = self.metrics["performance_samples"][-5000:]
+
+    def get_metrics(self) -> Dict[str, Any]:
+        """Get current metrics."""
+        with self._lock:
+            metrics = {
+                "total_logs": self.metrics["total_logs"],
+                "logs_by_level": dict(self.metrics["logs_by_level"]),
+                "logs_by_category": dict(self.metrics["logs_by_category"]),
+                "logs_by_component": dict(self.metrics["logs_by_component"]),
+                "error_count": self.metrics["error_count"],
+                "warning_count": self.metrics["warning_count"]
+            }
+
+            # Calculate error rate
+            if self.metrics["total_logs"] > 0:
+                metrics["error_rate"] = self.metrics["error_count"] / self.metrics["total_logs"]
+            else:
+                metrics["error_rate"] = 0.0
+
+            # Calculate performance percentiles
+            if self.config.track_performance_percentiles and self.metrics["performance_samples"]:
+                sorted_samples = sorted(self.metrics["performance_samples"])
+                count = len(sorted_samples)
+
+                metrics["performance_percentiles"] = {
+                    "p50": sorted_samples[int(count * 0.5)],
+                    "p90": sorted_samples[int(count * 0.9)],
+                    "p95": sorted_samples[int(count * 0.95)],
+                    "p99": sorted_samples[int(count * 0.99)]
+                }
+
+            return metrics
+
+    def reset_metrics(self):
+        """Reset metrics counters."""
+        with self._lock:
+            self.metrics = {
+                "total_logs": 0,
+                "logs_by_level": defaultdict(int),
+                "logs_by_category": defaultdict(int),
+                "logs_by_component": defaultdict(int),
+                "error_count": 0,
+                "warning_count": 0,
+                "performance_samples": []
+            }
+            self.last_aggregation = time.time()
 
 
 def load_config_from_env() -> LogConfiguration:
@@ -189,6 +770,11 @@ def load_config_from_env() -> LogConfiguration:
             show_timestamps=settings.LOG_SHOW_TIMESTAMPS,
             timestamp_format=settings.LOG_TIMESTAMP_FORMAT,
 
+            # Color settings
+            enable_colors=getattr(settings, 'LOG_ENABLE_COLORS', True),
+            color_scheme=getattr(settings, 'LOG_COLOR_SCHEME', 'default'),
+            force_colors=getattr(settings, 'LOG_FORCE_COLORS', False),
+
             # Module configs
             module_configs=module_configs,
 
@@ -210,7 +796,34 @@ def load_config_from_env() -> LogConfiguration:
             hot_reload_enabled=settings.LOG_HOT_RELOAD_ENABLED,
             api_enabled=settings.LOG_API_ENABLED,
             allow_mode_switching=settings.LOG_ALLOW_MODE_SWITCHING,
-            allow_module_control=settings.LOG_ALLOW_MODULE_CONTROL
+            allow_module_control=settings.LOG_ALLOW_MODULE_CONTROL,
+
+            # Advanced features (with safe defaults)
+            enable_sampling=getattr(settings, 'LOG_ENABLE_SAMPLING', False),
+            sampling_rate=getattr(settings, 'LOG_SAMPLING_RATE', 0.01),
+            sampling_threshold_qps=getattr(settings, 'LOG_SAMPLING_THRESHOLD_QPS', 1000),
+
+            enable_pii_redaction=getattr(settings, 'LOG_ENABLE_PII_REDACTION', False),
+            redact_email_addresses=getattr(settings, 'LOG_REDACT_EMAIL', True),
+            redact_phone_numbers=getattr(settings, 'LOG_REDACT_PHONE', True),
+            redact_credit_cards=getattr(settings, 'LOG_REDACT_CREDIT_CARDS', True),
+            redact_ssn=getattr(settings, 'LOG_REDACT_SSN', True),
+            redact_ip_addresses=getattr(settings, 'LOG_REDACT_IP', False),
+
+            enable_error_aggregation=getattr(settings, 'LOG_ENABLE_ERROR_AGGREGATION', False),
+            error_aggregation_service=getattr(settings, 'LOG_ERROR_AGGREGATION_SERVICE', 'sentry'),
+            error_aggregation_dsn=getattr(settings, 'LOG_ERROR_AGGREGATION_DSN', None),
+            error_aggregation_environment=getattr(settings, 'LOG_ERROR_AGGREGATION_ENV', 'development'),
+
+            enable_opentelemetry=getattr(settings, 'LOG_ENABLE_OPENTELEMETRY', False),
+            otel_service_name=getattr(settings, 'LOG_OTEL_SERVICE_NAME', 'agentic-ai-backend'),
+            otel_exporter_endpoint=getattr(settings, 'LOG_OTEL_EXPORTER_ENDPOINT', None),
+            otel_traces_enabled=getattr(settings, 'LOG_OTEL_TRACES_ENABLED', True),
+            otel_metrics_enabled=getattr(settings, 'LOG_OTEL_METRICS_ENABLED', True),
+
+            enable_log_metrics=getattr(settings, 'LOG_ENABLE_METRICS', True),
+            track_error_rates=getattr(settings, 'LOG_TRACK_ERROR_RATES', True),
+            track_performance_percentiles=getattr(settings, 'LOG_TRACK_PERFORMANCE_PERCENTILES', True)
         )
 
         return config
@@ -418,8 +1031,17 @@ class BackendLogger:
     """
     Main backend logger class that provides comprehensive logging capabilities
     for the agentic AI microservice.
+
+    Features:
+    - PII redaction
+    - Log sampling for high-volume scenarios
+    - Error aggregation (Sentry/Rollbar)
+    - OpenTelemetry integration
+    - Log metrics and analytics
+    - Module-based control
+    - Hot-reload configuration
     """
-    
+
     def __init__(self, config: LogConfiguration = None):
         self.config = config or LogConfiguration()
         self.log_queue = queue.Queue(maxsize=self.config.buffer_size)
@@ -431,6 +1053,13 @@ class BackendLogger:
 
         # Initialize module controller for granular logging control
         self.module_controller = ModuleController(self.config)
+
+        # Initialize advanced features
+        self.pii_redactor = PIIRedactor(self.config)
+        self.log_sampler = LogSampler(self.config)
+        self.error_aggregator = ErrorAggregator(self.config)
+        self.otel_integration = OpenTelemetryIntegration(self.config)
+        self.metrics_collector = LogMetricsCollector(self.config)
 
         # Initialize logging infrastructure
         self._setup_logging()
@@ -447,7 +1076,11 @@ class BackendLogger:
             component="BackendLogger",
             data={
                 "mode": self.config.logging_mode.value,
-                "modules_enabled": len(self.module_controller.get_active_loggers())
+                "modules_enabled": len(self.module_controller.get_active_loggers()),
+                "pii_redaction": self.config.enable_pii_redaction,
+                "sampling": self.config.enable_sampling,
+                "error_aggregation": self.config.enable_error_aggregation,
+                "opentelemetry": self.config.enable_opentelemetry
             }
         )
     
@@ -478,16 +1111,53 @@ class BackendLogger:
         if self.config.enable_console_output:
             self.console_handler = logging.StreamHandler(sys.stdout)
 
-            # Choose formatter based on mode
-            if self.config.logging_mode == LoggingMode.USER:
-                # User mode: minimal structured output
-                self.console_handler.setFormatter(StructuredFormatter(include_context=False, include_metrics=False))
-            elif self.config.logging_mode == LoggingMode.DEVELOPER:
-                # Developer mode: structured with context
-                self.console_handler.setFormatter(StructuredFormatter(include_context=True, include_metrics=False))
-            else:  # DEBUG mode
-                # Debug mode: full structured output
-                self.console_handler.setFormatter(StructuredFormatter(include_context=True, include_metrics=True))
+            # Choose formatter based on mode and color settings
+            if self.config.enable_colors:
+                # Use colored formatter
+                if self.config.logging_mode == LoggingMode.USER:
+                    # User mode: minimal colored output
+                    self.console_handler.setFormatter(
+                        ColoredStructuredFormatter(
+                            include_context=False,
+                            include_metrics=False,
+                            enable_colors=True,
+                            force_colors=self.config.force_colors,
+                            color_scheme=self.config.color_scheme
+                        )
+                    )
+                elif self.config.logging_mode == LoggingMode.DEVELOPER:
+                    # Developer mode: colored with context
+                    self.console_handler.setFormatter(
+                        ColoredStructuredFormatter(
+                            include_context=True,
+                            include_metrics=False,
+                            enable_colors=True,
+                            force_colors=self.config.force_colors,
+                            color_scheme=self.config.color_scheme
+                        )
+                    )
+                else:  # DEBUG mode
+                    # Debug mode: full colored output
+                    self.console_handler.setFormatter(
+                        ColoredStructuredFormatter(
+                            include_context=True,
+                            include_metrics=True,
+                            enable_colors=True,
+                            force_colors=self.config.force_colors,
+                            color_scheme=self.config.color_scheme
+                        )
+                    )
+            else:
+                # Use plain formatter (no colors)
+                if self.config.logging_mode == LoggingMode.USER:
+                    # User mode: minimal structured output
+                    self.console_handler.setFormatter(StructuredFormatter(include_context=False, include_metrics=False))
+                elif self.config.logging_mode == LoggingMode.DEVELOPER:
+                    # Developer mode: structured with context
+                    self.console_handler.setFormatter(StructuredFormatter(include_context=True, include_metrics=False))
+                else:  # DEBUG mode
+                    # Debug mode: full structured output
+                    self.console_handler.setFormatter(StructuredFormatter(include_context=True, include_metrics=True))
 
         # Setup conversation handler for user-facing output
         if self.config.conversation_config.enabled:
@@ -499,7 +1169,9 @@ class BackendLogger:
                 'show_tool_results': self.config.conversation_config.show_tool_results,
                 'max_reasoning_length': self.config.conversation_config.max_reasoning_length,
                 'max_result_length': self.config.conversation_config.max_result_length,
-                'style': self.config.conversation_config.style
+                'style': self.config.conversation_config.style,
+                'enable_colors': self.config.enable_colors,
+                'force_colors': self.config.force_colors
             }
             self.conversation_handler.setFormatter(ConversationFormatter(conversation_formatter_config))
 
@@ -554,6 +1226,13 @@ class BackendLogger:
                             self.config = new_config
                             self.module_controller = ModuleController(new_config)
 
+                            # Reinitialize advanced features with new config
+                            self.pii_redactor = PIIRedactor(new_config)
+                            self.log_sampler = LogSampler(new_config)
+                            self.error_aggregator = ErrorAggregator(new_config)
+                            self.otel_integration = OpenTelemetryIntegration(new_config)
+                            self.metrics_collector = LogMetricsCollector(new_config)
+
                             # Re-setup logging with new configuration
                             self._setup_logging()
 
@@ -563,7 +1242,11 @@ class BackendLogger:
                                 component="BackendLogger",
                                 data={
                                     "mode": self.config.logging_mode.value,
-                                    "modules_enabled": len(self.module_controller.get_active_loggers())
+                                    "modules_enabled": len(self.module_controller.get_active_loggers()),
+                                    "pii_redaction": self.config.enable_pii_redaction,
+                                    "sampling": self.config.enable_sampling,
+                                    "error_aggregation": self.config.enable_error_aggregation,
+                                    "opentelemetry": self.config.enable_opentelemetry
                                 }
                             )
 
@@ -587,12 +1270,12 @@ class BackendLogger:
             try:
                 # Process logs in batches
                 logs_to_process = []
-                
+
                 # Collect logs with timeout
                 try:
                     log_entry = self.log_queue.get(timeout=self.config.flush_interval_seconds)
                     logs_to_process.append(log_entry)
-                    
+
                     # Collect additional logs without blocking
                     while len(logs_to_process) < self.config.buffer_size:
                         try:
@@ -600,12 +1283,32 @@ class BackendLogger:
                             logs_to_process.append(log_entry)
                         except queue.Empty:
                             break
-                
+
                 except queue.Empty:
                     continue
-                
+
                 # Process the batch
                 for log_entry in logs_to_process:
+                    # Apply sampling
+                    if not self.log_sampler.should_sample(log_entry):
+                        continue
+
+                    # Apply PII redaction
+                    if self.config.enable_pii_redaction:
+                        log_entry.message = self.pii_redactor.redact(log_entry.message)
+                        if log_entry.data:
+                            log_entry.data = self.pii_redactor.redact_dict(log_entry.data)
+
+                    # Collect metrics
+                    self.metrics_collector.record_log(log_entry)
+
+                    # Capture errors in aggregation service
+                    self.error_aggregator.capture_error(log_entry)
+
+                    # Add to OpenTelemetry span
+                    self.otel_integration.add_log_to_span(log_entry)
+
+                    # Write log entry
                     self._write_log_entry(log_entry)
                     
             except Exception as e:
@@ -941,6 +1644,77 @@ class BackendLogger:
 
         self.info(
             f"Conversation layer {'enabled' if enabled else 'disabled'}",
+            LogCategory.CONFIGURATION_MANAGEMENT,
+            "BackendLogger"
+        )
+
+    def get_metrics(self) -> Dict[str, Any]:
+        """Get comprehensive logging metrics."""
+        metrics = {
+            "log_metrics": self.metrics_collector.get_metrics(),
+            "sampling_stats": self.log_sampler.get_stats(),
+            "queue_size": self.log_queue.qsize(),
+            "queue_capacity": self.config.buffer_size,
+            "active_modules": len(self.module_controller.get_active_loggers()),
+            "configuration": {
+                "mode": self.config.logging_mode.value,
+                "pii_redaction": self.config.enable_pii_redaction,
+                "sampling": self.config.enable_sampling,
+                "error_aggregation": self.config.enable_error_aggregation,
+                "opentelemetry": self.config.enable_opentelemetry
+            }
+        }
+
+        return metrics
+
+    def reset_metrics(self):
+        """Reset all metrics counters."""
+        self.metrics_collector.reset_metrics()
+
+        self.info(
+            "Metrics reset",
+            LogCategory.SYSTEM_HEALTH,
+            "BackendLogger"
+        )
+
+    def add_breadcrumb(self, message: str, category: str = "default", level: str = "info", data: Dict[str, Any] = None):
+        """Add breadcrumb for error context tracking."""
+        self.error_aggregator.add_breadcrumb(message, category, level, data)
+
+    def create_span(self, name: str, attributes: Dict[str, Any] = None):
+        """Create OpenTelemetry span for distributed tracing."""
+        return self.otel_integration.create_span(name, attributes)
+
+    def update_sampling_rate(self, rate: float):
+        """Update log sampling rate at runtime."""
+        if not 0.0 <= rate <= 1.0:
+            raise ValueError("Sampling rate must be between 0.0 and 1.0")
+
+        self.config.sampling_rate = rate
+
+        self.info(
+            f"Sampling rate updated to {rate}",
+            LogCategory.CONFIGURATION_MANAGEMENT,
+            "BackendLogger",
+            data={"new_rate": rate}
+        )
+
+    def enable_pii_redaction(self, enabled: bool = True):
+        """Enable or disable PII redaction at runtime."""
+        self.config.enable_pii_redaction = enabled
+
+        self.info(
+            f"PII redaction {'enabled' if enabled else 'disabled'}",
+            LogCategory.CONFIGURATION_MANAGEMENT,
+            "BackendLogger"
+        )
+
+    def enable_sampling(self, enabled: bool = True):
+        """Enable or disable log sampling at runtime."""
+        self.config.enable_sampling = enabled
+
+        self.info(
+            f"Log sampling {'enabled' if enabled else 'disabled'}",
             LogCategory.CONFIGURATION_MANAGEMENT,
             "BackendLogger"
         )

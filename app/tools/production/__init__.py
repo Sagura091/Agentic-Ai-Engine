@@ -14,9 +14,7 @@ This module contains the first batch of revolutionary AI agent tools:
 These tools provide comprehensive capabilities for all agent operations.
 """
 
-import structlog
 
-logger = structlog.get_logger(__name__)
 
 from .file_system_tool import file_system_tool
 from .api_integration_tool import api_integration_tool
@@ -40,6 +38,13 @@ from .universal.revolutionary_universal_excel_tool import (
 )
 
 # Create instance of the revolutionary document intelligence tool
+
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
+# Get backend logger instance
+_backend_logger = get_backend_logger()
+
 revolutionary_document_intelligence_tool = RevolutionaryDocumentIntelligenceTool()
 
 __all__ = [
@@ -68,7 +73,11 @@ try:
     revolutionary_web_scraper_tool = None
     _get_revolutionary_web_scraper_tool = get_revolutionary_web_scraper_tool
 except ImportError as e:
-    logger.warning(f"Failed to import revolutionary web scraper tool: {e}")
+    _backend_logger.warn(
+        f"Failed to import revolutionary web scraper tool: {e}",
+        LogCategory.TOOL_OPERATIONS,
+        "app.tools.production.__init__"
+    )
     revolutionary_web_scraper_tool = None
     _get_revolutionary_web_scraper_tool = None
 
@@ -78,7 +87,11 @@ try:
     screen_capture_tool = None
     _get_screen_capture_tool = get_screen_capture_tool
 except ImportError as e:
-    logger.warning(f"Failed to import screen capture tool: {e}")
+    _backend_logger.warn(
+        f"Failed to import screen capture tool: {e}",
+        LogCategory.TOOL_OPERATIONS,
+        "app.tools.production.__init__"
+    )
     screen_capture_tool = None
     _get_screen_capture_tool = None
 

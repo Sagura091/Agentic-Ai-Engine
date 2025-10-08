@@ -15,7 +15,6 @@ import asyncio
 from typing import Dict, List, Optional, Type, Any
 from datetime import datetime
 from threading import Lock
-import structlog
 from langchain_core.language_models import BaseLanguageModel
 
 from .models import (
@@ -33,7 +32,12 @@ from .providers import (
     GoogleProvider
 )
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
+# Get backend logger instance
+_backend_logger = get_backend_logger()
 
 
 class LLMProviderManager:
@@ -55,7 +59,11 @@ class LLMProviderManager:
             ProviderType.GOOGLE: GoogleProvider
         }
         self._is_initialized = False
-        logger.info("LLMProviderManager instance created")
+        _backend_logger.info(
+            "LLMProviderManager instance created",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.manager"
+        )
     
     async def initialize(self, provider_credentials: Optional[Dict[ProviderType, ProviderCredentials]] = None) -> None:
         """
@@ -64,9 +72,15 @@ class LLMProviderManager:
         PHASE 1 IMPROVEMENT: Enhanced logging
         """
         try:
-            logger.info("Starting LLM Provider Manager initialization",
-                       credentials_provided=bool(provider_credentials),
-                       provider_count=len(self._provider_classes))
+            _backend_logger.info(
+                "Starting LLM Provider Manager initialization",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager",
+                data={
+                    "credentials_provided": bool(provider_credentials),
+                    "provider_count": len(self._provider_classes)
+                }
+            )
 
             credentials_map = provider_credentials or {}
             initialized_count = 0
@@ -74,9 +88,15 @@ class LLMProviderManager:
 
             for provider_type, provider_class in self._provider_classes.items():
                 try:
-                    logger.debug("Initializing provider",
-                                provider=provider_type.value,
-                                has_credentials=provider_type in credentials_map)
+                    _backend_logger.debug(
+                        "Initializing provider",
+                        LogCategory.LLM_OPERATIONS,
+                        "app.llm.manager",
+                        data={
+                            "provider": provider_type.value,
+                            "has_credentials": provider_type in credentials_map
+                        }
+                    )
 
                     credentials = credentials_map.get(provider_type)
                     provider = provider_class(credentials)
@@ -85,58 +105,109 @@ class LLMProviderManager:
                     if await provider.initialize():
                         self._providers[provider_type] = provider
                         initialized_count += 1
-                        logger.info("Provider initialized successfully",
-                                   provider=provider_type.value,
-                                   has_credentials=bool(credentials))
+                        _backend_logger.info(
+                            "Provider initialized successfully",
+                            LogCategory.LLM_OPERATIONS,
+                            "app.llm.manager",
+                            data={
+                                "provider": provider_type.value,
+                                "has_credentials": bool(credentials)
+                            }
+                        )
                     else:
                         failed_count += 1
-                        logger.warning("Provider initialization failed",
-                                      provider=provider_type.value)
+                        _backend_logger.warn(
+                            "Provider initialization failed",
+                            LogCategory.LLM_OPERATIONS,
+                            "app.llm.manager",
+                            data={"provider": provider_type.value}
+                        )
 
                 except Exception as e:
                     failed_count += 1
-                    logger.error("Failed to initialize provider",
-                                provider=provider_type.value,
-                                error=str(e),
-                                error_type=type(e).__name__)
+                    _backend_logger.error(
+                        "Failed to initialize provider",
+                        LogCategory.LLM_OPERATIONS,
+                        "app.llm.manager",
+                        data={
+                            "provider": provider_type.value,
+                            "error": str(e),
+                            "error_type": type(e).__name__
+                        }
+                    )
 
             self._is_initialized = True
-            logger.info("LLM Provider Manager initialization complete",
-                       active_providers=[p.value for p in self._providers.keys()],
-                       initialized_count=initialized_count,
-                       failed_count=failed_count,
-                       total_providers=len(self._provider_classes))
+            _backend_logger.info(
+                "LLM Provider Manager initialization complete",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager",
+                data={
+                    "active_providers": [p.value for p in self._providers.keys()],
+                    "initialized_count": initialized_count,
+                    "failed_count": failed_count,
+                    "total_providers": len(self._provider_classes)
+                }
+            )
 
         except Exception as e:
-            logger.error("Failed to initialize LLM Provider Manager",
-                        error=str(e),
-                        error_type=type(e).__name__)
+            _backend_logger.error(
+                "Failed to initialize LLM Provider Manager",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager",
+                data={
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                }
+            )
             raise
     
     async def register_provider(self, provider_type: ProviderType, credentials: Optional[ProviderCredentials] = None) -> bool:
         """Register a new provider or update existing one."""
         try:
             if provider_type not in self._provider_classes:
-                logger.error("Unknown provider type", provider=provider_type.value)
+                _backend_logger.error(
+                    "Unknown provider type",
+                    LogCategory.LLM_OPERATIONS,
+                    "app.llm.manager",
+                    data={"provider": provider_type.value}
+                )
                 return False
-            
+
             provider_class = self._provider_classes[provider_type]
             provider = provider_class(credentials)
-            
+
             if await provider.initialize():
                 # Cleanup old provider if exists
                 if provider_type in self._providers:
                     await self._providers[provider_type].cleanup()
-                
+
                 self._providers[provider_type] = provider
-                logger.info("Provider registered successfully", provider=provider_type.value)
+                _backend_logger.info(
+                    "Provider registered successfully",
+                    LogCategory.LLM_OPERATIONS,
+                    "app.llm.manager",
+                    data={"provider": provider_type.value}
+                )
                 return True
             else:
-                logger.warning("Provider registration failed", provider=provider_type.value)
+                _backend_logger.warn(
+                    "Provider registration failed",
+                    LogCategory.LLM_OPERATIONS,
+                    "app.llm.manager",
+                    data={"provider": provider_type.value}
+                )
                 return False
-                
+
         except Exception as e:
-            logger.error("Failed to register provider", provider=provider_type.value, error=str(e))
+            _backend_logger.error(
+                "Failed to register provider",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager",
+                data={
+                    "provider": provider_type.value,
+                    "error": str(e)
+                }
+            )
             return False
     
     async def unregister_provider(self, provider_type: ProviderType) -> bool:
@@ -145,11 +216,24 @@ class LLMProviderManager:
             if provider_type in self._providers:
                 await self._providers[provider_type].cleanup()
                 del self._providers[provider_type]
-                logger.info("Provider unregistered", provider=provider_type.value)
+                _backend_logger.info(
+                    "Provider unregistered",
+                    LogCategory.LLM_OPERATIONS,
+                    "app.llm.manager",
+                    data={"provider": provider_type.value}
+                )
                 return True
             return False
         except Exception as e:
-            logger.error("Failed to unregister provider", provider=provider_type.value, error=str(e))
+            _backend_logger.error(
+                "Failed to unregister provider",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager",
+                data={
+                    "provider": provider_type.value,
+                    "error": str(e)
+                }
+            )
             return False
     
     def get_provider(self, provider_type: ProviderType) -> Optional[LLMProvider]:
@@ -169,22 +253,43 @@ class LLMProviderManager:
                 models = await provider.get_available_models()
                 all_models[provider_type] = models
             except Exception as e:
-                logger.error("Failed to get models from provider", provider=provider_type.value, error=str(e))
+                _backend_logger.error(
+                    "Failed to get models from provider",
+                    LogCategory.LLM_OPERATIONS,
+                    "app.llm.manager",
+                    data={
+                        "provider": provider_type.value,
+                        "error": str(e)
+                    }
+                )
                 all_models[provider_type] = []
-        
+
         return all_models
     
     async def get_models_by_provider(self, provider_type: ProviderType) -> List[ModelInfo]:
         """Get models from a specific provider."""
         provider = self.get_provider(provider_type)
         if not provider:
-            logger.warning("Provider not available", provider=provider_type.value)
+            _backend_logger.warn(
+                "Provider not available",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager",
+                data={"provider": provider_type.value}
+            )
             return []
-        
+
         try:
             return await provider.get_available_models()
         except Exception as e:
-            logger.error("Failed to get models from provider", provider=provider_type.value, error=str(e))
+            _backend_logger.error(
+                "Failed to get models from provider",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager",
+                data={
+                    "provider": provider_type.value,
+                    "error": str(e)
+                }
+            )
             return []
     
     async def validate_model(self, provider_type: ProviderType, model_id: str) -> bool:
@@ -196,7 +301,16 @@ class LLMProviderManager:
         try:
             return await provider.validate_model(model_id)
         except Exception as e:
-            logger.error("Failed to validate model", provider=provider_type.value, model=model_id, error=str(e))
+            _backend_logger.error(
+                "Failed to validate model",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager",
+                data={
+                    "provider": provider_type.value,
+                    "model": model_id,
+                    "error": str(e)
+                }
+            )
             return False
     
     async def create_llm_instance(self, config: LLMConfig) -> BaseLanguageModel:
@@ -212,7 +326,16 @@ class LLMProviderManager:
         try:
             return await provider.create_llm_instance(config)
         except Exception as e:
-            logger.error("Failed to create LLM instance", provider=config.provider.value, model=config.model_id, error=str(e))
+            _backend_logger.error(
+                "Failed to create LLM instance",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager",
+                data={
+                    "provider": config.provider.value,
+                    "model": config.model_id,
+                    "error": str(e)
+                }
+            )
             raise
     
     async def test_all_providers(self) -> Dict[ProviderType, ProviderStatus]:
@@ -251,11 +374,20 @@ class LLMProviderManager:
             try:
                 await provider.cleanup()
             except Exception as e:
-                logger.error("Failed to cleanup provider", error=str(e))
-        
+                _backend_logger.error(
+                    "Failed to cleanup provider",
+                    LogCategory.LLM_OPERATIONS,
+                    "app.llm.manager",
+                    data={"error": str(e)}
+                )
+
         self._providers.clear()
         self._is_initialized = False
-        logger.info("LLM Provider Manager cleaned up")
+        _backend_logger.info(
+            "LLM Provider Manager cleaned up",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.manager"
+        )
     
     def is_initialized(self) -> bool:
         """Check if manager is initialized."""
@@ -295,9 +427,17 @@ def get_llm_manager() -> LLMProviderManager:
         with _manager_lock:
             # Double-check locking pattern
             if _llm_manager is None:
-                logger.info("Creating new LLM Provider Manager instance")
+                _backend_logger.info(
+                    "Creating new LLM Provider Manager instance",
+                    LogCategory.LLM_OPERATIONS,
+                    "app.llm.manager"
+                )
                 _llm_manager = LLMProviderManager()
-                logger.debug("LLM Provider Manager instance created")
+                _backend_logger.debug(
+                    "LLM Provider Manager instance created",
+                    LogCategory.LLM_OPERATIONS,
+                    "app.llm.manager"
+                )
 
     return _llm_manager
 
@@ -314,16 +454,28 @@ async def initialize_llm_manager(provider_credentials: Optional[Dict[ProviderTyp
     Returns:
         Initialized LLMProviderManager instance
     """
-    logger.info("Initializing global LLM Provider Manager",
-               has_credentials=bool(provider_credentials))
+    _backend_logger.info(
+        "Initializing global LLM Provider Manager",
+        LogCategory.LLM_OPERATIONS,
+        "app.llm.manager",
+        data={"has_credentials": bool(provider_credentials)}
+    )
 
     manager = get_llm_manager()
 
     if not manager.is_initialized():
-        logger.debug("Manager not initialized, initializing now")
+        _backend_logger.debug(
+            "Manager not initialized, initializing now",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.manager"
+        )
         await manager.initialize(provider_credentials)
     else:
-        logger.debug("Manager already initialized, skipping initialization")
+        _backend_logger.debug(
+            "Manager already initialized, skipping initialization",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.manager"
+        )
 
     return manager
 
@@ -341,10 +493,18 @@ def reset_llm_manager() -> None:
 
     with _manager_lock:
         if _llm_manager is not None:
-            logger.info("Resetting global LLM Provider Manager")
+            _backend_logger.info(
+                "Resetting global LLM Provider Manager",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager"
+            )
             _llm_manager = None
         else:
-            logger.debug("LLM Provider Manager already reset")
+            _backend_logger.debug(
+                "LLM Provider Manager already reset",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager"
+            )
 
 
 # ============================================================================
@@ -450,7 +610,11 @@ class EnhancedLLMProviderManager(LLMProviderManager):
         try:
             # Check if manual selection is enabled
             if hasattr(config.llm_config, 'manual_selection') and config.llm_config.manual_selection:
-                logger.info(f"Using manual model selection: {config.llm_config.model_id}")
+                _backend_logger.info(
+                    f"Using manual model selection: {config.llm_config.model_id}",
+                    LogCategory.LLM_OPERATIONS,
+                    "app.llm.manager"
+                )
                 return config.llm_config
 
             # Use automatic optimization based on agent type
@@ -480,11 +644,19 @@ class EnhancedLLMProviderManager(LLMProviderManager):
                 if config.llm_config.max_tokens:
                     optimal_config.max_tokens = config.llm_config.max_tokens
 
-            logger.info(f"Selected optimal model for {config.agent_type.value}: {optimal_config.model_id}")
+            _backend_logger.info(
+                f"Selected optimal model for {config.agent_type.value}: {optimal_config.model_id}",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager"
+            )
             return optimal_config
 
         except Exception as e:
-            logger.error(f"Failed to get model for agent: {str(e)}")
+            _backend_logger.error(
+                f"Failed to get model for agent: {str(e)}",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager"
+            )
             return config.llm_config or LLMConfig(
                 provider=ProviderType.OLLAMA,
                 model_id="llama3.2:latest",
@@ -535,7 +707,11 @@ class EnhancedLLMProviderManager(LLMProviderManager):
             return available_models
 
         except Exception as e:
-            logger.error(f"Failed to get available models: {str(e)}")
+            _backend_logger.error(
+                f"Failed to get available models: {str(e)}",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager"
+            )
             return {}
 
     def get_model_recommendations(self, agent_type: str) -> Dict[str, Any]:
@@ -583,7 +759,11 @@ class EnhancedLLMProviderManager(LLMProviderManager):
             return recommendations.get(agent_type.lower(), recommendations["react"])
 
         except Exception as e:
-            logger.error(f"Failed to get model recommendations: {str(e)}")
+            _backend_logger.error(
+                f"Failed to get model recommendations: {str(e)}",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager"
+            )
             return {}
 
     async def assign_model_to_agent(self, agent_id: str, llm_config: LLMConfig) -> bool:
@@ -601,11 +781,19 @@ class EnhancedLLMProviderManager(LLMProviderManager):
             # Validate the configuration
             provider = self.get_provider(llm_config.provider)
             if not provider:
-                logger.error(f"Provider {llm_config.provider.value} not available")
+                _backend_logger.error(
+                    f"Provider {llm_config.provider.value} not available",
+                    LogCategory.LLM_OPERATIONS,
+                    "app.llm.manager"
+                )
                 return False
 
             if not await provider.validate_model(llm_config.model_id):
-                logger.error(f"Model {llm_config.model_id} not available from {llm_config.provider.value}")
+                _backend_logger.error(
+                    f"Model {llm_config.model_id} not available from {llm_config.provider.value}",
+                    LogCategory.LLM_OPERATIONS,
+                    "app.llm.manager"
+                )
                 return False
 
             # Store assignment
@@ -621,11 +809,19 @@ class EnhancedLLMProviderManager(LLMProviderManager):
                     "error_count": 0
                 }
 
-            logger.info(f"Model assigned to agent {agent_id}: {model_key}")
+            _backend_logger.info(
+                f"Model assigned to agent {agent_id}: {model_key}",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager"
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to assign model to agent {agent_id}: {str(e)}")
+            _backend_logger.error(
+                f"Failed to assign model to agent {agent_id}: {str(e)}",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager"
+            )
             return False
 
     def get_agent_model_config(self, agent_id: str) -> Optional[LLMConfig]:
@@ -648,11 +844,19 @@ class EnhancedLLMProviderManager(LLMProviderManager):
             if not await self.assign_model_to_agent(agent_id, new_config):
                 return False
 
-            logger.info(f"Agent {agent_id} switched to model: {new_config.provider.value}:{new_config.model_id}")
+            _backend_logger.info(
+                f"Agent {agent_id} switched to model: {new_config.provider.value}:{new_config.model_id}",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager"
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to switch model for agent {agent_id}: {str(e)}")
+            _backend_logger.error(
+                f"Failed to switch model for agent {agent_id}: {str(e)}",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.manager"
+            )
             return False
 
     def record_model_usage(self, agent_id: str, tokens_used: int, response_time: float, success: bool = True):

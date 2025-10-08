@@ -8,7 +8,6 @@ including creation, collaboration, and member management.
 from typing import List, Optional
 from uuid import UUID
 
-import structlog
 from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlalchemy import select, update, delete, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,9 +18,15 @@ from app.models.database.base import get_database_session
 from app.api.v1.endpoints.auth import get_current_user
 from app.backend_logging.backend_logger import get_logger, LogCategory
 
-logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/projects", tags=["Project Management"])
+
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
+# Get backend logger instance
+_backend_logger = get_backend_logger()
+
 
 
 @router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)

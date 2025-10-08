@@ -314,5 +314,62 @@ class LogConfiguration(BaseModel):
     allow_mode_switching: bool = True
     allow_module_control: bool = True
 
+    # Color coding settings
+    enable_colors: bool = True
+    color_scheme: str = "default"  # default | dark | light | custom
+    force_colors: bool = False  # Force colors even if not a TTY
+    disable_colors_in_files: bool = True  # Never add colors to file logs
+
+    # Log sampling settings
+    enable_sampling: bool = False
+    sampling_rate: float = Field(default=0.01, ge=0.0, le=1.0)  # 1% default
+    sampling_threshold_qps: int = Field(default=1000, ge=0)  # Enable at 1000 QPS
+    always_sample_errors: bool = True  # Always log errors regardless of sampling
+    always_sample_categories: List[LogCategory] = Field(default_factory=lambda: [
+        LogCategory.ERROR_TRACKING,
+        LogCategory.SECURITY_EVENTS
+    ])
+
+    # Error aggregation settings
+    enable_error_aggregation: bool = False
+    error_aggregation_service: str = "sentry"  # sentry | rollbar | custom
+    error_aggregation_dsn: Optional[str] = None
+    error_aggregation_environment: str = "development"
+    error_aggregation_sample_rate: float = Field(default=1.0, ge=0.0, le=1.0)
+    error_aggregation_traces_sample_rate: float = Field(default=0.1, ge=0.0, le=1.0)
+    capture_breadcrumbs: bool = True
+    max_breadcrumbs: int = 100
+
+    # OpenTelemetry settings
+    enable_opentelemetry: bool = False
+    otel_service_name: str = "agentic-ai-backend"
+    otel_exporter_endpoint: Optional[str] = None  # e.g., "http://localhost:4317"
+    otel_exporter_protocol: str = "grpc"  # grpc | http
+    otel_traces_enabled: bool = True
+    otel_metrics_enabled: bool = True
+    otel_logs_enabled: bool = True
+    otel_resource_attributes: Dict[str, str] = Field(default_factory=dict)
+    otel_trace_sample_rate: float = Field(default=0.1, ge=0.0, le=1.0)
+
+    # PII redaction settings
+    enable_pii_redaction: bool = False
+    redact_email_addresses: bool = True
+    redact_phone_numbers: bool = True
+    redact_credit_cards: bool = True
+    redact_ssn: bool = True
+    redact_ip_addresses: bool = False
+    custom_redaction_patterns: List[str] = Field(default_factory=list)
+
+    # Log encryption settings
+    enable_log_encryption: bool = False
+    encryption_key_path: Optional[str] = None
+    encryption_algorithm: str = "AES-256-GCM"
+
+    # Metrics and analytics
+    enable_log_metrics: bool = True
+    metrics_aggregation_interval: int = 60  # seconds
+    track_error_rates: bool = True
+    track_performance_percentiles: bool = True
+
     class Config:
         extra = "allow"

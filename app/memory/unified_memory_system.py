@@ -41,8 +41,6 @@ from enum import Enum
 from collections import defaultdict
 import threading
 
-import structlog
-
 from .memory_models import (
     MemoryType, MemoryEntry, MemoryCollection, RevolutionaryMemoryCollection,
     MemoryImportance, CoreMemoryBlock, ResourceMemoryEntry, KnowledgeVaultEntry
@@ -51,8 +49,11 @@ from .active_retrieval_engine import ActiveRetrievalEngine, RetrievalContext, Re
 from .memory_orchestrator import MemoryOrchestrator, MemoryOperation, MemoryManagerType
 from .dynamic_knowledge_graph import DynamicKnowledgeGraph
 from .advanced_retrieval_mechanisms import AdvancedRetrievalMechanisms, RetrievalQuery
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
 
-logger = structlog.get_logger(__name__)
+# Get backend logger instance
+_backend_logger = get_backend_logger()
 
 
 class UnifiedMemorySystem:
@@ -149,7 +150,11 @@ class UnifiedMemorySystem:
             "decisions_made": 0
         }
 
-        logger.info("Revolutionary Unified Memory System initialized")
+        _backend_logger.info(
+            "Revolutionary Unified Memory System initialized",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.unified_memory_system"
+        )
     
     async def initialize(self) -> None:
         """Initialize the revolutionary memory system."""
@@ -165,31 +170,60 @@ class UnifiedMemorySystem:
             if self.config["enable_memory_orchestration"]:
                 self.memory_orchestrator = MemoryOrchestrator(self.embedding_function)
                 await self.memory_orchestrator.initialize()
-                logger.info("Memory Orchestrator initialized")
+                _backend_logger.info(
+                    "Memory Orchestrator initialized",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.memory.unified_memory_system"
+                )
 
             if self.config["enable_active_retrieval"]:
                 self.active_retrieval_engine = ActiveRetrievalEngine(self.embedding_function)
-                logger.info("Active Retrieval Engine initialized")
+                _backend_logger.info(
+                    "Active Retrieval Engine initialized",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.memory.unified_memory_system"
+                )
 
             # Initialize all revolutionary components
             self.knowledge_graph = DynamicKnowledgeGraph("system", self.embedding_function)
-            logger.info("Dynamic Knowledge Graph initialized")
+            _backend_logger.info(
+                "Dynamic Knowledge Graph initialized",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.unified_memory_system"
+            )
 
             self.advanced_retrieval = AdvancedRetrievalMechanisms("system", self.embedding_function, self.knowledge_graph)
-            logger.info("Advanced Retrieval Mechanisms initialized")
+            _backend_logger.info(
+                "Advanced Retrieval Mechanisms initialized",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.unified_memory_system"
+            )
 
             # Optional: Multimodal system (not required for core functionality)
             # self.multimodal_system = MultimodalMemorySystem("system")
-            # logger.info("Multimodal Memory System initialized")
+            # _backend_logger.info("Multimodal Memory System initialized", LogCategory.MEMORY_OPERATIONS, "app.memory.unified_memory_system")
 
             # Note: Agent-specific components will be initialized per agent
-            logger.info("All revolutionary components initialized")
+            _backend_logger.info(
+                "All revolutionary components initialized",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.unified_memory_system"
+            )
 
             self.is_initialized = True
-            logger.info("Revolutionary Memory System initialization completed")
+            _backend_logger.info(
+                "Revolutionary Memory System initialization completed",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.unified_memory_system"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to initialize revolutionary memory system: {str(e)}")
+            _backend_logger.error(
+                f"Failed to initialize revolutionary memory system: {str(e)}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.unified_memory_system",
+                data={"error": str(e)}
+            )
             raise
     
     async def create_agent_memory(self, agent_id: str, memory_config: Optional[Dict[str, Any]] = None) -> RevolutionaryMemoryCollection:

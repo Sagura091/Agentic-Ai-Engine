@@ -6,10 +6,20 @@ Provides various formatters for log output including JSON and structured text fo
 
 import json
 import logging
+import sys
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-from .models import LogEntry
+from .models import LogEntry, LogLevel, LogCategory, LoggingMode
+
+# Import Rich for color support
+try:
+    from rich.console import Console
+    from rich.text import Text
+    from rich.theme import Theme
+    RICH_AVAILABLE = True
+except ImportError:
+    RICH_AVAILABLE = False
 
 
 class JSONFormatter(logging.Formatter):
@@ -217,18 +227,342 @@ class StructuredFormatter(logging.Formatter):
         return base_line
 
 
+class ColoredStructuredFormatter(logging.Formatter):
+    """
+    Production-ready color-coded structured formatter using Rich library.
+
+    Features:
+    - Color-coded log levels (DEBUG=cyan, INFO=green, WARNING=yellow, ERROR=red, CRITICAL=bold red)
+    - Color-coded categories (AGENT=blue, RAG=purple, MEMORY=magenta, LLM=bright_blue, TOOL=orange3)
+    - Color-coded modules (app.agents=blue, app.rag=purple, etc.)
+    - Special green color for agent reasoning/thinking
+    - Automatic TTY detection (no colors in pipes/files)
+    - Cross-platform support (Windows, Linux, macOS)
+    """
+
+    # Color scheme for log levels
+    LEVEL_COLORS = {
+        'DEBUG': 'cyan',
+        'INFO': 'green',
+        'WARNING': 'yellow',
+        'ERROR': 'red',
+        'CRITICAL': 'bold red',
+    }
+
+    # Color scheme for log categories
+    CATEGORY_COLORS = {
+        'AGENT_OPERATIONS': 'blue',
+        'RAG_OPERATIONS': 'purple',
+        'MEMORY_OPERATIONS': 'magenta',
+        'LLM_OPERATIONS': 'bright_blue',
+        'TOOL_OPERATIONS': 'orange3',
+        'API_LAYER': 'green',
+        'DATABASE_LAYER': 'cyan',
+        'SECURITY_EVENTS': 'red',
+        'ERROR_TRACKING': 'bright_red',
+        'PERFORMANCE': 'yellow',
+        'SYSTEM_HEALTH': 'white',
+        'CONFIGURATION_MANAGEMENT': 'bright_cyan',
+        'RESOURCE_MANAGEMENT': 'bright_magenta',
+        'ORCHESTRATION': 'bright_yellow',
+        'COMMUNICATION': 'bright_green',
+        'SERVICE_OPERATIONS': 'cyan',
+        'USER_INTERACTION': 'bright_green',
+        'EXTERNAL_INTEGRATIONS': 'orange3',
+    }
+
+    # Color scheme for module names
+    MODULE_COLORS = {
+        'app.agents': 'blue',
+        'app.rag': 'purple',
+        'app.memory': 'magenta',
+        'app.llm': 'bright_blue',
+        'app.tools': 'orange3',
+        'app.api': 'green',
+        'app.core': 'white',
+        'app.services': 'cyan',
+        'app.config': 'bright_cyan',
+        'app.models': 'bright_white',
+        'app.optimization': 'yellow',
+        'app.integrations': 'orange3',
+        'app.orchestration': 'bright_yellow',
+        'app.communication': 'bright_green',
+    }
+
+    # Special color for agent reasoning/thinking
+    AGENT_REASONING_COLOR = 'bright_green'
+    AGENT_RESPONSE_COLOR = 'bright_green'
+
+    def __init__(self,
+                 include_context: bool = True,
+                 include_metrics: bool = False,
+                 enable_colors: bool = True,
+                 force_colors: bool = False,
+                 color_scheme: str = "default"):
+        super().__init__()
+        self.include_context = include_context
+        self.include_metrics = include_metrics
+        self.enable_colors = enable_colors and RICH_AVAILABLE
+        self.force_colors = force_colors
+        self.color_scheme = color_scheme
+
+        # Initialize Rich console
+        if self.enable_colors:
+            # Create custom theme
+            custom_theme = Theme({
+                "debug": self.LEVEL_COLORS['DEBUG'],
+                "info": self.LEVEL_COLORS['INFO'],
+                "warning": self.LEVEL_COLORS['WARNING'],
+                "error": self.LEVEL_COLORS['ERROR'],
+                "critical": self.LEVEL_COLORS['CRITICAL'],
+                "agent_reasoning": self.AGENT_REASONING_COLOR,
+                "agent_response": self.AGENT_RESPONSE_COLOR,
+            })
+
+            # Determine if we should use colors
+            force_terminal = self.force_colors or None
+
+            self.console = Console(
+                theme=custom_theme,
+                force_terminal=force_terminal,
+                file=sys.stdout,
+                legacy_windows=False  # Use modern Windows terminal features
+            )
+        else:
+            self.console = None
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Format a log record with color coding"""
+        try:
+            if hasattr(record, 'log_entry'):
+                log_entry: LogEntry = record.log_entry
+                return self._format_log_entry_colored(log_entry)
+            else:
+                return self._format_standard_record_colored(record)
+
+        except Exception as e:
+            # Fallback format without colors
+            return f"[{datetime.utcnow().isoformat()}] [ERROR] [Formatter] Formatting error: {str(e)} | Original: {record.getMessage()}"
+
+    def _format_log_entry_colored(self, log_entry: LogEntry) -> str:
+        """Format a LogEntry with color coding using ANSI escape codes"""
+        if not self.enable_colors or not self.console:
+            # Fallback to non-colored format
+            return self._format_log_entry_plain(log_entry)
+
+        # Check if this is agent reasoning/thinking
+        is_agent_reasoning = self._is_agent_reasoning(log_entry)
+        is_agent_response = self._is_agent_response(log_entry)
+
+        # Build colored text components
+        text = Text()
+
+        # Timestamp (if needed)
+        timestamp = log_entry.timestamp.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        text.append(f"[{timestamp}] ", style="dim")
+
+        # Log level with color
+        level_color = self.LEVEL_COLORS.get(log_entry.level.value, 'white')
+        text.append(f"[{log_entry.level.value}] ", style=level_color + " bold")
+
+        # Category with color
+        category_color = self.CATEGORY_COLORS.get(log_entry.category.value.upper(), 'white')
+        text.append(f"[{log_entry.category.value}] ", style=category_color + " bold")
+
+        # Component/Module with color
+        component_color = self._get_module_color(log_entry.component)
+        text.append(f"[{log_entry.component}] ", style=component_color)
+
+        # Message with special color for agent reasoning/responses
+        if is_agent_reasoning:
+            text.append(log_entry.message, style=self.AGENT_REASONING_COLOR + " bold")
+        elif is_agent_response:
+            text.append(log_entry.message, style=self.AGENT_RESPONSE_COLOR + " bold")
+        else:
+            # Use level color for regular messages
+            text.append(log_entry.message, style=level_color)
+
+        # Convert Rich Text to ANSI string with color codes
+        # Use a temporary console with ANSI export enabled
+        from io import StringIO
+        string_buffer = StringIO()
+        temp_console = Console(
+            file=string_buffer,
+            force_terminal=True,
+            legacy_windows=False,
+            width=200,
+            color_system="auto"
+        )
+        temp_console.print(text, end="")
+        base_line = string_buffer.getvalue()
+
+        # Add context information (non-colored for readability)
+        if self.include_context and log_entry.context:
+            context_parts = []
+            if log_entry.context.correlation_id:
+                context_parts.append(f"correlation_id={log_entry.context.correlation_id}")
+            if log_entry.context.session_id:
+                context_parts.append(f"session_id={log_entry.context.session_id}")
+            if log_entry.context.agent_id:
+                context_parts.append(f"agent_id={log_entry.context.agent_id}")
+
+            if context_parts:
+                base_line += f" | Context: {', '.join(context_parts)}"
+
+        # Add performance metrics
+        if self.include_metrics and log_entry.performance:
+            metrics_parts = []
+            if log_entry.performance.duration_ms:
+                metrics_parts.append(f"duration={log_entry.performance.duration_ms:.2f}ms")
+            if log_entry.performance.memory_usage_mb:
+                metrics_parts.append(f"memory={log_entry.performance.memory_usage_mb:.2f}MB")
+
+            if metrics_parts:
+                base_line += f" | Performance: {', '.join(metrics_parts)}"
+
+        return base_line
+
+    def _format_log_entry_plain(self, log_entry: LogEntry) -> str:
+        """Format a LogEntry without colors (fallback)"""
+        timestamp = log_entry.timestamp.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        parts = [
+            f"[{timestamp}]",
+            f"[{log_entry.level.value}]",
+            f"[{log_entry.category.value}]",
+            f"[{log_entry.component}]",
+            log_entry.message
+        ]
+
+        base_line = " ".join(parts)
+
+        # Add context information
+        if self.include_context and log_entry.context:
+            context_parts = []
+            if log_entry.context.correlation_id:
+                context_parts.append(f"correlation_id={log_entry.context.correlation_id}")
+            if log_entry.context.session_id:
+                context_parts.append(f"session_id={log_entry.context.session_id}")
+            if log_entry.context.agent_id:
+                context_parts.append(f"agent_id={log_entry.context.agent_id}")
+
+            if context_parts:
+                base_line += f" | Context: {', '.join(context_parts)}"
+
+        return base_line
+
+    def _format_standard_record_colored(self, record: logging.LogRecord) -> str:
+        """Format a standard logging record with colors"""
+        if not self.enable_colors or not self.console:
+            return self._format_standard_record_plain(record)
+
+        text = Text()
+        timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+        text.append(f"[{timestamp}] ", style="dim")
+
+        level_color = self.LEVEL_COLORS.get(record.levelname, 'white')
+        text.append(f"[{record.levelname}] ", style=level_color + " bold")
+
+        text.append(f"[system_health] ", style="white")
+        text.append(f"[{record.name}] ", style="cyan")
+        text.append(record.getMessage(), style=level_color)
+
+        # Convert to ANSI string
+        from io import StringIO
+        string_buffer = StringIO()
+        temp_console = Console(
+            file=string_buffer,
+            force_terminal=True,
+            legacy_windows=False,
+            width=200,
+            color_system="auto"
+        )
+        temp_console.print(text, end="")
+        return string_buffer.getvalue()
+
+    def _format_standard_record_plain(self, record: logging.LogRecord) -> str:
+        """Format a standard logging record without colors"""
+        timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        parts = [
+            f"[{timestamp}]",
+            f"[{record.levelname}]",
+            f"[system_health]",
+            f"[{record.name}]",
+            record.getMessage()
+        ]
+        return " ".join(parts)
+
+    def _get_module_color(self, component: str) -> str:
+        """Get color for a module/component name"""
+        # Check for exact match first
+        if component in self.MODULE_COLORS:
+            return self.MODULE_COLORS[component]
+
+        # Check for prefix match (e.g., app.agents.react -> app.agents)
+        for module_prefix, color in self.MODULE_COLORS.items():
+            if component.startswith(module_prefix):
+                return color
+
+        # Default color
+        return 'white'
+
+    def _is_agent_reasoning(self, log_entry: LogEntry) -> bool:
+        """Check if this log entry is agent reasoning/thinking"""
+        message_lower = log_entry.message.lower()
+
+        # Check for reasoning keywords
+        reasoning_keywords = [
+            'thinking', 'reasoning', 'analyzing', 'considering',
+            'evaluating', 'planning', 'deciding', 'thought',
+            'reflection', 'deliberating', 'pondering'
+        ]
+
+        # Check if message contains reasoning keywords
+        if any(keyword in message_lower for keyword in reasoning_keywords):
+            return True
+
+        # Check if category is agent operations and message suggests reasoning
+        if log_entry.category == LogCategory.AGENT_OPERATIONS:
+            if any(word in message_lower for word in ['think', 'reason', 'analyze', 'plan']):
+                return True
+
+        return False
+
+    def _is_agent_response(self, log_entry: LogEntry) -> bool:
+        """Check if this log entry is agent response/output"""
+        message_lower = log_entry.message.lower()
+
+        # Check for response keywords
+        response_keywords = [
+            'response:', 'answer:', 'result:', 'output:',
+            'agent says', 'agent responds', 'final answer',
+            'conclusion:', 'summary:'
+        ]
+
+        # Check if message contains response keywords
+        if any(keyword in message_lower for keyword in response_keywords):
+            return True
+
+        # Check if category is agent operations and message suggests response
+        if log_entry.category == LogCategory.AGENT_OPERATIONS:
+            if any(word in message_lower for word in ['respond', 'answer', 'reply', 'output']):
+                return True
+
+        return False
+
+
 class CompactFormatter(logging.Formatter):
     """
     Compact formatter for high-volume logging scenarios
     """
-    
+
     def format(self, record: logging.LogRecord) -> str:
         """Format a log record in compact format"""
         try:
             if hasattr(record, 'log_entry'):
                 log_entry: LogEntry = record.log_entry
                 timestamp = log_entry.timestamp.strftime("%H:%M:%S.%f")[:-3]
-                
+
                 # Compact format: TIME LEVEL COMPONENT MESSAGE
                 parts = [
                     timestamp,
@@ -236,18 +570,18 @@ class CompactFormatter(logging.Formatter):
                     log_entry.component[:10],  # Truncated component name
                     log_entry.message[:100]    # Truncated message
                 ]
-                
+
                 line = " ".join(parts)
-                
+
                 # Add correlation ID if present
                 if log_entry.context and log_entry.context.correlation_id:
                     line += f" [{log_entry.context.correlation_id[:8]}]"
-                
+
                 return line
             else:
                 timestamp = datetime.utcnow().strftime("%H:%M:%S.%f")[:-3]
                 return f"{timestamp} {record.levelname[0]} {record.name[:10]} {record.getMessage()[:100]}"
-                
+
         except Exception:
             return f"{datetime.utcnow().strftime('%H:%M:%S')} E Formatter <error>"
 
@@ -294,10 +628,17 @@ class MetricsFormatter(logging.Formatter):
 
 class ConversationFormatter(logging.Formatter):
     """
-    User-facing conversation formatter for clean, emoji-enhanced agent dialogue.
+    User-facing conversation formatter for clean, emoji-enhanced agent dialogue with color coding.
 
     This formatter creates clean, conversational output without technical details,
     correlation IDs, or timestamps. It's designed for end users interacting with agents.
+
+    Features:
+    - Bright green color for agent reasoning/thinking (easy to read)
+    - Bright green color for agent responses (clear communication)
+    - Color-coded tool usage and results
+    - Emoji enhancement for visual clarity
+    - Automatic TTY detection
     """
 
     def __init__(self, config: Dict[str, Any] = None):
@@ -310,6 +651,17 @@ class ConversationFormatter(logging.Formatter):
         self.max_reasoning_length = self.config.get('max_reasoning_length', 200)
         self.max_result_length = self.config.get('max_result_length', 500)
         self.style = self.config.get('style', 'conversational')
+        self.enable_colors = self.config.get('enable_colors', True) and RICH_AVAILABLE
+
+        # Initialize Rich console for color output
+        if self.enable_colors:
+            self.console = Console(
+                file=sys.stdout,
+                force_terminal=self.config.get('force_colors', False) or None,
+                legacy_windows=False
+            )
+        else:
+            self.console = None
 
     def format(self, record: logging.LogRecord) -> str:
         """Format a conversation log entry"""
@@ -358,30 +710,35 @@ class ConversationFormatter(logging.Formatter):
     def _format_user_query(self, message: str) -> str:
         """Format user query"""
         emoji = "🧑 " if self.emoji_enhanced else ""
-        return f"{emoji}User: {message}"
+        text = f"{emoji}User: {message}"
+        return self._colorize(text, "bright_white")
 
     def _format_agent_acknowledgment(self, message: str) -> str:
         """Format agent acknowledgment"""
         emoji = "🤖 " if self.emoji_enhanced else ""
-        return f"{emoji}Agent: {message}"
+        text = f"{emoji}Agent: {message}"
+        return self._colorize(text, "bright_cyan")
 
     def _format_agent_thinking(self, message: str) -> str:
-        """Format agent thinking/reasoning"""
+        """Format agent thinking/reasoning with bright green color"""
         emoji = "🔍 " if self.emoji_enhanced else ""
         # Truncate if too long
         if len(message) > self.max_reasoning_length:
             message = message[:self.max_reasoning_length] + "..."
-        return f"{emoji}Thinking: {message}"
+        text = f"{emoji}Thinking: {message}"
+        return self._colorize(text, "bright_green bold")
 
     def _format_agent_goal(self, message: str) -> str:
         """Format agent goal (autonomous agents)"""
         emoji = "🎯 " if self.emoji_enhanced else ""
-        return f"{emoji}Goal: {message}"
+        text = f"{emoji}Goal: {message}"
+        return self._colorize(text, "bright_yellow")
 
     def _format_agent_decision(self, message: str) -> str:
-        """Format agent decision (autonomous agents)"""
+        """Format agent decision (autonomous agents) with bright green color"""
         emoji = "🧠 " if self.emoji_enhanced else ""
-        return f"{emoji}Decision: {message}"
+        text = f"{emoji}Decision: {message}"
+        return self._colorize(text, "bright_green bold")
 
     def _format_tool_usage(self, message: str) -> str:
         """Format tool usage"""
@@ -389,9 +746,10 @@ class ConversationFormatter(logging.Formatter):
         # Expected format: "tool_name|purpose"
         if "|" in message:
             tool_name, purpose = message.split("|", 1)
-            return f"{emoji}Using: {tool_name}\n   → {purpose}"
+            text = f"{emoji}Using: {tool_name}\n   → {purpose}"
         else:
-            return f"{emoji}Using: {message}"
+            text = f"{emoji}Using: {message}"
+        return self._colorize(text, "orange3")
 
     def _format_tool_result(self, message: str) -> str:
         """Format tool result"""
@@ -399,34 +757,65 @@ class ConversationFormatter(logging.Formatter):
         # Truncate if too long
         if len(message) > self.max_result_length:
             message = message[:self.max_result_length] + "..."
-        return f"{emoji}{message}"
+        text = f"{emoji}{message}"
+        return self._colorize(text, "cyan")
 
     def _format_agent_action(self, message: str) -> str:
         """Format agent action"""
         emoji = "⚙️ " if self.emoji_enhanced else ""
-        return f"{emoji}Action: {message}"
+        text = f"{emoji}Action: {message}"
+        return self._colorize(text, "bright_blue")
 
     def _format_agent_response(self, message: str) -> str:
-        """Format agent final response"""
+        """Format agent final response with bright green color"""
         emoji = "💬 " if self.emoji_enhanced else ""
-        return f"{emoji}{message}"
+        text = f"{emoji}{message}"
+        return self._colorize(text, "bright_green bold")
 
     def _format_agent_insight(self, message: str) -> str:
         """Format agent insight"""
         emoji = "💡 " if self.emoji_enhanced else ""
-        return f"{emoji}Insight: {message}"
+        text = f"{emoji}Insight: {message}"
+        return self._colorize(text, "bright_yellow")
 
     def _format_error(self, message: str) -> str:
         """Format error message"""
         emoji = "❌ " if self.emoji_enhanced else ""
-        return f"{emoji}Error: {message}"
+        text = f"{emoji}Error: {message}"
+        return self._colorize(text, "red bold")
 
     def _format_warning(self, message: str) -> str:
         """Format warning message"""
         emoji = "⚠️ " if self.emoji_enhanced else ""
-        return f"{emoji}Warning: {message}"
+        text = f"{emoji}Warning: {message}"
+        return self._colorize(text, "yellow")
 
     def _format_success(self, message: str) -> str:
         """Format success message"""
         emoji = "✅ " if self.emoji_enhanced else ""
-        return f"{emoji}{message}"
+        text = f"{emoji}{message}"
+        return self._colorize(text, "green")
+
+    def _colorize(self, text: str, style: str) -> str:
+        """Apply color to text using Rich console and return ANSI string"""
+        if not self.enable_colors or not self.console:
+            return text
+
+        try:
+            rich_text = Text(text, style=style)
+
+            # Convert to ANSI string
+            from io import StringIO
+            string_buffer = StringIO()
+            temp_console = Console(
+                file=string_buffer,
+                force_terminal=True,
+                legacy_windows=False,
+                width=200,
+                color_system="auto"
+            )
+            temp_console.print(rich_text, end="")
+            return string_buffer.getvalue()
+        except Exception:
+            # Fallback to plain text if coloring fails
+            return text
