@@ -20,6 +20,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
 from app.agents.autonomous.autonomous_agent import AutonomousDecision, AutonomousAgentConfig
+from app.agents.autonomous.persistent_memory import PersistentMemorySystem, MemoryType, MemoryImportance
 
 logger = structlog.get_logger(__name__)
 
@@ -66,14 +67,22 @@ class AutonomousDecisionEngine:
     - Learning from decision outcomes
     """
     
-    def __init__(self, config: AutonomousAgentConfig, llm: BaseLanguageModel):
-        """Initialize the decision engine."""
+    def __init__(self, config: AutonomousAgentConfig, llm: BaseLanguageModel, memory_system: Optional[PersistentMemorySystem] = None):
+        """
+        Initialize the decision engine.
+
+        Args:
+            config: Autonomous agent configuration
+            llm: Language model for decision reasoning
+            memory_system: Optional memory system for learning from past decisions
+        """
         self.config = config
         self.llm = llm
+        self.memory_system = memory_system
         self.decision_history: List[AutonomousDecision] = []
         self.decision_patterns: Dict[str, Any] = {}
         self.confidence_calibration: Dict[str, float] = {}
-        
+
         # Default decision criteria
         self.default_criteria = [
             DecisionCriteria(
@@ -113,8 +122,10 @@ class AutonomousDecisionEngine:
                 evaluation_method="learning_potential"
             )
         ]
-        
-        logger.info("Autonomous decision engine initialized", criteria_count=len(self.default_criteria))
+
+        logger.info("Autonomous decision engine initialized",
+                   criteria_count=len(self.default_criteria),
+                   memory_enabled=memory_system is not None)
     
     async def make_autonomous_decision(
         self,
@@ -124,19 +135,34 @@ class AutonomousDecisionEngine:
     ) -> AutonomousDecision:
         """
         Make an autonomous decision based on context and criteria.
-        
+
+        PRODUCTION IMPLEMENTATION: Retrieves relevant past decisions from memory
+        to inform current decision-making with learned patterns and outcomes.
+
         Args:
             context: Decision context including goals, constraints, and available actions
             confidence_threshold: Minimum confidence required for decision
             custom_criteria: Custom decision criteria (optional)
-            
+
         Returns:
             AutonomousDecision with chosen option and reasoning
         """
         try:
+            # CRITICAL: Retrieve relevant past decisions from memory
+            past_decisions = await self._retrieve_relevant_past_decisions(context)
+
+            # Enrich context with learned patterns from past decisions
+            if past_decisions:
+                context["past_decision_insights"] = self._extract_decision_insights(past_decisions)
+                logger.debug(
+                    "Retrieved past decisions for context",
+                    past_decisions_count=len(past_decisions),
+                    insights_extracted=len(context.get("past_decision_insights", []))
+                )
+
             # Generate decision options
             options = await self._generate_decision_options(context)
-            
+
             if not options:
                 # Create default "no action" option
                 options = [DecisionOption(
@@ -145,27 +171,27 @@ class AutonomousDecisionEngine:
                     expected_outcome={"status": "maintain_current_state"},
                     confidence_estimate=0.8
                 )]
-            
+
             # Use custom or default criteria
             criteria = custom_criteria or self.default_criteria
-            
-            # Evaluate each option
+
+            # Evaluate each option (now with past decision insights)
             evaluated_options = []
             for option in options:
                 evaluation = await self._evaluate_option(option, context, criteria)
                 evaluated_options.append((option, evaluation))
-            
+
             # Select best option
             best_option, best_evaluation = self._select_best_option(evaluated_options)
-            
+
             # Calculate overall confidence
             confidence = self._calculate_decision_confidence(best_evaluation, context)
-            
+
             # Generate reasoning chain
             reasoning = await self._generate_reasoning_chain(
                 best_option, best_evaluation, context, criteria
             )
-            
+
             # Create decision record
             decision = AutonomousDecision(
                 decision_type="autonomous_action",
@@ -176,10 +202,13 @@ class AutonomousDecisionEngine:
                 reasoning=reasoning,
                 expected_outcome=best_option.expected_outcome
             )
-            
+
             # Record decision for learning
             self.decision_history.append(decision)
             self._update_decision_patterns(decision)
+
+            # CRITICAL: Store this decision in memory for future learning
+            await self._store_decision_in_memory(decision, context, past_decisions)
             
             logger.info(
                 "Autonomous decision made",
@@ -557,6 +586,183 @@ class AutonomousDecisionEngine:
             reasoning.append("Will improve understanding before taking action")
 
         return reasoning
+
+    async def _retrieve_relevant_past_decisions(self, context: Dict[str, Any]) -> List[Any]:
+        """
+        Retrieve relevant past decisions from memory to inform current decision.
+
+        PRODUCTION IMPLEMENTATION: Queries memory system for similar past decisions
+        based on context, goals, and decision type.
+
+        Args:
+            context: Current decision context
+
+        Returns:
+            List of relevant past decision memories
+        """
+        if not self.memory_system:
+            return []
+
+        try:
+            # Build query from context
+            query_parts = []
+
+            if "current_task" in context:
+                query_parts.append(f"decision about {context['current_task']}")
+
+            if "active_goals" in context and context["active_goals"]:
+                goals_str = ", ".join(str(g) for g in context["active_goals"][:3])
+                query_parts.append(f"goals: {goals_str}")
+
+            if "available_actions" in context:
+                actions_str = ", ".join(context["available_actions"][:5])
+                query_parts.append(f"actions: {actions_str}")
+
+            query = " | ".join(query_parts) if query_parts else "autonomous decision"
+
+            # Retrieve relevant decision memories
+            past_decisions = await self.memory_system.retrieve_relevant_memories(
+                query=query,
+                memory_types=[MemoryType.EPISODIC, MemoryType.PROCEDURAL],
+                limit=5
+            )
+
+            logger.debug(
+                "Retrieved past decisions from memory",
+                query=query[:100],
+                memories_found=len(past_decisions)
+            )
+
+            return past_decisions
+
+        except Exception as e:
+            logger.warning(f"Failed to retrieve past decisions from memory: {e}")
+            return []
+
+    def _extract_decision_insights(self, past_decisions: List[Any]) -> List[Dict[str, Any]]:
+        """
+        Extract actionable insights from past decisions.
+
+        PRODUCTION IMPLEMENTATION: Analyzes past decisions to identify patterns,
+        successful strategies, and lessons learned.
+
+        Args:
+            past_decisions: List of past decision memories
+
+        Returns:
+            List of insights extracted from past decisions
+        """
+        insights = []
+
+        for memory in past_decisions:
+            try:
+                content = memory.content if hasattr(memory, 'content') else str(memory)
+                metadata = memory.metadata if hasattr(memory, 'metadata') else {}
+
+                insight = {
+                    "content": content[:200],
+                    "success": metadata.get("success", None),
+                    "confidence": metadata.get("confidence", 0.5),
+                    "outcome": metadata.get("outcome", "unknown"),
+                    "timestamp": memory.created_at if hasattr(memory, 'created_at') else None
+                }
+
+                # Extract specific lessons
+                if metadata.get("success") is True:
+                    insight["lesson"] = "successful_pattern"
+                elif metadata.get("success") is False:
+                    insight["lesson"] = "avoid_pattern"
+                else:
+                    insight["lesson"] = "informational"
+
+                insights.append(insight)
+
+            except Exception as e:
+                logger.debug(f"Failed to extract insight from memory: {e}")
+                continue
+
+        return insights
+
+    async def _store_decision_in_memory(
+        self,
+        decision: AutonomousDecision,
+        context: Dict[str, Any],
+        past_decisions: List[Any]
+    ) -> None:
+        """
+        Store decision in memory for future learning.
+
+        PRODUCTION IMPLEMENTATION: Stores decision with rich metadata including
+        context, reasoning, and links to past decisions for pattern learning.
+
+        Args:
+            decision: The decision that was made
+            context: Decision context
+            past_decisions: Past decisions that informed this decision
+        """
+        if not self.memory_system:
+            return
+
+        try:
+            # Build memory content
+            content_parts = [
+                f"Decision: {decision.chosen_option.get('action', 'unknown')}",
+                f"Type: {decision.chosen_option.get('type', 'unknown')}",
+                f"Confidence: {decision.confidence:.2f}"
+            ]
+
+            if decision.reasoning:
+                reasoning_summary = " | ".join(decision.reasoning[:2])
+                content_parts.append(f"Reasoning: {reasoning_summary}")
+
+            content = " | ".join(content_parts)
+
+            # Determine importance based on confidence and context
+            if decision.confidence >= 0.8:
+                importance = MemoryImportance.HIGH
+            elif decision.confidence >= 0.6:
+                importance = MemoryImportance.MEDIUM
+            else:
+                importance = MemoryImportance.LOW
+
+            # Build metadata
+            metadata = {
+                "decision_id": decision.decision_id,
+                "decision_type": decision.decision_type,
+                "confidence": decision.confidence,
+                "options_considered": len(decision.options_considered),
+                "chosen_action": decision.chosen_option.get("action"),
+                "chosen_type": decision.chosen_option.get("type"),
+                "expected_outcome": decision.expected_outcome,
+                "context_summary": {
+                    "has_goals": "active_goals" in context,
+                    "has_actions": "available_actions" in context,
+                    "has_task": "current_task" in context
+                },
+                "informed_by_past": len(past_decisions) > 0,
+                "past_decisions_count": len(past_decisions),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+
+            # Store as procedural memory (decision-making skill)
+            await self.memory_system.store_memory(
+                content=content,
+                memory_type=MemoryType.PROCEDURAL,
+                importance=importance,
+                metadata=metadata,
+                tags={"decision", "autonomous", decision.chosen_option.get("type", "unknown")},
+                emotional_valence=0.3  # Slightly positive for taking action
+            )
+
+            logger.debug(
+                "Stored decision in memory",
+                decision_id=decision.decision_id,
+                importance=importance.value,
+                memory_type="procedural"
+            )
+
+        except Exception as e:
+            logger.warning(f"Failed to store decision in memory: {e}")
 
     def _update_decision_patterns(self, decision: AutonomousDecision) -> None:
         """Update decision patterns based on the made decision."""

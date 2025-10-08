@@ -65,18 +65,19 @@ from .dynamic_knowledge_graph import (
 from .advanced_retrieval_mechanisms import (
     AdvancedRetrievalMechanisms, RetrievalQuery, RetrievalMethod, RetrievalResult as AdvancedRetrievalResult
 )
-from .memory_consolidation_system import (
-    MemoryConsolidationSystem, ConsolidationPhase, ConsolidationStrategy, ConsolidationSession
-)
-from .lifelong_learning_capabilities import (
-    LifelongLearningCapabilities, LearningType, SkillProfile, LearningExperience
-)
-from .multimodal_memory_support import (
-    MultimodalMemorySystem, ModalityType, MultimodalMemoryEntry, CrossModalAssociation
-)
-from .memory_driven_decision_making import (
-    MemoryDrivenDecisionMaking, DecisionType, DecisionOption, DecisionRecord
-)
+# Optional components (not required for core functionality)
+# from .memory_consolidation_system import (
+#     MemoryConsolidationSystem, ConsolidationPhase, ConsolidationStrategy, ConsolidationSession
+# )
+# from .lifelong_learning_capabilities import (
+#     LifelongLearningCapabilities, LearningType, SkillProfile, LearningExperience
+# )
+# from .multimodal_memory_support import (
+#     MultimodalMemorySystem, ModalityType, MultimodalMemoryEntry, CrossModalAssociation
+# )
+# from .memory_driven_decision_making import (
+#     MemoryDrivenDecisionMaking, DecisionType, DecisionOption, DecisionRecord
+# )
 
 __all__ = [
     # THE Revolutionary Memory System

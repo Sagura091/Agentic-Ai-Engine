@@ -103,6 +103,7 @@ class UnifiedSystemOrchestrator:
         # PHASE 2: Memory & Tools
         self.memory_system: Optional[UnifiedMemorySystem] = None
         self.tool_repository: Optional[UnifiedToolRepository] = None
+        self.memory_consolidation_service = None  # CRITICAL FIX: Automatic consolidation
 
         # PHASE 3: Communication
         self.communication_system: Optional[AgentCommunicationSystem] = None
@@ -301,11 +302,51 @@ class UnifiedSystemOrchestrator:
             await self._initialize_hybrid_rag_integration()
             self.status.components_status["hybrid_rag_integration"] = True
 
+            # CRITICAL FIX: Initialize automatic memory consolidation service
+            logger.info("   🔄 Initializing Memory Consolidation Service...")
+            await self._initialize_memory_consolidation_service()
+            self.status.components_status["memory_consolidation_service"] = True
+
             logger.info("✅ PHASE 2 Memory & Tools: COMPLETE")
 
         except Exception as e:
             logger.error(f"Failed to initialize core systems: {str(e)}")
             raise
+
+    async def _initialize_memory_consolidation_service(self) -> None:
+        """
+        CRITICAL FIX: Initialize automatic memory consolidation service.
+
+        This service runs periodic consolidation to:
+        - Promote important memories to long-term storage
+        - Forget low-value expired memories
+        - Optimize memory performance
+        - Enable continuous learning
+        """
+        try:
+            from app.services.memory_consolidation_service import MemoryConsolidationService
+
+            # Create consolidation service
+            self.memory_consolidation_service = MemoryConsolidationService(
+                memory_system=self.memory_system,
+                interval_hours=6,  # Run every 6 hours
+                consolidation_threshold=100,  # Minimum 100 memories before consolidation
+                max_agents_per_cycle=50  # Process up to 50 agents per cycle
+            )
+
+            # Start the service
+            await self.memory_consolidation_service.start()
+
+            logger.info(
+                "Memory consolidation service initialized and started",
+                interval_hours=6,
+                consolidation_threshold=100
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to initialize memory consolidation service: {e}", exc_info=True)
+            # Don't raise - consolidation is important but not critical for startup
+            logger.warning("System will continue without automatic memory consolidation")
 
     async def _register_builtin_tools(self):
         """Register all built-in tools with the tool repository."""
@@ -1142,6 +1183,7 @@ class UnifiedSystemOrchestrator:
             components_to_shutdown = [
                 ("performance_optimizer", self.performance_optimizer),
                 ("communication_system", self.communication_system),
+                ("memory_consolidation_service", self.memory_consolidation_service),  # CRITICAL FIX: Shutdown consolidation
                 ("tool_repository", self.tool_repository),
                 ("memory_system", self.memory_system),
                 ("kb_manager", self.kb_manager),

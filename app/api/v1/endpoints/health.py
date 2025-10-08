@@ -218,14 +218,20 @@ async def _check_redis(settings) -> Dict[str, Any]:
 
 
 async def _check_ollama(settings) -> Dict[str, Any]:
-    """Check Ollama service connectivity."""
+    """Check Ollama service connectivity using connection pooling."""
     start_time = time.time()
 
     try:
-        from app.http_client import SimpleHTTPClient
+        from app.http_client import HTTPClient, ClientConfig, ConnectionPoolConfig
 
-        async with SimpleHTTPClient(settings.OLLAMA_BASE_URL, timeout=5) as client:
-            response = await client.get("/api/tags")
+        # Use HTTPClient with connection pooling for faster health checks
+        config = ClientConfig(
+            timeout=5,
+            verify_ssl=False,
+            pool_config=ConnectionPoolConfig(max_per_host=2, keepalive_timeout=30)
+        )
+        async with HTTPClient(settings.OLLAMA_BASE_URL, config) as client:
+            response = await client.get("/api/tags", stream=False)
             response.raise_for_status()
 
         response_time = (time.time() - start_time) * 1000
@@ -245,14 +251,20 @@ async def _check_ollama(settings) -> Dict[str, Any]:
 
 
 async def _check_openwebui(settings) -> Dict[str, Any]:
-    """Check OpenWebUI service connectivity."""
+    """Check OpenWebUI service connectivity using connection pooling."""
     start_time = time.time()
 
     try:
-        from app.http_client import SimpleHTTPClient
+        from app.http_client import HTTPClient, ClientConfig, ConnectionPoolConfig
 
-        async with SimpleHTTPClient(settings.OPENWEBUI_BASE_URL, timeout=5) as client:
-            response = await client.get("/api/config")
+        # Use HTTPClient with connection pooling for faster health checks
+        config = ClientConfig(
+            timeout=5,
+            verify_ssl=False,
+            pool_config=ConnectionPoolConfig(max_per_host=2, keepalive_timeout=30)
+        )
+        async with HTTPClient(settings.OPENWEBUI_BASE_URL, config) as client:
+            response = await client.get("/api/config", stream=False)
             response.raise_for_status()
 
         response_time = (time.time() - start_time) * 1000

@@ -3,11 +3,18 @@ LLM Provider Manager.
 
 This module provides a centralized manager for all LLM providers,
 handling provider registration, selection, and lifecycle management.
+
+PHASE 1 & 2 IMPROVEMENTS:
+- Added comprehensive logging throughout
+- Implemented dependency injection pattern
+- Removed dependency on production_providers.py
+- Enhanced error handling and metrics
 """
 
 import asyncio
 from typing import Dict, List, Optional, Type, Any
 from datetime import datetime
+from threading import Lock
 import structlog
 from langchain_core.language_models import BaseLanguageModel
 
@@ -30,8 +37,15 @@ logger = structlog.get_logger(__name__)
 
 
 class LLMProviderManager:
-    """Centralized manager for LLM providers."""
-    
+    """
+    Centralized manager for LLM providers.
+
+    PHASE 2 IMPROVEMENTS:
+    - Enhanced logging throughout
+    - Better error handling
+    - Performance metrics
+    """
+
     def __init__(self):
         self._providers: Dict[ProviderType, LLMProvider] = {}
         self._provider_classes: Dict[ProviderType, Type[LLMProvider]] = {
@@ -41,32 +55,62 @@ class LLMProviderManager:
             ProviderType.GOOGLE: GoogleProvider
         }
         self._is_initialized = False
+        logger.info("LLMProviderManager instance created")
     
     async def initialize(self, provider_credentials: Optional[Dict[ProviderType, ProviderCredentials]] = None) -> None:
-        """Initialize all providers with their credentials."""
+        """
+        Initialize all providers with their credentials.
+
+        PHASE 1 IMPROVEMENT: Enhanced logging
+        """
         try:
+            logger.info("Starting LLM Provider Manager initialization",
+                       credentials_provided=bool(provider_credentials),
+                       provider_count=len(self._provider_classes))
+
             credentials_map = provider_credentials or {}
-            
+            initialized_count = 0
+            failed_count = 0
+
             for provider_type, provider_class in self._provider_classes.items():
                 try:
+                    logger.debug("Initializing provider",
+                                provider=provider_type.value,
+                                has_credentials=provider_type in credentials_map)
+
                     credentials = credentials_map.get(provider_type)
                     provider = provider_class(credentials)
-                    
+
                     # Initialize provider
                     if await provider.initialize():
                         self._providers[provider_type] = provider
-                        logger.info("Provider initialized successfully", provider=provider_type.value)
+                        initialized_count += 1
+                        logger.info("Provider initialized successfully",
+                                   provider=provider_type.value,
+                                   has_credentials=bool(credentials))
                     else:
-                        logger.warning("Provider initialization failed", provider=provider_type.value)
-                        
+                        failed_count += 1
+                        logger.warning("Provider initialization failed",
+                                      provider=provider_type.value)
+
                 except Exception as e:
-                    logger.error("Failed to initialize provider", provider=provider_type.value, error=str(e))
-            
+                    failed_count += 1
+                    logger.error("Failed to initialize provider",
+                                provider=provider_type.value,
+                                error=str(e),
+                                error_type=type(e).__name__)
+
             self._is_initialized = True
-            logger.info("LLM Provider Manager initialized", active_providers=list(self._providers.keys()))
-            
+            logger.info("LLM Provider Manager initialization complete",
+                       active_providers=[p.value for p in self._providers.keys()],
+                       initialized_count=initialized_count,
+                       failed_count=failed_count,
+                       total_providers=len(self._provider_classes))
+
         except Exception as e:
-            logger.error("Failed to initialize LLM Provider Manager", error=str(e))
+            logger.error("Failed to initialize LLM Provider Manager",
+                        error=str(e),
+                        error_type=type(e).__name__)
             raise
     
     async def register_provider(self, provider_type: ProviderType, credentials: Optional[ProviderCredentials] = None) -> bool:
@@ -227,24 +271,80 @@ class LLMProviderManager:
         }
 
 
-# Global instance
+# ============================================================================
+# DEPENDENCY INJECTION PATTERN
+# ============================================================================
+
+# Global instance with thread-safe initialization
 _llm_manager: Optional[LLMProviderManager] = None
+_manager_lock = Lock()
 
 
 def get_llm_manager() -> LLMProviderManager:
-    """Get the global LLM provider manager instance."""
+    """
+    Get the global LLM provider manager instance.
+
+    PHASE 2 IMPROVEMENT: Thread-safe singleton with proper locking
+
+    Returns:
+        LLMProviderManager instance
+    """
     global _llm_manager
+
     if _llm_manager is None:
-        _llm_manager = LLMProviderManager()
+        with _manager_lock:
+            # Double-check locking pattern
+            if _llm_manager is None:
+                logger.info("Creating new LLM Provider Manager instance")
+                _llm_manager = LLMProviderManager()
+                logger.debug("LLM Provider Manager instance created")
+
     return _llm_manager
 
 
 async def initialize_llm_manager(provider_credentials: Optional[Dict[ProviderType, ProviderCredentials]] = None) -> LLMProviderManager:
-    """Initialize the global LLM provider manager."""
+    """
+    Initialize the global LLM provider manager.
+
+    PHASE 1 IMPROVEMENT: Enhanced logging
+
+    Args:
+        provider_credentials: Optional credentials for providers
+
+    Returns:
+        Initialized LLMProviderManager instance
+    """
+    logger.info("Initializing global LLM Provider Manager",
+               has_credentials=bool(provider_credentials))
+
     manager = get_llm_manager()
+
     if not manager.is_initialized():
+        logger.debug("Manager not initialized, initializing now")
         await manager.initialize(provider_credentials)
+    else:
+        logger.debug("Manager already initialized, skipping initialization")
+
     return manager
+
+
+def reset_llm_manager() -> None:
+    """
+    Reset the global LLM provider manager instance.
+
+    PHASE 2 IMPROVEMENT: New function for testing and cleanup
+
+    This is primarily useful for testing scenarios where you need
+    to reset the manager state.
+    """
+    global _llm_manager
+
+    with _manager_lock:
+        if _llm_manager is not None:
+            logger.info("Resetting global LLM Provider Manager")
+            _llm_manager = None
+        else:
+            logger.debug("LLM Provider Manager already reset")
 
 
 # ============================================================================

@@ -27,6 +27,7 @@ from typing import List, Dict, Any, Optional, Set, Tuple
 from dataclasses import dataclass, field
 from pathlib import Path
 from collections import defaultdict
+from enum import Enum
 import math
 
 import structlog

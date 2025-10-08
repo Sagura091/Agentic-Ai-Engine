@@ -530,7 +530,82 @@ class LangGraphAgent(ABC):
 
         async with self._execution_lock:
             try:
-                # Create initial state
+                # CRITICAL FIX: Retrieve relevant memories before execution
+                relevant_memories = []
+                memory_context_str = ""
+
+                if hasattr(self, 'memory_system') and self.memory_system and hasattr(self, 'memory_type'):
+                    try:
+                        if self.memory_type == "simple":
+                            # Use UnifiedMemorySystem active retrieval
+                            from app.memory.active_retrieval_engine import RetrievalContext
+
+                            result = await self.memory_system.active_retrieve_memories(
+                                agent_id=self.agent_id,
+                                current_task=task,
+                                conversation_context=str(context) if context else "",
+                                max_memories=5,
+                                relevance_threshold=0.3
+                            )
+                            relevant_memories = result.memories
+
+                            backend_logger.debug(
+                                f"Retrieved {len(relevant_memories)} relevant memories for task",
+                                LogCategory.AGENT_OPERATIONS,
+                                "LangGraphAgent",
+                                data={
+                                    "agent_id": self.agent_id,
+                                    "session_id": session_id,
+                                    "memories_count": len(relevant_memories)
+                                }
+                            )
+                        elif self.memory_type == "advanced":
+                            # Use PersistentMemorySystem retrieval
+                            relevant_memories = await self.memory_system.retrieve_memories(
+                                query=task,
+                                memory_types=["episodic", "semantic"],
+                                limit=5
+                            )
+
+                            backend_logger.debug(
+                                f"Retrieved {len(relevant_memories)} memories from persistent system",
+                                LogCategory.AGENT_OPERATIONS,
+                                "LangGraphAgent",
+                                data={
+                                    "agent_id": self.agent_id,
+                                    "session_id": session_id,
+                                    "memories_count": len(relevant_memories)
+                                }
+                            )
+                    except Exception as e:
+                        backend_logger.warning(
+                            f"Failed to retrieve memories: {e}",
+                            LogCategory.AGENT_OPERATIONS,
+                            "LangGraphAgent",
+                            data={"agent_id": self.agent_id, "error": str(e)}
+                        )
+
+                # Build memory context string
+                if relevant_memories:
+                    memory_lines = []
+                    for i, mem in enumerate(relevant_memories[:3], 1):  # Top 3 most relevant
+                        if hasattr(mem, 'content'):
+                            memory_lines.append(f"{i}. {mem.content}")
+                        elif isinstance(mem, dict) and 'content' in mem:
+                            memory_lines.append(f"{i}. {mem['content']}")
+
+                    if memory_lines:
+                        memory_context_str = "\n\n## RELEVANT PAST EXPERIENCES:\n" + "\n".join(memory_lines)
+
+                # Prepare context with memory
+                if context is None:
+                    context = {}
+
+                if memory_context_str:
+                    context['relevant_memories'] = memory_context_str
+                    context['has_memory_context'] = True
+
+                # Create initial state with memory context
                 initial_state = AgentGraphState(
                     messages=[HumanMessage(content=task)],
                     current_task=task,
@@ -542,18 +617,20 @@ class LangGraphAgent(ABC):
                     errors=[],
                     iteration_count=0,
                     max_iterations=self.config.max_iterations,
-                    custom_state=context or {}
+                    custom_state=context
                 )
 
                 # Log workflow initialization
                 backend_logger.debug(
-                    "LangGraph workflow initialized",
+                    "LangGraph workflow initialized with memory context",
                     LogCategory.AGENT_OPERATIONS,
                     "LangGraphAgent",
                     data={
                         "agent_id": self.agent_id,
                         "session_id": session_id,
-                        "initial_state_keys": list(initial_state.keys())
+                        "initial_state_keys": list(initial_state.keys()),
+                        "has_memory_context": bool(memory_context_str),
+                        "memories_retrieved": len(relevant_memories)
                     }
                 )
 
@@ -637,6 +714,91 @@ class LangGraphAgent(ABC):
                     "execution_time_ms": execution_time_ms,
                     "session_id": session_id
                 }
+
+                # CRITICAL FIX: Store execution outcome as memory
+                if hasattr(self, 'memory_system') and self.memory_system and hasattr(self, 'memory_type'):
+                    try:
+                        # Extract final response
+                        final_response = ""
+                        if result.get("outputs") and "final_response" in result["outputs"]:
+                            final_response = str(result["outputs"]["final_response"])[:200]
+                        elif result.get("messages"):
+                            last_msg = result["messages"][-1]
+                            if hasattr(last_msg, 'content'):
+                                final_response = str(last_msg.content)[:200]
+
+                        # Determine success
+                        success = len(result.get("errors", [])) == 0
+
+                        # Determine importance based on execution
+                        from app.memory.memory_models import MemoryType, MemoryImportance
+
+                        if not success:
+                            importance = MemoryImportance.HIGH  # Remember failures
+                        elif execution_time_ms > 10000:  # Long-running tasks
+                            importance = MemoryImportance.HIGH
+                        elif len(result.get("tool_calls", [])) > 3:  # Complex tasks
+                            importance = MemoryImportance.MEDIUM
+                        else:
+                            importance = MemoryImportance.MEDIUM
+
+                        # Build memory content
+                        memory_content = f"Task: {task[:150]}"
+                        if final_response:
+                            memory_content += f" | Outcome: {final_response}"
+
+                        # Store memory
+                        if self.memory_type == "simple":
+                            await self.memory_system.add_memory(
+                                agent_id=self.agent_id,
+                                memory_type=MemoryType.EPISODIC,
+                                content=memory_content,
+                                metadata={
+                                    "session_id": session_id,
+                                    "task_type": "execution",
+                                    "success": success,
+                                    "execution_time_ms": execution_time_ms,
+                                    "iterations": result.get("iteration_count", 0),
+                                    "tools_used": len(result.get("tool_calls", [])),
+                                    "timestamp": datetime.utcnow().isoformat()
+                                },
+                                importance=importance,
+                                emotional_valence=0.5 if success else -0.3,
+                                tags={"execution", "task_completion", "success" if success else "failure"}
+                            )
+                        elif self.memory_type == "advanced":
+                            await self.memory_system.store_memory(
+                                content=memory_content,
+                                memory_type="episodic",
+                                importance=importance.value,
+                                metadata={
+                                    "session_id": session_id,
+                                    "task_type": "execution",
+                                    "success": success,
+                                    "execution_time_ms": execution_time_ms
+                                }
+                            )
+
+                        backend_logger.debug(
+                            "Execution outcome stored as memory",
+                            LogCategory.AGENT_OPERATIONS,
+                            "LangGraphAgent",
+                            data={
+                                "agent_id": self.agent_id,
+                                "session_id": session_id,
+                                "memory_type": self.memory_type,
+                                "importance": importance.value if hasattr(importance, 'value') else importance,
+                                "success": success
+                            }
+                        )
+
+                    except Exception as e:
+                        backend_logger.warning(
+                            f"Failed to store execution memory: {e}",
+                            LogCategory.AGENT_OPERATIONS,
+                            "LangGraphAgent",
+                            data={"agent_id": self.agent_id, "error": str(e)}
+                        )
 
                 return execution_result
 

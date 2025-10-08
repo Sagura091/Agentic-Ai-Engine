@@ -18,6 +18,7 @@ import structlog
 from pydantic import BaseModel, Field
 
 from app.agents.autonomous.autonomous_agent import AutonomousAgentConfig
+from app.agents.autonomous.persistent_memory import PersistentMemorySystem, MemoryType, MemoryImportance
 
 logger = structlog.get_logger(__name__)
 
@@ -142,19 +143,26 @@ class AutonomousGoalManager:
     - Progress tracking and success evaluation
     """
     
-    def __init__(self, config: AutonomousAgentConfig):
-        """Initialize the goal management system."""
+    def __init__(self, config: AutonomousAgentConfig, memory_system: Optional[PersistentMemorySystem] = None):
+        """
+        Initialize the goal management system.
+
+        Args:
+            config: Autonomous agent configuration
+            memory_system: Optional memory system for learning from past goal outcomes
+        """
         self.config = config
+        self.memory_system = memory_system
         self.goals: Dict[str, AutonomousGoal] = {}
         self.goal_plans: Dict[str, GoalPlan] = {}
         self.active_goals: List[str] = []
         self.goal_history: List[Dict[str, Any]] = []
-        
+
         # Goal management parameters
         self.max_active_goals = 5
         self.goal_review_interval = timedelta(minutes=30)
         self.last_goal_review = datetime.utcnow()
-        
+
         # Goal generation strategies
         self.goal_generation_enabled = config.enable_goal_setting
         self.proactive_goal_generation = config.enable_proactive_behavior
@@ -202,9 +210,21 @@ class AutonomousGoalManager:
         return self.goals.get(goal_id)
 
     async def update_goal_status(self, goal_id: str, status: GoalStatus) -> bool:
-        """Update the status of a goal."""
+        """
+        Update the status of a goal.
+
+        PRODUCTION IMPLEMENTATION: Stores goal outcomes in memory for learning.
+        """
         if goal_id in self.goals:
-            self.goals[goal_id].status = status
+            goal = self.goals[goal_id]
+            old_status = goal.status
+            goal.status = status
+            goal.updated_at = datetime.utcnow()
+
+            # CRITICAL: Store goal outcome in memory when completed or failed
+            if status in [GoalStatus.COMPLETED, GoalStatus.FAILED] and self.memory_system:
+                await self._store_goal_outcome_in_memory(goal, old_status, status)
+
             logger.info("Goal status updated", goal_id=goal_id, status=status)
             return True
         return False
@@ -747,3 +767,92 @@ class AutonomousGoalManager:
                 "complexity": "low",
                 "error": str(e)
             }
+
+    async def _store_goal_outcome_in_memory(
+        self,
+        goal: AutonomousGoal,
+        old_status: GoalStatus,
+        new_status: GoalStatus
+    ) -> None:
+        """
+        Store goal outcome in memory for future learning.
+
+        PRODUCTION IMPLEMENTATION: Stores goal completion/failure with rich metadata
+        to enable learning from past goal pursuit patterns.
+
+        Args:
+            goal: The goal that was updated
+            old_status: Previous goal status
+            new_status: New goal status
+        """
+        if not self.memory_system:
+            return
+
+        try:
+            # Build memory content
+            success = new_status == GoalStatus.COMPLETED
+            content_parts = [
+                f"Goal: {goal.title}",
+                f"Type: {goal.goal_type.value}",
+                f"Priority: {goal.priority.value}",
+                f"Outcome: {'SUCCESS' if success else 'FAILED'}",
+                f"Progress: {goal.metrics.progress:.1%}"
+            ]
+
+            if goal.description:
+                content_parts.append(f"Description: {goal.description[:100]}")
+
+            content = " | ".join(content_parts)
+
+            # Determine importance based on priority and outcome
+            if goal.priority == GoalPriority.CRITICAL:
+                importance = MemoryImportance.CRITICAL
+            elif goal.priority == GoalPriority.HIGH or success:
+                importance = MemoryImportance.HIGH
+            elif goal.priority == GoalPriority.MEDIUM:
+                importance = MemoryImportance.MEDIUM
+            else:
+                importance = MemoryImportance.LOW
+
+            # Build metadata
+            duration = (goal.updated_at - goal.created_at).total_seconds() if goal.updated_at else 0
+            metadata = {
+                "goal_id": goal.goal_id,
+                "goal_type": goal.goal_type.value,
+                "priority": goal.priority.value,
+                "success": success,
+                "progress": goal.metrics.progress,
+                "attempts": goal.metrics.attempts,
+                "duration_seconds": duration,
+                "target_outcome": goal.target_outcome,
+                "success_criteria_met": len(goal.success_criteria) if success else 0,
+                "total_success_criteria": len(goal.success_criteria),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+
+            # Determine emotional valence
+            if success:
+                emotional_valence = 0.7  # Positive for success
+            else:
+                emotional_valence = -0.3  # Negative for failure
+
+            # Store as episodic memory (goal pursuit experience)
+            await self.memory_system.store_memory(
+                content=content,
+                memory_type=MemoryType.EPISODIC,
+                importance=importance,
+                metadata=metadata,
+                tags={"goal", goal.goal_type.value, "success" if success else "failure"},
+                emotional_valence=emotional_valence
+            )
+
+            logger.debug(
+                "Stored goal outcome in memory",
+                goal_id=goal.goal_id,
+                success=success,
+                importance=importance.value,
+                memory_type="episodic"
+            )
+
+        except Exception as e:
+            logger.warning(f"Failed to store goal outcome in memory: {e}")

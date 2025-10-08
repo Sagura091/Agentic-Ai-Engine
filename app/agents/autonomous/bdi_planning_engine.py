@@ -23,6 +23,7 @@ from langchain_core.language_models import BaseLanguageModel
 
 from app.agents.autonomous.goal_manager import AutonomousGoal, GoalType, GoalPriority, GoalStatus
 from app.agents.autonomous.autonomous_agent import AutonomousDecision
+from app.agents.autonomous.persistent_memory import PersistentMemorySystem, MemoryType, MemoryImportance
 from app.services.autonomous_persistence import autonomous_persistence
 
 logger = structlog.get_logger(__name__)
@@ -123,36 +124,39 @@ class BDIPlanningEngine:
         self,
         agent_id: str,
         llm: BaseLanguageModel,
+        memory_system: Optional[PersistentMemorySystem] = None,
         max_beliefs: int = 1000,
         max_desires: int = 50,
         max_intentions: int = 20
     ):
         """
         Initialize the BDI planning engine.
-        
+
         Args:
             agent_id: Unique identifier for the agent
             llm: Language model for reasoning and planning
+            memory_system: Optional memory system for learning from past plans
             max_beliefs: Maximum number of beliefs to maintain
             max_desires: Maximum number of desires to maintain
             max_intentions: Maximum number of active intentions
         """
         self.agent_id = agent_id
         self.llm = llm
+        self.memory_system = memory_system
         self.max_beliefs = max_beliefs
         self.max_desires = max_desires
         self.max_intentions = max_intentions
-        
+
         # BDI components
         self.beliefs: Dict[str, Belief] = {}
         self.desires: Dict[str, Desire] = {}
         self.intentions: Dict[str, Intention] = {}
-        
+
         # Planning state
         self.planning_cycle_count = 0
         self.last_planning_cycle = None
         self.planning_enabled = True
-        
+
         # Performance tracking
         self.planning_stats = {
             "cycles_completed": 0,
@@ -162,13 +166,14 @@ class BDIPlanningEngine:
             "intentions_completed": 0,
             "intentions_failed": 0
         }
-        
+
         logger.info(
             "BDI Planning Engine initialized",
             agent_id=agent_id,
             max_beliefs=max_beliefs,
             max_desires=max_desires,
-            max_intentions=max_intentions
+            max_intentions=max_intentions,
+            memory_enabled=memory_system is not None
         )
     
     async def run_planning_cycle(
@@ -501,6 +506,9 @@ class BDIPlanningEngine:
         """
         Form concrete intentions (plans) to achieve desires.
 
+        PRODUCTION IMPLEMENTATION: Retrieves past successful plans from memory
+        to inform current planning with learned strategies.
+
         Args:
             context: Current context
             force_replan: Force replanning of existing intentions
@@ -511,6 +519,16 @@ class BDIPlanningEngine:
         try:
             intentions_created = 0
             intentions_updated = 0
+
+            # CRITICAL: Retrieve past successful plans from memory
+            past_plans = await self._retrieve_past_plans(context)
+            if past_plans:
+                context["past_plan_insights"] = self._extract_plan_insights(past_plans)
+                logger.debug(
+                    "Retrieved past plans for intention formation",
+                    past_plans_count=len(past_plans),
+                    insights_extracted=len(context.get("past_plan_insights", []))
+                )
 
             # Get active intentions count
             active_intentions = [i for i in self.intentions.values() if i.status == IntentionStatus.ACTIVE]
@@ -533,12 +551,15 @@ class BDIPlanningEngine:
                     if existing_intention and not force_replan:
                         continue
 
-                    # Create new intention
+                    # Create new intention (now with past plan insights)
                     intention = await self._create_intention_for_desire(desire, context)
                     if intention:
                         self.intentions[intention.intention_id] = intention
                         intentions_created += 1
                         active_intentions.append(intention)
+
+                        # CRITICAL: Store this plan in memory for future learning
+                        await self._store_plan_in_memory(intention, desire, context, past_plans)
 
             # Update existing intentions if needed
             for intention in list(self.intentions.values()):
@@ -903,3 +924,174 @@ class BDIPlanningEngine:
                         intention_id=intention.intention_id,
                         error=str(e))
             return intention.priority
+
+    async def _retrieve_past_plans(self, context: Dict[str, Any]) -> List[Any]:
+        """
+        Retrieve relevant past plans from memory.
+
+        PRODUCTION IMPLEMENTATION: Queries memory for similar past planning
+        experiences to inform current plan generation.
+
+        Args:
+            context: Current planning context
+
+        Returns:
+            List of relevant past plan memories
+        """
+        if not self.memory_system:
+            return []
+
+        try:
+            # Build query from context
+            query_parts = []
+
+            if "current_task" in context:
+                query_parts.append(f"plan for {context['current_task']}")
+
+            # Include desire types if available
+            if self.desires:
+                desire_types = set(d.desire_type.value for d in list(self.desires.values())[:3])
+                query_parts.append(f"desires: {', '.join(desire_types)}")
+
+            query = " | ".join(query_parts) if query_parts else "planning and intentions"
+
+            # Retrieve relevant planning memories
+            past_plans = await self.memory_system.retrieve_relevant_memories(
+                query=query,
+                memory_types=[MemoryType.PROCEDURAL, MemoryType.EPISODIC],
+                limit=5
+            )
+
+            logger.debug(
+                "Retrieved past plans from memory",
+                query=query[:100],
+                memories_found=len(past_plans)
+            )
+
+            return past_plans
+
+        except Exception as e:
+            logger.warning(f"Failed to retrieve past plans from memory: {e}")
+            return []
+
+    def _extract_plan_insights(self, past_plans: List[Any]) -> List[Dict[str, Any]]:
+        """
+        Extract actionable insights from past plans.
+
+        PRODUCTION IMPLEMENTATION: Analyzes past plans to identify successful
+        strategies, common pitfalls, and optimization opportunities.
+
+        Args:
+            past_plans: List of past plan memories
+
+        Returns:
+            List of insights extracted from past plans
+        """
+        insights = []
+
+        for memory in past_plans:
+            try:
+                content = memory.content if hasattr(memory, 'content') else str(memory)
+                metadata = memory.metadata if hasattr(memory, 'metadata') else {}
+
+                insight = {
+                    "content": content[:200],
+                    "success": metadata.get("success", None),
+                    "steps_completed": metadata.get("steps_completed", 0),
+                    "total_steps": metadata.get("total_steps", 0),
+                    "completion_rate": metadata.get("completion_rate", 0.0),
+                    "timestamp": memory.created_at if hasattr(memory, 'created_at') else None
+                }
+
+                # Extract specific lessons
+                if metadata.get("success") is True:
+                    insight["lesson"] = "successful_strategy"
+                elif metadata.get("completion_rate", 0) > 0.5:
+                    insight["lesson"] = "partial_success"
+                else:
+                    insight["lesson"] = "avoid_strategy"
+
+                insights.append(insight)
+
+            except Exception as e:
+                logger.debug(f"Failed to extract insight from plan memory: {e}")
+                continue
+
+        return insights
+
+    async def _store_plan_in_memory(
+        self,
+        intention: Intention,
+        desire: Desire,
+        context: Dict[str, Any],
+        past_plans: List[Any]
+    ) -> None:
+        """
+        Store plan in memory for future learning.
+
+        PRODUCTION IMPLEMENTATION: Stores plan with rich metadata including
+        desire context, plan steps, and links to past plans for pattern learning.
+
+        Args:
+            intention: The intention (plan) that was created
+            desire: The desire this plan aims to achieve
+            context: Planning context
+            past_plans: Past plans that informed this plan
+        """
+        if not self.memory_system:
+            return
+
+        try:
+            # Build memory content
+            content_parts = [
+                f"Plan: {intention.description}",
+                f"Desire: {desire.desire_type.value}",
+                f"Steps: {len(intention.plan)}",
+                f"Priority: {intention.priority:.2f}",
+                f"Confidence: {intention.confidence:.2f}"
+            ]
+
+            content = " | ".join(content_parts)
+
+            # Determine importance based on priority and confidence
+            if intention.priority >= 0.8 and intention.confidence >= 0.7:
+                importance = MemoryImportance.HIGH
+            elif intention.priority >= 0.5:
+                importance = MemoryImportance.MEDIUM
+            else:
+                importance = MemoryImportance.LOW
+
+            # Build metadata
+            metadata = {
+                "intention_id": intention.intention_id,
+                "desire_id": intention.desire_id,
+                "desire_type": desire.desire_type.value,
+                "plan_steps": len(intention.plan),
+                "priority": intention.priority,
+                "confidence": intention.confidence,
+                "expected_duration": intention.expected_duration,
+                "resource_requirements": intention.resource_requirements,
+                "informed_by_past": len(past_plans) > 0,
+                "past_plans_count": len(past_plans),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+
+            # Store as procedural memory (planning skill)
+            await self.memory_system.store_memory(
+                content=content,
+                memory_type=MemoryType.PROCEDURAL,
+                importance=importance,
+                metadata=metadata,
+                tags={"planning", "intention", desire.desire_type.value},
+                emotional_valence=0.2  # Slightly positive for creating plans
+            )
+
+            logger.debug(
+                "Stored plan in memory",
+                intention_id=intention.intention_id,
+                importance=importance.value,
+                memory_type="procedural"
+            )
+
+        except Exception as e:
+            logger.warning(f"Failed to store plan in memory: {e}")

@@ -31,8 +31,8 @@ from bs4 import BeautifulSoup, Comment
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
-# Import required modules
-from app.http_client import SimpleHTTPClient
+# Import required modules - Using new HTTPClient with connection pooling
+from app.http_client import HTTPClient, ClientConfig, ConnectionPoolConfig
 from app.tools.unified_tool_repository import ToolCategory
 
 logger = structlog.get_logger(__name__)
@@ -377,8 +377,8 @@ class RevolutionaryWebResearchTool(BaseTool):
         random.shuffle(header_items)
         return dict(header_items)
 
-    async def _get_client(self, url: str, stealth: bool = True, search_engine: str = "google") -> SimpleHTTPClient:
-        """Get advanced HTTP client with enhanced anti-detection and optimized timeouts."""
+    async def _get_client(self, url: str, stealth: bool = True, search_engine: str = "google") -> HTTPClient:
+        """Get advanced HTTP client with connection pooling and enhanced anti-detection."""
         parsed = urlparse(url)
         base_url = f"{parsed.scheme}://{parsed.netloc}"
         headers = self._get_stealth_headers(url, search_engine) if stealth else {'User-Agent': self._get_random_user_agent()}
@@ -401,7 +401,18 @@ class RevolutionaryWebResearchTool(BaseTool):
         if search_engine == 'searx' or 'searx' in url.lower():
             verify_ssl = False  # Bypass SSL verification for SearX instances
 
-        return SimpleHTTPClient(base_url, timeout=timeout, default_headers=headers, verify_ssl=verify_ssl)
+        # Use HTTPClient with connection pooling for massive performance gains
+        config = ClientConfig(
+            timeout=timeout,
+            default_headers=headers,
+            verify_ssl=verify_ssl,
+            pool_config=ConnectionPoolConfig(
+                max_per_host=3,  # Limit concurrent requests per domain for stealth
+                keepalive_timeout=30,
+                cleanup_interval=60
+            )
+        )
+        return HTTPClient(base_url, config)
 
     async def _intelligent_rate_limit(self, domain: str, request_type: str = "normal") -> None:
         """REVOLUTIONARY human-like rate limiting with randomization and adaptive delays."""

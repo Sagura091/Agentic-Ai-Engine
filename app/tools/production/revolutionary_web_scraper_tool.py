@@ -63,8 +63,8 @@ from pydantic import BaseModel, Field
 import aiohttp
 import httpx
 
-# Import required modules
-from app.http_client import SimpleHTTPClient
+# Import required modules - Using new HTTPClient with connection pooling
+from app.http_client import HTTPClient, ClientConfig, ConnectionPoolConfig
 from app.tools.unified_tool_repository import ToolCategory
 from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
@@ -495,8 +495,8 @@ This tool is UNSTOPPABLE and UNDETECTABLE - it will scrape ANY website successfu
                 verify=False
             )
 
-            # Note: SimpleHTTPClient is used directly in _scrape_with_requests method
-            # No session pooling needed as it creates connections on demand
+            # Note: HTTPClient with connection pooling is used in _scrape_with_requests method
+            # Connection pooling provides automatic connection reuse for better performance
 
             # Initialize CloudScraper if available
             if CLOUDSCRAPER_AVAILABLE:
@@ -636,9 +636,9 @@ This tool is UNSTOPPABLE and UNDETECTABLE - it will scrape ANY website successfu
     # ========================================
 
     async def _scrape_with_requests(self, url: str, **kwargs) -> ScrapingResult:
-        """Basic scraping with SimpleHTTPClient (custom HTTP client)."""
+        """Basic scraping with HTTPClient (custom HTTP client with connection pooling)."""
         try:
-            logger.info(f"🔧 Using SimpleHTTPClient engine for: {url}")
+            logger.info(f"🔧 Using HTTPClient engine with connection pooling for: {url}")
 
             headers = self._get_random_headers()
 
@@ -650,16 +650,22 @@ This tool is UNSTOPPABLE and UNDETECTABLE - it will scrape ANY website successfu
             if kwargs.get('human_behavior', True):
                 await self._simulate_human_behavior()
 
-            # Use SimpleHTTPClient
+            # Use HTTPClient with connection pooling for better performance
             import time
             start_time = time.time()
 
-            async with SimpleHTTPClient(
-                url,
+            config = ClientConfig(
                 timeout=kwargs.get('timeout', 30),
-                verify_ssl=False
-            ) as client:
-                response = await client.get("/", headers=headers)
+                verify_ssl=False,
+                default_headers=headers,
+                pool_config=ConnectionPoolConfig(
+                    max_per_host=3,
+                    keepalive_timeout=30,
+                    cleanup_interval=60
+                )
+            )
+            async with HTTPClient(url, config) as client:
+                response = await client.get("/", stream=False)
                 response.raise_for_status()
 
             response_time = time.time() - start_time
@@ -674,7 +680,7 @@ This tool is UNSTOPPABLE and UNDETECTABLE - it will scrape ANY website successfu
                 html=response.text,
                 status_code=response.status_code,
                 response_time=response_time,
-                engine_used="simple_http_client",
+                engine_used="http_client_pooled",
                 success=True
             )
 

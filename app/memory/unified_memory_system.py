@@ -51,10 +51,6 @@ from .active_retrieval_engine import ActiveRetrievalEngine, RetrievalContext, Re
 from .memory_orchestrator import MemoryOrchestrator, MemoryOperation, MemoryManagerType
 from .dynamic_knowledge_graph import DynamicKnowledgeGraph
 from .advanced_retrieval_mechanisms import AdvancedRetrievalMechanisms, RetrievalQuery
-from .memory_consolidation_system import MemoryConsolidationSystem, ConsolidationPhase
-from .lifelong_learning_capabilities import LifelongLearningCapabilities
-from .multimodal_memory_support import MultimodalMemorySystem, ModalityType
-from .memory_driven_decision_making import MemoryDrivenDecisionMaking
 
 logger = structlog.get_logger(__name__)
 
@@ -88,6 +84,9 @@ class UnifiedMemorySystem:
         # Revolutionary agent memory collections
         self.agent_memories: Dict[str, RevolutionaryMemoryCollection] = {}
 
+        # Agent-specific memory configurations
+        self.agent_memory_configs: Dict[str, Dict[str, Any]] = {}
+
         # OPTIMIZED: Performance-focused configuration
         self.config = {
             "max_short_term_memories": 1000,
@@ -107,7 +106,14 @@ class UnifiedMemorySystem:
             "index_update_batch_size": 100,
             "background_cleanup_interval": 300,  # 5 minutes
             "fast_retrieval_threshold": 0.3,
-            "parallel_operations": True
+            "parallel_operations": True,
+            # Memory type enablement (defaults - can be overridden per agent)
+            "enable_short_term": True,
+            "enable_long_term": True,
+            "enable_episodic": True,
+            "enable_semantic": True,
+            "enable_procedural": True,
+            "enable_working": True
         }
 
         # Revolutionary components
@@ -115,10 +121,11 @@ class UnifiedMemorySystem:
         self.active_retrieval_engine: Optional[ActiveRetrievalEngine] = None
         self.knowledge_graph: Optional[DynamicKnowledgeGraph] = None
         self.advanced_retrieval: Optional[AdvancedRetrievalMechanisms] = None
-        self.consolidation_system: Optional[MemoryConsolidationSystem] = None
-        self.lifelong_learning: Optional[LifelongLearningCapabilities] = None
-        self.multimodal_system: Optional[MultimodalMemorySystem] = None
-        self.decision_making: Optional[MemoryDrivenDecisionMaking] = None
+        # Optional components (not required for core functionality)
+        # self.consolidation_system: Optional[MemoryConsolidationSystem] = None
+        # self.lifelong_learning: Optional[LifelongLearningCapabilities] = None
+        # self.multimodal_system: Optional[MultimodalMemorySystem] = None
+        # self.decision_making: Optional[MemoryDrivenDecisionMaking] = None
 
         # Enhanced stats
         self.stats = {
@@ -171,8 +178,9 @@ class UnifiedMemorySystem:
             self.advanced_retrieval = AdvancedRetrievalMechanisms("system", self.embedding_function, self.knowledge_graph)
             logger.info("Advanced Retrieval Mechanisms initialized")
 
-            self.multimodal_system = MultimodalMemorySystem("system")
-            logger.info("Multimodal Memory System initialized")
+            # Optional: Multimodal system (not required for core functionality)
+            # self.multimodal_system = MultimodalMemorySystem("system")
+            # logger.info("Multimodal Memory System initialized")
 
             # Note: Agent-specific components will be initialized per agent
             logger.info("All revolutionary components initialized")
@@ -184,8 +192,23 @@ class UnifiedMemorySystem:
             logger.error(f"Failed to initialize revolutionary memory system: {str(e)}")
             raise
     
-    async def create_agent_memory(self, agent_id: str) -> RevolutionaryMemoryCollection:
-        """Create revolutionary memory collection for a new agent."""
+    async def create_agent_memory(self, agent_id: str, memory_config: Optional[Dict[str, Any]] = None) -> RevolutionaryMemoryCollection:
+        """
+        Create revolutionary memory collection for a new agent.
+
+        Args:
+            agent_id: The agent's unique identifier
+            memory_config: Optional memory configuration with flags like:
+                - enable_short_term: bool (default: True)
+                - enable_long_term: bool (default: True)
+                - enable_episodic: bool (default: True)
+                - enable_semantic: bool (default: True)
+                - enable_procedural: bool (default: True)
+                - enable_working: bool (default: True)
+
+        Returns:
+            RevolutionaryMemoryCollection for the agent
+        """
         try:
             if not self.is_initialized:
                 await self.initialize()
@@ -193,6 +216,29 @@ class UnifiedMemorySystem:
             if agent_id in self.agent_memories:
                 logger.warning(f"Revolutionary memory collection already exists for agent {agent_id}")
                 return self.agent_memories[agent_id]
+
+            # Store agent-specific memory configuration
+            if memory_config:
+                self.agent_memory_configs[agent_id] = memory_config
+                logger.info(
+                    f"Agent {agent_id} memory configuration",
+                    short_term=memory_config.get("enable_short_term", True),
+                    long_term=memory_config.get("enable_long_term", True),
+                    episodic=memory_config.get("enable_episodic", True),
+                    semantic=memory_config.get("enable_semantic", True),
+                    procedural=memory_config.get("enable_procedural", True),
+                    working=memory_config.get("enable_working", True)
+                )
+            else:
+                # Use default configuration
+                self.agent_memory_configs[agent_id] = {
+                    "enable_short_term": self.config.get("enable_short_term", True),
+                    "enable_long_term": self.config.get("enable_long_term", True),
+                    "enable_episodic": self.config.get("enable_episodic", True),
+                    "enable_semantic": self.config.get("enable_semantic", True),
+                    "enable_procedural": self.config.get("enable_procedural", True),
+                    "enable_working": self.config.get("enable_working", True)
+                }
 
             # Create revolutionary memory collection
             collection = RevolutionaryMemoryCollection.create(agent_id)
@@ -207,19 +253,15 @@ class UnifiedMemorySystem:
                 # Create agent-specific knowledge graph
                 agent_knowledge_graph = DynamicKnowledgeGraph(agent_id, self.embedding_function)
 
-                # Create agent-specific consolidation system
-                agent_consolidation = MemoryConsolidationSystem(agent_id, collection)
-
-                # Create agent-specific lifelong learning
-                agent_learning = LifelongLearningCapabilities(agent_id, collection)
-
-                # Create agent-specific decision making
-                agent_decision_making = MemoryDrivenDecisionMaking(agent_id, collection, agent_knowledge_graph)
+                # Optional: Create agent-specific advanced components (not required for core functionality)
+                # agent_consolidation = MemoryConsolidationSystem(agent_id, collection)
+                # agent_learning = LifelongLearningCapabilities(agent_id, collection)
+                # agent_decision_making = MemoryDrivenDecisionMaking(agent_id, collection, agent_knowledge_graph)
 
                 # Store references in collection for easy access
                 collection.knowledge_graph = agent_knowledge_graph
-                collection.consolidation_system = agent_consolidation
-                collection.lifelong_learning = agent_learning
+                # collection.consolidation_system = agent_consolidation
+                # collection.lifelong_learning = agent_learning
                 collection.decision_making = agent_decision_making
 
             # Update stats
@@ -245,9 +287,14 @@ class UnifiedMemorySystem:
         tags: Optional[set] = None,
         context: Optional[Dict[str, Any]] = None
     ) -> str:
-        """OPTIMIZED: Add a revolutionary memory entry with fast caching."""
+        """
+        OPTIMIZED: Add a revolutionary memory entry with fast caching and automatic database persistence.
+
+        Respects agent-specific memory type configuration. If a memory type is disabled for an agent,
+        it will be silently skipped or converted to an enabled type.
+        """
         start_time = time.time()
-        
+
         try:
             if not self.is_initialized:
                 await self.initialize()
@@ -257,6 +304,31 @@ class UnifiedMemorySystem:
                 await self.create_agent_memory(agent_id)
 
             collection = self.agent_memories[agent_id]
+
+            # Check if this memory type is enabled for this agent
+            agent_config = self.agent_memory_configs.get(agent_id, {})
+
+            # Map memory types to their enable flags
+            memory_type_flags = {
+                MemoryType.SHORT_TERM: "enable_short_term",
+                MemoryType.LONG_TERM: "enable_long_term",
+                MemoryType.EPISODIC: "enable_episodic",
+                MemoryType.SEMANTIC: "enable_semantic",
+                MemoryType.PROCEDURAL: "enable_procedural",
+                MemoryType.WORKING: "enable_working"
+            }
+
+            # Check if memory type is enabled
+            flag_name = memory_type_flags.get(memory_type)
+            if flag_name and not agent_config.get(flag_name, True):
+                # Memory type is disabled for this agent
+                logger.debug(
+                    f"Memory type {memory_type.value} is disabled for agent {agent_id}, skipping",
+                    agent_id=agent_id,
+                    memory_type=memory_type.value
+                )
+                # Return empty ID to indicate memory was not stored
+                return ""
 
             # Create revolutionary memory entry
             memory = MemoryEntry.create(
@@ -274,14 +346,14 @@ class UnifiedMemorySystem:
             with self._cache_lock:
                 # Add to collection
                 collection.add_memory(memory)
-                
+
                 # Update fast cache
                 self._fast_cache[memory.id] = memory
                 self._importance_cache[memory.id] = self._get_importance_score(importance)
-                
+
                 # Update index cache
                 self._update_index_cache(memory)
-                
+
                 # Update association cache
                 self._update_association_cache(memory)
 
@@ -292,9 +364,12 @@ class UnifiedMemorySystem:
             if self.unified_rag and self.config.get("parallel_operations", True):
                 asyncio.create_task(self._background_rag_storage(memory))
 
+            # CRITICAL FIX: Automatic database persistence
+            asyncio.create_task(self._persist_to_database(memory))
+
             operation_time = (time.time() - start_time) * 1000
             logger.debug(
-                "OPTIMIZED revolutionary memory added",
+                "OPTIMIZED revolutionary memory added with persistence",
                 agent_id=agent_id,
                 memory_id=memory.id,
                 memory_type=memory_type.value,
@@ -1163,59 +1238,61 @@ class UnifiedMemorySystem:
             logger.error(f"Failed to record learning experience for agent {agent_id}: {e}")
             return ""
 
-    async def store_multimodal_memory(
-        self,
-        agent_id: str,
-        primary_modality: ModalityType,
-        primary_content: Any,
-        additional_modalities: Optional[Dict[ModalityType, Any]] = None,
-        context: Optional[Dict[str, Any]] = None,
-        importance: str = "medium"
-    ) -> str:
-        """Store a multimodal memory."""
-        try:
-            if not self.multimodal_system:
-                return ""
+    # Optional: Multimodal memory support (not required for core functionality)
+    # async def store_multimodal_memory(
+    #     self,
+    #     agent_id: str,
+    #     primary_modality: Any,  # ModalityType
+    #     primary_content: Any,
+    #     additional_modalities: Optional[Dict[Any, Any]] = None,
+    #     context: Optional[Dict[str, Any]] = None,
+    #     importance: str = "medium"
+    # ) -> str:
+    #     """Store a multimodal memory."""
+    #     try:
+    #         if not self.multimodal_system:
+    #             return ""
+    #
+    #         memory_id = await self.multimodal_system.store_multimodal_memory(
+    #             primary_modality, primary_content, additional_modalities, context, importance
+    #         )
+    #
+    #         if memory_id:
+    #             self.stats["multimodal_memories"] += 1
+    #
+    #         return memory_id
+    #
+    #     except Exception as e:
+    #         logger.error(f"Failed to store multimodal memory: {e}")
+    #         return ""
 
-            memory_id = await self.multimodal_system.store_multimodal_memory(
-                primary_modality, primary_content, additional_modalities, context, importance
-            )
-
-            if memory_id:
-                self.stats["multimodal_memories"] += 1
-
-            return memory_id
-
-        except Exception as e:
-            logger.error(f"Failed to store multimodal memory: {e}")
-            return ""
-
-    async def make_memory_driven_decision(
-        self,
-        agent_id: str,
-        decision_context: Any,  # DecisionContext
-        options: List[Any],     # List[DecisionOption]
-        strategy: str = "hybrid"
-    ) -> Tuple[Any, Any]:  # Tuple[DecisionOption, DecisionRecord]
-        """Make a memory-driven decision for an agent."""
-        try:
-            if agent_id not in self.agent_memories:
-                await self.create_agent_memory(agent_id)
-
-            collection = self.agent_memories[agent_id]
-            if hasattr(collection, 'decision_making') and collection.decision_making:
-                chosen_option, decision_record = await collection.decision_making.make_decision(
-                    decision_context, options, strategy
-                )
-                self.stats["decisions_made"] += 1
-                return chosen_option, decision_record
-            else:
-                # Return first option as fallback
-                return options[0] if options else None, None
-
-        except Exception as e:
-            logger.error(f"Failed to make memory-driven decision for agent {agent_id}: {e}")
-            return options[0] if options else None, None
+    # Optional: Memory-driven decision making (not required for core functionality)
+    # async def make_memory_driven_decision(
+    #     self,
+    #     agent_id: str,
+    #     decision_context: Any,  # DecisionContext
+    #     options: List[Any],     # List[DecisionOption]
+    #     strategy: str = "hybrid"
+    # ) -> Tuple[Any, Any]:  # Tuple[DecisionOption, DecisionRecord]
+    #     """Make a memory-driven decision for an agent."""
+    #     try:
+    #         if agent_id not in self.agent_memories:
+    #             await self.create_agent_memory(agent_id)
+    #
+    #         collection = self.agent_memories[agent_id]
+    #         if hasattr(collection, 'decision_making') and collection.decision_making:
+    #             chosen_option, decision_record = await collection.decision_making.make_decision(
+    #                 decision_context, options, strategy
+    #             )
+    #             self.stats["decisions_made"] += 1
+    #             return chosen_option, decision_record
+    #         else:
+    #             # Return first option as fallback
+    #             return options[0] if options else None, None
+    #
+    #     except Exception as e:
+    #         logger.error(f"Failed to make memory-driven decision for agent {agent_id}: {e}")
+    #         return options[0] if options else None, None
 
     async def advanced_memory_search(
         self,
@@ -1403,13 +1480,113 @@ class UnifiedMemorySystem:
             logger.error(f"Failed to learn from experience: {e}")
             return ""
 
-    async def get_agent_context(self, agent_id: str, current_task: str = "", 
+    async def _persist_to_database(self, memory: MemoryEntry) -> bool:
+        """
+        CRITICAL FIX: Persist memory to PostgreSQL database.
+
+        This ensures memories survive agent restarts and system reboots.
+        Runs as background task to avoid blocking memory operations.
+        """
+        try:
+            from app.models.database.base import get_database_session
+            from app.models.autonomous import AgentMemoryDB, AutonomousAgentState
+            from app.models.agent import Agent
+            from sqlalchemy import select
+            from sqlalchemy.exc import IntegrityError
+            import uuid as uuid_module
+
+            async for session in get_database_session():
+                try:
+                    # Parse agent_id to UUID
+                    try:
+                        agent_uuid = uuid_module.UUID(memory.agent_id) if isinstance(memory.agent_id, str) else memory.agent_id
+                    except (ValueError, AttributeError):
+                        logger.warning(f"Invalid agent_id format for persistence: {memory.agent_id}")
+                        return False
+
+                    # Get or create agent record
+                    agent_result = await session.execute(
+                        select(Agent).where(Agent.id == agent_uuid)
+                    )
+                    agent_record = agent_result.scalar_one_or_none()
+
+                    if not agent_record:
+                        # Create agent record if it doesn't exist
+                        agent_record = Agent(
+                            id=agent_uuid,
+                            name=f"Agent-{memory.agent_id[:8]}",
+                            agent_type="general",
+                            model="llama3.2:latest",
+                            model_provider="ollama"
+                        )
+                        session.add(agent_record)
+                        await session.flush()
+
+                    # Get or create autonomous agent state
+                    state_result = await session.execute(
+                        select(AutonomousAgentState).where(AutonomousAgentState.agent_id == agent_uuid)
+                    )
+                    agent_state_record = state_result.scalar_one_or_none()
+
+                    if not agent_state_record:
+                        # Create agent state if doesn't exist
+                        agent_state_record = AutonomousAgentState(
+                            agent_id=agent_uuid,
+                            autonomy_level='adaptive',
+                            learning_enabled=True
+                        )
+                        session.add(agent_state_record)
+                        await session.flush()
+
+                    # Check if memory already exists
+                    existing_memory = await session.execute(
+                        select(AgentMemoryDB).where(AgentMemoryDB.memory_id == memory.id)
+                    )
+                    if existing_memory.scalar_one_or_none():
+                        logger.debug(f"Memory {memory.id} already persisted, skipping")
+                        return True
+
+                    # Create memory record
+                    memory_record = AgentMemoryDB(
+                        memory_id=memory.id,
+                        agent_state_id=agent_state_record.id,
+                        content=memory.content,
+                        memory_type=memory.memory_type.value,
+                        context=memory.metadata or {},
+                        importance=memory.importance.value,
+                        emotional_valence=memory.emotional_valence,
+                        tags=list(memory.tags) if memory.tags else [],
+                        created_at=memory.created_at,
+                        last_accessed=memory.last_accessed,
+                        access_count=memory.access_count
+                    )
+
+                    session.add(memory_record)
+                    await session.commit()
+
+                    logger.debug(f"Memory persisted to database: {memory.id} for agent {memory.agent_id}")
+                    return True
+
+                except IntegrityError as e:
+                    await session.rollback()
+                    logger.debug(f"Memory {memory.id} already exists in database (integrity error)")
+                    return True
+                except Exception as e:
+                    await session.rollback()
+                    logger.error(f"Failed to persist memory to database: {e}", exc_info=True)
+                    return False
+
+        except Exception as e:
+            logger.error(f"Database persistence error: {e}", exc_info=True)
+            return False
+
+    async def get_agent_context(self, agent_id: str, current_task: str = "",
                                conversation_context: str = "") -> str:
         """OPTIMIZED SIMPLE INTERFACE: Get comprehensive agent context."""
         try:
             # Get core memory context
             core_context = await self.get_core_memory_context(agent_id)
-            
+
             # Get active memories
             result = await self.active_retrieve_memories(
                 agent_id=agent_id,
@@ -1417,22 +1594,22 @@ class UnifiedMemorySystem:
                 conversation_context=conversation_context,
                 max_memories=10
             )
-            
+
             # Build comprehensive context
             context_parts = []
-            
+
             if core_context:
                 context_parts.append(f"CORE MEMORY:\n{core_context}")
-            
+
             if result.memories:
                 memory_context = "\n".join([
                     f"- {memory.content} (importance: {memory.importance.value})"
                     for memory in result.memories[:5]
                 ])
                 context_parts.append(f"RELEVANT MEMORIES:\n{memory_context}")
-            
+
             return "\n\n".join(context_parts)
-            
+
         except Exception as e:
             logger.error(f"Failed to get agent context: {e}")
             return ""

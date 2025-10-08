@@ -355,22 +355,45 @@ class AgentBuilderFactory:
             # Don't fail agent creation if memory assignment fails
 
     async def _assign_simple_memory(self, agent: Union[LangGraphAgent, AutonomousLangGraphAgent], config: AgentBuilderConfig):
-        """Assign UnifiedMemorySystem (simple memory) to an agent."""
+        """
+        Assign UnifiedMemorySystem (simple memory) to an agent.
+
+        CRITICAL FIX: Now loads existing memories from database on agent creation.
+
+        Supports memory type configuration from agent config:
+        - enable_short_term: Enable/disable short-term memory
+        - enable_long_term: Enable/disable long-term memory
+        - enable_episodic: Enable/disable episodic memory
+        - enable_semantic: Enable/disable semantic memory
+        - enable_procedural: Enable/disable procedural memory
+        - enable_working: Enable/disable working memory
+        """
         if not self.unified_memory_system:
             logger.warning("UnifiedMemorySystem not available, skipping simple memory assignment")
             return
 
-        # Create agent memory collection
-        memory_collection = await self.unified_memory_system.create_agent_memory(agent.agent_id)
+        # Extract memory configuration from agent config
+        memory_config = config.memory_config or {}
+
+        # Create agent memory collection with configuration
+        memory_collection = await self.unified_memory_system.create_agent_memory(
+            agent.agent_id,
+            memory_config=memory_config
+        )
+
+        # CRITICAL FIX: Load existing memories from database
+        memories_loaded = await self._load_agent_memories_from_database(agent.agent_id, memory_collection)
 
         # Store reference in agent for easy access
         agent.memory_system = self.unified_memory_system
         agent.memory_collection = memory_collection
         agent.memory_type = "simple"
 
-        logger.info("Simple memory system assigned",
+        logger.info("Simple memory system assigned and memories loaded",
                    agent_id=agent.agent_id,
-                   collection_id=memory_collection.agent_id)
+                   collection_id=memory_collection.agent_id,
+                   memories_loaded=memories_loaded,
+                   memory_config=memory_config)
 
     async def _assign_advanced_memory(self, agent: Union[LangGraphAgent, AutonomousLangGraphAgent], config: AgentBuilderConfig):
         """Assign PersistentMemorySystem (advanced memory) to an agent."""
@@ -420,6 +443,112 @@ class AgentBuilderFactory:
                    agent_id=agent.agent_id,
                    episodic_count=len(persistent_memory.episodic_memory),
                    semantic_count=len(persistent_memory.semantic_memory))
+
+    async def _load_agent_memories_from_database(self, agent_id: str, collection) -> int:
+        """
+        CRITICAL FIX: Load agent's memories from PostgreSQL database.
+
+        This ensures agents can resume from where they left off after restart.
+
+        Args:
+            agent_id: The agent's unique identifier
+            collection: The memory collection to load memories into
+
+        Returns:
+            Number of memories loaded
+        """
+        try:
+            from app.models.database.base import get_database_session
+            from app.models.autonomous import AgentMemoryDB, AutonomousAgentState
+            from app.memory.memory_models import MemoryEntry, MemoryType, MemoryImportance
+            from sqlalchemy import select
+            import uuid as uuid_module
+
+            # Parse agent_id to UUID
+            try:
+                agent_uuid = uuid_module.UUID(agent_id) if isinstance(agent_id, str) else agent_id
+            except (ValueError, AttributeError):
+                logger.warning(f"Invalid agent_id format for loading memories: {agent_id}")
+                return 0
+
+            async for session in get_database_session():
+                try:
+                    # Get agent state
+                    agent_state_result = await session.execute(
+                        select(AutonomousAgentState).where(AutonomousAgentState.agent_id == agent_uuid)
+                    )
+                    agent_state_record = agent_state_result.scalar_one_or_none()
+
+                    if not agent_state_record:
+                        logger.info(f"No previous state found for agent {agent_id}, starting fresh")
+                        return 0
+
+                    # Load memories from database
+                    memories_query = await session.execute(
+                        select(AgentMemoryDB)
+                        .where(AgentMemoryDB.agent_state_id == agent_state_record.id)
+                        .order_by(AgentMemoryDB.created_at.desc())
+                        .limit(10000)  # Load last 10,000 memories (configurable)
+                    )
+                    memory_records = memories_query.scalars().all()
+
+                    if not memory_records:
+                        logger.info(f"No previous memories found for agent {agent_id}")
+                        return 0
+
+                    # Reconstruct memory entries and add to collection
+                    loaded_count = 0
+                    for record in memory_records:
+                        try:
+                            # Parse memory type
+                            try:
+                                mem_type = MemoryType(record.memory_type)
+                            except ValueError:
+                                logger.warning(f"Unknown memory type {record.memory_type}, defaulting to EPISODIC")
+                                mem_type = MemoryType.EPISODIC
+
+                            # Parse importance
+                            try:
+                                importance = MemoryImportance(record.importance)
+                            except ValueError:
+                                logger.warning(f"Unknown importance {record.importance}, defaulting to MEDIUM")
+                                importance = MemoryImportance.MEDIUM
+
+                            # Create memory entry
+                            memory = MemoryEntry.create(
+                                agent_id=agent_id,
+                                memory_type=mem_type,
+                                content=record.content,
+                                metadata=record.context,
+                                importance=importance,
+                                emotional_valence=record.emotional_valence or 0.0,
+                                tags=set(record.tags) if record.tags else set()
+                            )
+
+                            # Restore original memory ID and timestamps
+                            memory.id = record.memory_id
+                            memory.created_at = record.created_at
+                            memory.last_accessed = record.last_accessed or record.created_at
+                            memory.access_count = record.access_count or 0
+
+                            # Add to collection
+                            collection.add_memory(memory)
+                            loaded_count += 1
+
+                        except Exception as e:
+                            logger.warning(f"Failed to load memory {record.memory_id}: {e}")
+                            continue
+
+                    logger.info(f"Successfully loaded {loaded_count} memories for agent {agent_id}")
+                    return loaded_count
+
+                except Exception as e:
+                    logger.error(f"Failed to load memories from database: {e}", exc_info=True)
+                    return 0
+
+        except Exception as e:
+            logger.error(f"Database memory loading error: {e}", exc_info=True)
+            return 0
 
     def get_available_templates(self) -> List[AgentTemplate]:
         """Get list of available agent templates."""

@@ -31,8 +31,8 @@ import structlog
 import cv2
 import numpy as np
 
-# Use custom HTTP client instead of requests
-from app.http_client import SimpleHTTPClient
+# Use custom HTTP client with connection pooling
+from app.http_client import HTTPClient, ClientConfig, ConnectionPoolConfig
 
 # Standardized PIL/Pillow imports with error handling
 try:
@@ -473,11 +473,17 @@ class MemeGenerationTool(BaseTool, MetadataCapableToolMixin):
                 "cfg_scale": 7
             }
 
-            async with SimpleHTTPClient(
-                self._config.stable_diffusion_api_url,
-                timeout=self._config.generation_timeout
-            ) as client:
-                response = await client.post("/sdapi/v1/txt2img", body=payload)
+            config = ClientConfig(
+                timeout=self._config.generation_timeout,
+                verify_ssl=False,
+                pool_config=ConnectionPoolConfig(
+                    max_per_host=2,
+                    keepalive_timeout=60,
+                    cleanup_interval=60
+                )
+            )
+            async with HTTPClient(self._config.stable_diffusion_api_url, config) as client:
+                response = await client.post("/sdapi/v1/txt2img", body=payload, stream=False)
 
             if response.status_code == 200:
                 result = response.json()

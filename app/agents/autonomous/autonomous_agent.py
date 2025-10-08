@@ -211,23 +211,30 @@ class AutonomousLangGraphAgent(LangGraphAgent):
 
         # Enhanced autonomous capabilities
         self.autonomous_config = config
-        self.decision_engine = AutonomousDecisionEngine(config, llm, self.full_yaml_config)
         self.learning_system = AdaptiveLearningSystem(config)
-
-        # Import the real goal manager
-        from app.agents.autonomous.goal_manager import AutonomousGoalManager as RealGoalManager
-        self.goal_manager = RealGoalManager(config)
         self.collaboration_manager = CollaborationManager(config)
 
         # New Phase 1 components
         from app.agents.autonomous.bdi_planning_engine import BDIPlanningEngine
         from app.agents.autonomous.persistent_memory import PersistentMemorySystem
         from app.agents.autonomous.proactive_behavior import ProactiveBehaviorSystem
+        from app.agents.autonomous.goal_manager import AutonomousGoalManager as RealGoalManager
         from app.services.autonomous_persistence import autonomous_persistence
 
-        self.bdi_engine = BDIPlanningEngine(self.agent_id, llm)
+        # Initialize memory system FIRST - all other components depend on it
         self.persistence_service = autonomous_persistence
         self.memory_system = PersistentMemorySystem(self.agent_id, llm, persistence_service=self.persistence_service)
+
+        # Initialize decision engine with memory system for learning from past decisions
+        self.decision_engine = AutonomousDecisionEngine(config, llm, self.full_yaml_config, memory_system=self.memory_system)
+
+        # Initialize BDI engine with memory system for learning from past plans
+        self.bdi_engine = BDIPlanningEngine(self.agent_id, llm, memory_system=self.memory_system)
+
+        # Initialize goal manager with memory system for learning from past goal outcomes
+        self.goal_manager = RealGoalManager(config, memory_system=self.memory_system)
+
+        # Initialize proactive system
         self.proactive_system = ProactiveBehaviorSystem(self.agent_id, llm)
 
         # PHASE 1 ENHANCEMENT: Master Orchestrator Capabilities
@@ -1469,15 +1476,43 @@ Make autonomous decisions about which tools to use and when to use them while ma
 
 # Supporting classes that need to be imported
 class AutonomousDecisionEngine:
-    """Placeholder for decision engine - implemented in decision_engine.py"""
-    def __init__(self, config, llm, full_yaml_config=None):
+    """
+    Wrapper for decision engine - delegates to metadata-driven decision engine.
+
+    PRODUCTION IMPLEMENTATION: Now integrates with memory system for learning
+    from past decisions.
+    """
+    def __init__(self, config, llm, full_yaml_config=None, memory_system=None):
         self.config = config
         self.llm = llm
         self.full_yaml_config = full_yaml_config or {}
+        self.memory_system = memory_system
 
     async def make_autonomous_decision(self, context, confidence_threshold):
         # Use metadata-driven decision engine
         from app.agents.autonomous.metadata_driven_decision_engine import MetadataDrivenDecisionEngine
+
+        # CRITICAL: Retrieve past decisions from memory if available
+        if self.memory_system:
+            try:
+                from app.agents.autonomous.persistent_memory import MemoryType
+                query = f"decision about {context.get('current_task', 'task')}"
+                past_decisions = await self.memory_system.retrieve_relevant_memories(
+                    query=query,
+                    memory_types=[MemoryType.EPISODIC, MemoryType.PROCEDURAL],
+                    limit=3
+                )
+                if past_decisions:
+                    context["past_decision_insights"] = [
+                        {
+                            "content": mem.content[:150],
+                            "success": mem.metadata.get("success") if hasattr(mem, 'metadata') else None
+                        }
+                        for mem in past_decisions
+                    ]
+            except Exception as e:
+                logger.debug(f"Failed to retrieve past decisions: {e}")
+
         # Use full YAML config which contains decision_patterns and behavioral_rules
         metadata_engine = MetadataDrivenDecisionEngine(self.full_yaml_config)
         decision_result = await metadata_engine.make_decision(context)

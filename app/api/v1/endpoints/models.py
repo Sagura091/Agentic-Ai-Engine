@@ -62,9 +62,14 @@ async def list_models(
         # Get models from Ollama if available
         ollama_models = []
         try:
-            from app.http_client import SimpleHTTPClient
-            async with SimpleHTTPClient(settings.OLLAMA_BASE_URL, timeout=10) as client:
-                response = await client.get("/api/tags")
+            from app.http_client import HTTPClient, ClientConfig, ConnectionPoolConfig
+            config = ClientConfig(
+                timeout=10,
+                verify_ssl=False,
+                pool_config=ConnectionPoolConfig(max_per_host=3, keepalive_timeout=60)
+            )
+            async with HTTPClient(settings.OLLAMA_BASE_URL, config) as client:
+                response = await client.get("/api/tags", stream=False)
                 if response.status_code == 200:
                     ollama_data = response.json()
                     ollama_models = [
@@ -226,9 +231,14 @@ async def get_model_status(model_id: str) -> Dict[str, Any]:
         if model.provider == "ollama":
             try:
                 settings = get_settings()
-                from app.http_client import SimpleHTTPClient
-                async with SimpleHTTPClient(settings.OLLAMA_BASE_URL, timeout=10) as client:
-                    response = await client.get("/api/tags")
+                from app.http_client import HTTPClient, ClientConfig, ConnectionPoolConfig
+                config = ClientConfig(
+                    timeout=10,
+                    verify_ssl=False,
+                    pool_config=ConnectionPoolConfig(max_per_host=3, keepalive_timeout=60)
+                )
+                async with HTTPClient(settings.OLLAMA_BASE_URL, config) as client:
+                    response = await client.get("/api/tags", stream=False)
                     if response.status_code == 200:
                         ollama_models = response.json().get("models", [])
                         if not any(m["name"] == model_id for m in ollama_models):
@@ -286,11 +296,16 @@ async def test_model(model_id: str) -> Dict[str, Any]:
         if model.provider == "ollama":
             try:
                 settings = get_settings()
-                from app.http_client import SimpleHTTPClient
+                from app.http_client import HTTPClient, ClientConfig, ConnectionPoolConfig
                 import time
 
                 start_time = time.time()
-                async with SimpleHTTPClient(settings.OLLAMA_BASE_URL, timeout=30) as client:
+                config = ClientConfig(
+                    timeout=30,
+                    verify_ssl=False,
+                    pool_config=ConnectionPoolConfig(max_per_host=3, keepalive_timeout=60)
+                )
+                async with HTTPClient(settings.OLLAMA_BASE_URL, config) as client:
                     test_payload = {
                         "model": model_id,
                         "prompt": "Hello, this is a test. Please respond with 'Test successful'.",

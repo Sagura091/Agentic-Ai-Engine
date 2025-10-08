@@ -44,11 +44,10 @@ except ImportError:
     PRAW_AVAILABLE = False
     praw = None
 
-# Use custom HTTP client instead of requests
-from app.http_client import SimpleHTTPClient
+# Use custom HTTP client with connection pooling
+from app.http_client import HTTPClient, ClientConfig, ConnectionPoolConfig
 
 # Import required modules
-from app.http_client import SimpleHTTPClient
 from app.tools.unified_tool_repository import ToolCategory
 from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
@@ -141,15 +140,25 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
         # Initialize Reddit client if credentials available
         self._initialize_reddit_client()
 
-    def _get_http_client(self, url: str) -> SimpleHTTPClient:
-        """Get HTTP client for the given URL."""
+    def _get_http_client(self, url: str) -> HTTPClient:
+        """Get HTTP client with connection pooling for the given URL."""
         from urllib.parse import urlparse
         parsed = urlparse(url)
         base_url = f"{parsed.scheme}://{parsed.netloc}"
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
-        return SimpleHTTPClient(base_url, timeout=30, default_headers=headers)
+        config = ClientConfig(
+            timeout=30,
+            default_headers=headers,
+            verify_ssl=False,
+            pool_config=ConnectionPoolConfig(
+                max_per_host=2,
+                keepalive_timeout=30,
+                cleanup_interval=60
+            )
+        )
+        return HTTPClient(base_url, config)
 
     def _initialize_reddit_client(self):
         """Initialize Reddit API client."""
@@ -455,9 +464,15 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
                 'Upgrade-Insecure-Requests': '1',
             }
 
-            # 🔍 Make request to Google Images
-            async with SimpleHTTPClient(search_url, timeout=10) as client:
-                response = await client.get("/", headers=headers)
+            # 🔍 Make request to Google Images with connection pooling
+            config = ClientConfig(
+                timeout=10,
+                default_headers=headers,
+                verify_ssl=False,
+                pool_config=ConnectionPoolConfig(max_per_host=2, keepalive_timeout=30)
+            )
+            async with HTTPClient(search_url, config) as client:
+                response = await client.get("/", stream=False)
                 response.raise_for_status()
 
             # 🧠 Parse HTML with BeautifulSoup
@@ -587,8 +602,14 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
                 'Referer': 'https://www.google.com/'
             }
 
-            async with SimpleHTTPClient(img_url, timeout=10) as client:
-                response = await client.get("/", headers=headers)
+            config = ClientConfig(
+                timeout=10,
+                default_headers=headers,
+                verify_ssl=False,
+                pool_config=ConnectionPoolConfig(max_per_host=2, keepalive_timeout=30)
+            )
+            async with HTTPClient(img_url, config) as client:
+                response = await client.get("/", stream=False)
                 response.raise_for_status()
 
             # 🖼️ Process the image
