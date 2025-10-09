@@ -157,7 +157,11 @@ CREATE INDEX IF NOT EXISTS idx_tools_status ON tools(status);
 CREATE INDEX IF NOT EXISTS idx_tools_created_at ON tools(created_at);
 
 -- JSONB indexes for metadata search
-CREATE INDEX IF NOT EXISTS idx_agents_metadata_gin ON agents USING gin(metadata);
+-- NOTE: Column names must match table definitions:
+--   - agents table uses 'agent_metadata' column
+--   - workflows table uses 'metadata' column (will be renamed to 'workflow_metadata' in migration 003)
+--   - tools table uses 'metadata' column (will be renamed to 'tool_metadata' in migration 003)
+CREATE INDEX IF NOT EXISTS idx_agents_metadata_gin ON agents USING gin(agent_metadata);
 CREATE INDEX IF NOT EXISTS idx_workflows_metadata_gin ON workflows USING gin(metadata);
 CREATE INDEX IF NOT EXISTS idx_tools_metadata_gin ON tools USING gin(metadata);
 

@@ -32,9 +32,21 @@ The migrations must be run in this exact order to maintain referential integrity
   - `learning_experiences` → references `agents.id` ✅
 - **REMOVED**: `performance_metrics` (system metrics, not learning)
 
-### 3. **003_create_auth_tables.py** - Authentication & User Management ✅
+### 3. **003_fix_schema_issues.sql** - Schema Bug Fixes ✅
+- **Purpose**: Fix critical schema bugs and inconsistencies identified in production analysis
+- **Dependencies**: 001_init_database.sql, 002_create_autonomous_tables.py
+- **Fixes Applied**:
+  - Added `migration_history.execution_time_ms` column (missing from 001) ✅
+  - Fixed agents metadata index to use `agent_metadata` column (not `metadata`) ✅
+  - Added knowledge_bases constraints (size_mb >= 0, valid status values) ✅
+  - Renamed `workflows.metadata` → `workflow_metadata` (align with model) ✅
+  - Renamed `tools.metadata` → `tool_metadata` (align with model) ✅
+- **Impact**: Resolves 3 critical bugs and 2 schema inconsistencies
+- **Date Applied**: 2025-10-08
+
+### 4. **004_create_auth_tables.py** - Authentication & User Management ✅
 - **Purpose**: Create ESSENTIAL user management and authentication system
-- **Dependencies**: 002_create_autonomous_tables.py
+- **Dependencies**: 003_fix_schema_issues.sql
 - **Creates** (OPTIMIZED):
   - `users` (with integrated roles via user_group field) ✅
   - `user_sessions` → references `users.id` ✅
@@ -46,9 +58,9 @@ The migrations must be run in this exact order to maintain referential integrity
 - **REMOVED**: `projects`, `project_members`, `notifications` (not implemented)
 - **REMOVED**: `roles`, `user_role_assignments` (roles now in users.user_group)
 
-### 4. **004_create_enhanced_tables.py** - Knowledge Base System ✅
+### 5. **004_create_enhanced_tables.py** - Knowledge Base System ✅
 - **Purpose**: Create ESSENTIAL knowledge base system for RAG
-- **Dependencies**: 003_create_auth_tables.py (users table)
+- **Dependencies**: 004_create_auth_tables.py (users table)
 - **Creates** (OPTIMIZED):
   - `knowledge_bases` → references `users.id` (created_by) ✅
   - `knowledge_base_access` → references `knowledge_bases.id`, `users.id` ✅
@@ -56,14 +68,14 @@ The migrations must be run in this exact order to maintain referential integrity
 - **REMOVED**: All model management tables (handled by Ollama/APIs)
 - **REMOVED**: `knowledge_base_usage_logs`, `knowledge_base_templates` (unnecessary complexity)
 
-### 5. **005_add_document_tables.py** - Document Storage & RAG
+### 6. **005_add_document_tables.py** - Document Storage & RAG
 - **Purpose**: Create document storage and RAG system tables
 - **Dependencies**: 004_create_enhanced_tables.py (knowledge_bases table)
 - **Creates**:
   - `rag.documents` → references knowledge_base_id
   - `rag.document_chunks` → references `rag.documents.id`
 
-### 6. **006_add_admin_settings_tables.py** - Admin Settings Management ✅
+### 7. **006_add_admin_settings_tables.py** - Admin Settings Management ✅
 - **Purpose**: Create comprehensive admin settings management system
 - **Dependencies**: 005_add_document_tables.py
 - **Creates** (NEW - Essential for Admin Configuration):
@@ -76,6 +88,14 @@ The migrations must be run in this exact order to maintain referential integrity
   - Validation rules and type checking
   - Performance caching layer
   - Default settings for immediate functionality
+
+### 8. **007_add_tool_system_tables.py** - Tool System Tables
+- **Purpose**: Create tool system tables for agent tool management
+- **Dependencies**: 006_add_admin_settings_tables.py
+
+### 9. **008_add_workflow_system_tables.py** - Workflow System Tables
+- **Purpose**: Create workflow system tables for agent workflow management
+- **Dependencies**: 007_add_tool_system_tables.py
 
 ## 🔗 Foreign Key Relationships
 
