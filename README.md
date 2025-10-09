@@ -13,6 +13,7 @@
 - [What This Project Is](#what-this-project-is)
 - [Quick Start](#quick-start)
 - [Core Features](#core-features)
+- [Documentation](#documentation)
 - [Architecture](#architecture)
 - [Configuration](#configuration)
 - [Development](#development)
@@ -122,6 +123,59 @@ Extensible tool framework with production-ready tools:
 - **WebSocket Support**: Real-time bidirectional communication
 - **OpenAPI/Swagger**: Interactive API documentation
 - **OpenWebUI Integration**: Pipeline support for OpenWebUI
+
+## 📚 Documentation
+
+Comprehensive documentation is available in the [`docs/`](docs/) directory, organized by purpose:
+
+### 🎓 [Tutorials](docs/tutorials/) - Learning-Oriented
+
+Step-by-step guides for beginners:
+
+- **[Getting Started](docs/tutorials/getting-started.md)** - Complete beginner tutorial from installation to first agent
+- **[Build Your First Agent](docs/tutorials/first-agent.md)** - Create a custom AI agent step-by-step
+- **[RAG System Basics](docs/tutorials/rag-basics.md)** - Learn how to use the RAG system
+
+### 🛠️ [How-to Guides](docs/guides/) - Problem-Oriented
+
+Practical guides for specific tasks:
+
+- **[Installation Guide](docs/guides/FIRST_TIME_SETUP.md)** - Detailed installation instructions
+- **[Configuration Guide](docs/guides/configuration.md)** - System configuration
+- **[Deployment Guide](docs/guides/DEPLOYMENT_GUIDE.md)** - Production deployment
+- **[Development Guide](docs/guides/development.md)** - Development environment setup
+- **[Error Handling Guide](docs/guides/error-handling.md)** - Error handling best practices
+- **[Performance Guide](docs/guides/performance.md)** - Performance optimization
+- **[RAG Quick Start](docs/guides/RAG_SYSTEM_QUICK_START.md)** - Quick start for RAG system
+
+### 📖 [Reference](docs/reference/) - Information-Oriented
+
+Technical reference documentation:
+
+- **[Agents System](docs/reference/AGENTS_SYSTEM_DOCUMENTATION.md)** - Agent framework reference
+- **[API Reference](docs/reference/API_SYSTEM_DOCUMENTATION.md)** - Complete API documentation
+- **[Database](docs/reference/DATABASE_SYSTEM_DOCUMENTATION.md)** - Database schema and operations
+- **[RAG System](docs/reference/RAG_SYSTEM_DOCUMENTATION.md)** - RAG system reference
+- **[Tools](docs/reference/TOOLS_SYSTEM_DOCUMENTATION.md)** - Agent tools reference
+- **[Memory System](docs/reference/MEMORY_SYSTEM_DOCUMENTATION.md)** - Memory system reference
+- **[LLM System](docs/reference/LLM_SYSTEM_DOCUMENTATION.md)** - LLM provider integration
+- **[And more...](docs/reference/)** - See all reference documentation
+
+### 💡 [Explanation](docs/explanation/) - Understanding-Oriented
+
+Conceptual discussions to deepen understanding:
+
+- **[Architecture Overview](docs/explanation/architecture.md)** - System architecture and design
+- **[Design Decisions](docs/explanation/design-decisions.md)** - Why we made certain choices
+- **[Agent Workflows](docs/explanation/workflows.md)** - How agents work internally
+
+### 📂 Special Topics
+
+- **[Logging System](docs/logging/)** - Comprehensive logging documentation
+- **[Architecture](docs/architecture/)** - Detailed architecture documentation
+- **[API Contracts](docs/api/)** - API contract specifications
+
+**👉 Start here:** [Documentation Index](docs/README.md)
 
 ## 🏗️ Architecture
 
