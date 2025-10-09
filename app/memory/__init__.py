@@ -106,7 +106,7 @@ __all__ = [
     "ResourceMemoryManager",
     "KnowledgeVaultManager",
 
-    # ALL PHASES REVOLUTIONARY COMPONENTS
+    # ALL PHASES REVOLUTIONARY COMPONENTS (Implemented)
     "DynamicKnowledgeGraph",
     "GraphEntity",
     "GraphRelationship",
@@ -115,20 +115,10 @@ __all__ = [
     "RetrievalQuery",
     "RetrievalMethod",
     "AdvancedRetrievalResult",
-    "MemoryConsolidationSystem",
-    "ConsolidationPhase",
-    "ConsolidationStrategy",
-    "ConsolidationSession",
-    "LifelongLearningCapabilities",
-    "LearningType",
-    "SkillProfile",
-    "LearningExperience",
-    "MultimodalMemorySystem",
-    "ModalityType",
-    "MultimodalMemoryEntry",
-    "CrossModalAssociation",
-    "MemoryDrivenDecisionMaking",
-    "DecisionType",
-    "DecisionOption",
-    "DecisionRecord"
+
+    # Note: The following components are planned but not yet implemented:
+    # - MemoryConsolidationSystem (see app/services/memory_consolidation_service.py for alternative)
+    # - LifelongLearningCapabilities
+    # - MultimodalMemorySystem
+    # - MemoryDrivenDecisionMaking
 ]

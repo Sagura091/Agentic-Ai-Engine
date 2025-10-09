@@ -16,7 +16,6 @@ Features:
 
 from .performance_optimizer import (
     PerformanceOptimizer,
-    OptimizationConfig,
     PerformanceMetrics,
     OptimizationStrategy,
     ResourceUsage
@@ -24,7 +23,6 @@ from .performance_optimizer import (
 
 from .advanced_access_controls import (
     AdvancedAccessController,
-    AccessPolicy,
     AccessRule,
     SecurityLevel,
     AccessAudit
@@ -32,32 +30,24 @@ from .advanced_access_controls import (
 
 from .monitoring_analytics import (
     MonitoringSystem,
-    AnalyticsEngine,
-    MetricCollector,
-    AlertManager,
     PerformanceReport
 )
 
 __all__ = [
     # Performance optimization
     "PerformanceOptimizer",
-    "OptimizationConfig",
     "PerformanceMetrics",
     "OptimizationStrategy",
     "ResourceUsage",
-    
+
     # Access controls
     "AdvancedAccessController",
-    "AccessPolicy",
     "AccessRule",
     "SecurityLevel",
     "AccessAudit",
-    
+
     # Monitoring and analytics
     "MonitoringSystem",
-    "AnalyticsEngine",
-    "MetricCollector",
-    "AlertManager",
     "PerformanceReport"
 ]
 

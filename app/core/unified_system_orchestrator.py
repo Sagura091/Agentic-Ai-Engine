@@ -8,7 +8,7 @@ COMPLETE SYSTEM ARCHITECTURE:
 ✅ PHASE 1: Foundation (UnifiedRAGSystem, CollectionBasedKBManager, AgentIsolationManager)
 ✅ PHASE 2: Memory & Tools (UnifiedMemorySystem, UnifiedToolRepository)
 ✅ PHASE 3: Communication (AgentCommunicationSystem, KnowledgeSharing, Collaboration)
-✅ PHASE 4: Optimization (PerformanceOptimizer, AccessControls, Monitoring)
+✅ PHASE 4: Optimization (Monitoring, Access Controls)
 
 DESIGN PRINCIPLES:
 - One orchestrator to rule them all
@@ -40,12 +40,6 @@ from app.rag.core.agent_isolation_manager import AgentIsolationManager
 from app.memory.unified_memory_system import UnifiedMemorySystem
 from app.tools.unified_tool_repository import UnifiedToolRepository
 from app.communication.agent_communication_system import AgentCommunicationSystem
-
-# Optional components (will be imported if available)
-try:
-    from app.optimization.performance_optimizer import PerformanceOptimizer
-except ImportError:
-    PerformanceOptimizer = None
 
 logger = structlog.get_logger(__name__)
 
@@ -107,9 +101,6 @@ class UnifiedSystemOrchestrator:
 
         # PHASE 3: Communication
         self.communication_system: Optional[AgentCommunicationSystem] = None
-
-        # PHASE 4: Optimization (optional)
-        self.performance_optimizer: Optional[PerformanceOptimizer] = None
 
         # REVOLUTIONARY: Component Workflow Execution System
         self.component_workflow_executor: Optional['ComponentWorkflowExecutor'] = None
@@ -918,18 +909,8 @@ class UnifiedSystemOrchestrator:
     async def _initialize_phase_4_optimization(self) -> None:
         """Initialize PHASE 4: Optimization components."""
         try:
-            # 1. Initialize THE PerformanceOptimizer (THE optimization system)
-            if PerformanceOptimizer:
-                logger.info("   ⚡ Initializing THE PerformanceOptimizer...")
-                self.performance_optimizer = PerformanceOptimizer(
-                    self.unified_rag,
-                    self.memory_system,
-                    self.tool_repository,
-                    self.communication_system
-                )
-                await self.performance_optimizer.initialize()
-                self.status.components_status["performance_optimizer"] = True
-
+            # PHASE 4: Optimization components (monitoring, access controls)
+            # Note: Performance optimizer was removed as it was never integrated
             logger.info("✅ PHASE 4 Optimization: COMPLETE")
 
         except Exception as e:
@@ -953,25 +934,7 @@ class UnifiedSystemOrchestrator:
             )
             await self.communication_system.initialize()
             self.status.components_status["communication_system"] = True
-            
-            # 3. Knowledge Sharing Protocol
-            logger.info("Initializing Knowledge Sharing Protocol...")
-            self.knowledge_sharing = KnowledgeSharingProtocol(
-                self.unified_rag,
-                self.kb_manager,
-                self.isolation_manager,
-                self.communication_system
-            )
-            self.status.components_status["knowledge_sharing"] = True
-            
-            # 4. Collaboration Manager
-            logger.info("Initializing Collaboration Manager...")
-            self.collaboration_manager = CollaborationManager(
-                self.communication_system,
-                self.isolation_manager
-            )
-            self.status.components_status["collaboration_manager"] = True
-            
+
             logger.info("✅ Tool and communication systems initialized successfully")
             
         except Exception as e:
@@ -981,30 +944,16 @@ class UnifiedSystemOrchestrator:
     async def _initialize_optimization_monitoring(self) -> None:
         """Initialize optimization and monitoring systems."""
         try:
-            # 1. Performance Optimizer
-            if self.config.enable_optimization:
-                logger.info("Initializing Performance Optimizer...")
-                self.performance_optimizer = PerformanceOptimizer(
-                    self.unified_rag,
-                    self.memory_system,
-                    self.tool_repository,
-                    self.communication_system,
-                    self.config.optimization_config
-                )
-                await self.performance_optimizer.initialize()
-                self.status.components_status["performance_optimizer"] = True
-            
-            # 2. Advanced Access Controller
+            # 1. Advanced Access Controller
             if self.config.enable_security:
                 logger.info("Initializing Advanced Access Controller...")
                 self.access_controller = AdvancedAccessController(self.isolation_manager)
                 self.status.components_status["access_controller"] = True
             
-            # 3. Monitoring System
+            # 2. Monitoring System
             if self.config.enable_monitoring:
                 logger.info("Initializing Monitoring System...")
                 self.monitoring_system = MonitoringSystem(
-                    self.performance_optimizer,
                     self.access_controller,
                     self.unified_rag,
                     self.memory_system,

@@ -1,7 +1,22 @@
 """
-User models for the agentic AI system.
+LEGACY User Models - Pydantic Schemas Only
 
-This module defines the user data models and related functionality.
+⚠️ IMPORTANT: This module contains LEGACY Pydantic models for backward compatibility.
+These models do NOT match the current optimized database schema.
+
+For NEW code, use models from app.models.auth instead:
+- UserDB (SQLAlchemy model)
+- UserCreate, UserResponse, TokenResponse (Pydantic models)
+
+This module is kept for:
+1. Backward compatibility with existing API endpoints (e.g., app/api/v1/endpoints/users.py)
+2. Legacy code that hasn't been migrated to the optimized schema
+
+CURRENT SCHEMA (auth.py):
+- UserDB has: username, email, name, hashed_password, is_active, user_group, api_keys
+- Removed: full_name, is_verified, is_superuser, subscription_tier, preferences
+
+TODO: Migrate all endpoints to use auth.py models and remove this file.
 """
 
 from typing import Optional, List

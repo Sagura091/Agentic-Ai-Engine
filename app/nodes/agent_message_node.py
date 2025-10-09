@@ -5,7 +5,6 @@ This module implements the AGENT_MESSAGE node for inter-agent communication.
 The AGENT_MESSAGE node enables agents to send messages to each other within workflows.
 """
 
-import asyncio
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass

@@ -29,16 +29,16 @@ def generate_secret_key():
     if env_file.exists():
         with open(env_file, 'r') as f:
             for line in f:
-                if line.strip().startswith('SECURITY__SECRET_KEY='):
+                if line.strip().startswith('AGENTIC_SECRET_KEY='):
                     # Replace existing key
-                    env_lines.append(f'SECURITY__SECRET_KEY={secret_key}\n')
+                    env_lines.append(f'AGENTIC_SECRET_KEY={secret_key}\n')
                     key_exists = True
                 else:
                     env_lines.append(line)
 
     # Add key if it doesn't exist
     if not key_exists:
-        env_lines.append(f'\n# Security Configuration\nSECURITY__SECRET_KEY={secret_key}\n')
+        env_lines.append(f'\n# Security Configuration\nAGENTIC_SECRET_KEY={secret_key}\n')
 
     # Write back to .env
     with open(env_file, 'w') as f:
@@ -52,43 +52,29 @@ def main():
     """Main entry point."""
     try:
         # Import configuration
-        from app.config.unified_config import get_config
+        from app.config.settings import get_settings
 
         # Load configuration
-        config = get_config()
+        settings = get_settings()
 
-        # Quick validation (skip connectivity for faster startup)
-        print("🔍 Validating configuration...")
-
-        # Run validation in event loop
-        async def validate():
-            return await config.validate(skip_connectivity=True)
-
-        is_valid = asyncio.run(validate())
-
-        if not is_valid:
-            print("⚠️  Configuration has warnings. Check logs for details.")
-
-            # Check if it's the default secret key issue
-            if config.security.secret_key == "dev-secret-key-change-in-production":
-                print("\n🔴 CRITICAL: Using default secret key!")
-                print("   This is a security risk for production deployments.")
-                response = input("\n   Would you like to generate a secure secret key now? (y/n): ")
-                if response.lower() in ['y', 'yes']:
-                    generate_secret_key()
-                    print("   Please restart the application to use the new key.")
-                    sys.exit(0)
-                else:
-                    print("   ⚠️  Continuing with default key (NOT RECOMMENDED for production)\n")
+        # Check if it's the default secret key issue
+        if settings.SECRET_KEY == "your-secret-key-change-this":
+            print("\n🔴 CRITICAL: Using default secret key!")
+            print("   This is a security risk for production deployments.")
+            response = input("\n   Would you like to generate a secure secret key now? (y/n): ")
+            if response.lower() in ['y', 'yes']:
+                generate_secret_key()
+                print("   Please restart the application to use the new key.")
+                sys.exit(0)
             else:
-                print("   Continuing anyway...\n")
+                print("   ⚠️  Continuing with default key (NOT RECOMMENDED for production)\n")
 
         # Display startup info
-        print(f"🚀 Starting {config.server.app_name}")
-        print(f"   Environment: {config.server.environment}")
-        print(f"   Host: {config.server.host}")
-        print(f"   Port: {config.server.port}")
-        print(f"   Docs: http://{config.server.host}:{config.server.port}/docs")
+        print(f"🚀 Starting {settings.APP_NAME}")
+        print(f"   Environment: {settings.ENVIRONMENT}")
+        print(f"   Host: {settings.HOST}")
+        print(f"   Port: {settings.PORT}")
+        print(f"   Docs: http://{settings.HOST}:{settings.PORT}/docs")
         print()
 
         # Configure clean console logging
@@ -103,9 +89,9 @@ def main():
 
         uvicorn.run(
             "app.main:app",
-            host=config.server.host,
-            port=config.server.port,
-            reload=config.server.debug,
+            host=settings.HOST,
+            port=settings.PORT,
+            reload=settings.DEBUG,
             log_level="warning",
             access_log=False,
             loop="uvloop" if sys.platform != "win32" else "asyncio",

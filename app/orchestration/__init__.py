@@ -10,9 +10,39 @@ Remaining components:
 """
 
 # Import remaining orchestration components
-from .subgraphs import *
+from .subgraphs import (
+    HierarchicalWorkflowOrchestrator,
+    LangGraphSubgraph,
+    ResearchTeamSubgraph,
+    DocumentTeamSubgraph,
+    AutonomyLevel,
+    DecisionStrategy,
+    CoordinationPattern,
+    SubgraphState,
+    HierarchicalWorkflowState,
+    ResearchTeamState,
+    DocumentTeamState,
+    AutonomousDecisionState
+)
 
 __all__ = [
-    # Export subgraph components
-    # (specific exports depend on subgraphs.py content)
+    # Main orchestrator
+    "HierarchicalWorkflowOrchestrator",
+
+    # Subgraph classes
+    "LangGraphSubgraph",
+    "ResearchTeamSubgraph",
+    "DocumentTeamSubgraph",
+
+    # Enums
+    "AutonomyLevel",
+    "DecisionStrategy",
+    "CoordinationPattern",
+
+    # State types
+    "SubgraphState",
+    "HierarchicalWorkflowState",
+    "ResearchTeamState",
+    "DocumentTeamState",
+    "AutonomousDecisionState"
 ]

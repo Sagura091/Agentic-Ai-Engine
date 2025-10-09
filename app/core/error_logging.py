@@ -1,382 +1,519 @@
-"""
-Comprehensive Error Logging System
+# 🛡️ Error Handling & Recovery Guide
 
-Provides detailed error tracking, categorization, and actionable debugging information
-for the AI agent system with location tracking and context preservation.
-"""
+## Overview
 
-import asyncio
-import json
-import traceback
-from datetime import datetime
-from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
-from dataclasses import dataclass, field, asdict
-from contextlib import asynccontextmanager
-import structlog
-import uuid
+The Agentic AI Engine features a **revolutionary intelligent error handling system** with:
 
-from app.config.settings import get_settings
+✅ **Automatic Error Analysis** - AI-powered root cause identification
+✅ **Smart Recovery** - Multiple recovery strategies
+✅ **Detailed Error Codes** - Structured error responses
+✅ **Learning System** - Improves over time
 
-logger = structlog.get_logger(__name__)
+> **⚠️ NOTE:** Circuit Breakers are documented below but **not currently implemented** in the codebase. The circuit breaker module (`app/core/circuit_breaker.py`) was removed as it was never integrated. If you need circuit breaker functionality, you'll need to implement it or use a third-party library like `pybreaker`.
 
+---
 
-class ErrorSeverity(str, Enum):
-    """Error severity levels."""
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
+## Error Handling System
 
+### Components
 
-class ErrorCategory(str, Enum):
-    """Error categories for classification."""
-    NETWORK = "network"
-    DATABASE = "database"
-    VALIDATION = "validation"
-    AUTHENTICATION = "authentication"
-    AUTHORIZATION = "authorization"
-    AGENT_EXECUTION = "agent_execution"
-    RAG_SYSTEM = "rag_system"
-    INTEGRATION = "integration"
-    SYSTEM = "system"
-    UNKNOWN = "unknown"
+1. **Intelligent Error Handler** - Analyzes and recovers from errors
+2. **Error Codes** - Structured error classification
+3. **Recovery Strategies** - Multiple recovery approaches
 
+---
 
-@dataclass
-class ErrorContext:
-    """Context information for error tracking."""
-    request_id: Optional[str] = None
-    user_id: Optional[str] = None
-    agent_id: Optional[str] = None
-    session_id: Optional[str] = None
-    endpoint: Optional[str] = None
-    method: Optional[str] = None
-    user_agent: Optional[str] = None
-    ip_address: Optional[str] = None
-    additional_data: Dict[str, Any] = field(default_factory=dict)
+## Using the Error Handler
 
+### Basic Usage
 
-@dataclass
-class ErrorDetails:
-    """Detailed error information."""
-    error_id: str
-    timestamp: datetime
-    severity: ErrorSeverity
-    category: ErrorCategory
-    message: str
-    location: str
-    stack_trace: Optional[str] = None
-    context: Optional[ErrorContext] = None
-    resolution_steps: List[str] = field(default_factory=list)
-    related_errors: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+```python
+from app.core.error_handling import error_handler
 
+try:
+    # Your code here
+    result = await some_operation()
+except Exception as e:
+    # Handle error with intelligent analysis
+    error_response = await error_handler.handle_error(
+        error=e,
+        context={
+            "operation": "some_operation",
+            "user_id": user_id,
+            "additional_info": "..."
+        },
+        request_id=request_id,
+        auto_recover=True  # Attempt automatic recovery
+    )
+    return error_response
+```
 
-class ErrorLogger:
-    """Comprehensive error logging system."""
-    
-    def __init__(self):
-        self.settings = get_settings()
-        self.error_storage: List[ErrorDetails] = []
-        self.max_stored_errors = 1000
-        self.log_file_path = Path("logs/error_details.jsonl")
-        self.log_file_path.parent.mkdir(exist_ok=True)
-    
-    async def log_error(
-        self,
-        error: Union[Exception, str],
-        severity: ErrorSeverity = ErrorSeverity.MEDIUM,
-        category: ErrorCategory = ErrorCategory.UNKNOWN,
-        location: str = "unknown",
-        context: Optional[ErrorContext] = None,
-        resolution_steps: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """
-        Log an error with comprehensive details.
-        
-        Args:
-            error: Exception or error message
-            severity: Error severity level
-            category: Error category
-            location: Location where error occurred
-            context: Additional context information
-            resolution_steps: Suggested resolution steps
-            metadata: Additional metadata
-            
-        Returns:
-            Error ID for tracking
-        """
-        error_id = str(uuid.uuid4())
-        
-        # Extract error message and stack trace
-        if isinstance(error, Exception):
-            message = str(error)
-            stack_trace = traceback.format_exc()
-        else:
-            message = str(error)
-            stack_trace = None
-        
-        # Create error details
-        error_details = ErrorDetails(
-            error_id=error_id,
-            timestamp=datetime.utcnow(),
-            severity=severity,
-            category=category,
-            message=message,
-            location=location,
-            stack_trace=stack_trace,
-            context=context,
-            resolution_steps=resolution_steps or self._get_default_resolution_steps(category),
-            metadata=metadata or {}
-        )
-        
-        # Store error
-        await self._store_error(error_details)
-        
-        # Log to structured logger
-        await self._log_to_structlog(error_details)
-        
-        # Send alerts for critical errors
-        if severity == ErrorSeverity.CRITICAL:
-            await self._send_critical_alert(error_details)
-        
-        return error_id
-    
-    async def _store_error(self, error_details: ErrorDetails) -> None:
-        """Store error details in memory and file."""
-        # Add to memory storage
-        self.error_storage.append(error_details)
-        
-        # Maintain max storage limit
-        if len(self.error_storage) > self.max_stored_errors:
-            self.error_storage = self.error_storage[-self.max_stored_errors:]
-        
-        # Write to file
-        try:
-            with open(self.log_file_path, 'a', encoding='utf-8') as f:
-                error_dict = asdict(error_details)
-                # Convert datetime to ISO string
-                error_dict['timestamp'] = error_details.timestamp.isoformat()
-                f.write(json.dumps(error_dict, default=str) + '\n')
-        except Exception as e:
-            logger.error("Failed to write error to file", error=str(e))
-    
-    async def _log_to_structlog(self, error_details: ErrorDetails) -> None:
-        """Log error to structured logger."""
-        log_data = {
-            "error_id": error_details.error_id,
-            "severity": error_details.severity.value,
-            "category": error_details.category.value,
-            "location": error_details.location,
-            "message": error_details.message,
-        }
-        
-        if error_details.context:
-            log_data.update({
-                "request_id": error_details.context.request_id,
-                "user_id": error_details.context.user_id,
-                "agent_id": error_details.context.agent_id,
-                "endpoint": error_details.context.endpoint,
-            })
-        
-        if error_details.severity == ErrorSeverity.CRITICAL:
-            logger.critical("Critical error occurred", **log_data)
-        elif error_details.severity == ErrorSeverity.HIGH:
-            logger.error("High severity error occurred", **log_data)
-        elif error_details.severity == ErrorSeverity.MEDIUM:
-            logger.warning("Medium severity error occurred", **log_data)
-        else:
-            logger.info("Low severity error occurred", **log_data)
-    
-    async def _send_critical_alert(self, error_details: ErrorDetails) -> None:
-        """Send alert for critical errors."""
-        # This would integrate with alerting systems like Slack, email, etc.
-        logger.critical(
-            "CRITICAL ERROR ALERT",
-            error_id=error_details.error_id,
-            message=error_details.message,
-            location=error_details.location,
-            resolution_steps=error_details.resolution_steps
-        )
-    
-    def _get_default_resolution_steps(self, category: ErrorCategory) -> List[str]:
-        """Get default resolution steps for error category."""
-        resolution_map = {
-            ErrorCategory.NETWORK: [
-                "Check network connectivity",
-                "Verify service endpoints are accessible",
-                "Check proxy settings and authentication",
-                "Review firewall and security group settings"
-            ],
-            ErrorCategory.DATABASE: [
-                "Check database connection settings",
-                "Verify database service is running",
-                "Check database credentials and permissions",
-                "Review connection pool settings"
-            ],
-            ErrorCategory.VALIDATION: [
-                "Review input data format and types",
-                "Check required fields are present",
-                "Validate data against schema requirements",
-                "Review API documentation for correct format"
-            ],
-            ErrorCategory.AUTHENTICATION: [
-                "Verify authentication credentials",
-                "Check token expiration and refresh",
-                "Review authentication configuration",
-                "Validate user permissions"
-            ],
-            ErrorCategory.AGENT_EXECUTION: [
-                "Check agent configuration and tools",
-                "Review agent memory and resource usage",
-                "Verify agent dependencies are available",
-                "Check agent execution logs for details"
-            ],
-            ErrorCategory.RAG_SYSTEM: [
-                "Check vector database connectivity",
-                "Verify embedding model availability",
-                "Review document ingestion status",
-                "Check search index integrity"
-            ],
-            ErrorCategory.INTEGRATION: [
-                "Verify external service availability",
-                "Check API keys and authentication",
-                "Review integration configuration",
-                "Test connectivity to external services"
-            ],
-            ErrorCategory.SYSTEM: [
-                "Check system resource availability",
-                "Review system logs for related errors",
-                "Verify service dependencies",
-                "Check system configuration"
-            ]
-        }
-        
-        return resolution_map.get(category, [
-            "Review error details and stack trace",
-            "Check system logs for related issues",
-            "Verify configuration settings",
-            "Contact system administrator if issue persists"
-        ])
-    
-    async def get_errors(
-        self,
-        severity: Optional[ErrorSeverity] = None,
-        category: Optional[ErrorCategory] = None,
-        limit: int = 100
-    ) -> List[ErrorDetails]:
-        """Get stored errors with optional filtering."""
-        errors = self.error_storage
-        
-        if severity:
-            errors = [e for e in errors if e.severity == severity]
-        
-        if category:
-            errors = [e for e in errors if e.category == category]
-        
-        # Sort by timestamp (newest first) and limit
-        errors.sort(key=lambda x: x.timestamp, reverse=True)
-        return errors[:limit]
-    
-    async def get_error_by_id(self, error_id: str) -> Optional[ErrorDetails]:
-        """Get specific error by ID."""
-        for error in self.error_storage:
-            if error.error_id == error_id:
-                return error
-        return None
-    
-    async def get_error_statistics(self) -> Dict[str, Any]:
-        """Get error statistics."""
-        total_errors = len(self.error_storage)
-        
-        if total_errors == 0:
-            return {"total_errors": 0}
-        
-        # Count by severity
-        severity_counts = {}
-        for severity in ErrorSeverity:
-            severity_counts[severity.value] = len([
-                e for e in self.error_storage if e.severity == severity
-            ])
-        
-        # Count by category
-        category_counts = {}
-        for category in ErrorCategory:
-            category_counts[category.value] = len([
-                e for e in self.error_storage if e.category == category
-            ])
-        
-        # Recent errors (last hour)
-        recent_errors = len([
-            e for e in self.error_storage 
-            if (datetime.utcnow() - e.timestamp).total_seconds() < 3600
-        ])
-        
-        return {
-            "total_errors": total_errors,
-            "recent_errors_last_hour": recent_errors,
-            "severity_breakdown": severity_counts,
-            "category_breakdown": category_counts,
-            "error_rate_per_hour": recent_errors
-        }
+### In FastAPI Endpoints
 
+```python
+from fastapi import APIRouter, HTTPException
+from app.core.error_handling import error_handler
 
-# Global error logger instance
-error_logger = ErrorLogger()
+router = APIRouter()
 
-
-@asynccontextmanager
-async def error_context(
-    location: str,
-    context: Optional[ErrorContext] = None,
-    category: ErrorCategory = ErrorCategory.UNKNOWN
-):
-    """Context manager for automatic error logging."""
+@router.post("/agents")
+async def create_agent(request: Request, agent_data: AgentCreate):
     try:
-        yield
+        agent = await agent_service.create_agent(agent_data)
+        return {"success": True, "agent": agent}
+        
     except Exception as e:
-        await error_logger.log_error(
+        # Intelligent error handling
+        error_response = await error_handler.handle_error(
             error=e,
-            severity=ErrorSeverity.HIGH,
-            category=category,
-            location=location,
-            context=context
+            context={
+                "operation": "create_agent",
+                "agent_type": agent_data.type,
+                "endpoint": "/agents"
+            },
+            request_id=request.state.request_id,
+            auto_recover=True
         )
-        raise
+        raise HTTPException(
+            status_code=500,
+            detail=error_response.dict()
+        )
+```
 
+---
 
-# Convenience functions
-async def log_error(
-    error: Union[Exception, str],
-    severity: ErrorSeverity = ErrorSeverity.MEDIUM,
-    category: ErrorCategory = ErrorCategory.UNKNOWN,
-    location: str = "unknown",
-    **kwargs
-) -> str:
-    """Convenience function for logging errors."""
-    return await error_logger.log_error(
-        error=error,
-        severity=severity,
-        category=category,
-        location=location,
-        **kwargs
+## Recovery Strategies
+
+The system supports multiple recovery strategies:
+
+### 1. Retry Strategy
+Automatically retries failed operations with exponential backoff.
+
+```python
+context = {
+    "operation": lambda: await external_service.call(),
+    "max_retries": 3,
+    "retry_delay": 1.0  # Initial delay in seconds
+}
+
+error_response = await error_handler.handle_error(
+    error=e,
+    context=context,
+    auto_recover=True
+)
+```
+
+### 2. Fallback Strategy
+Uses fallback data when operation fails.
+
+```python
+context = {
+    "fallback_data": {
+        "status": "degraded",
+        "message": "Using cached data"
+    }
+}
+```
+
+### 3. Circuit Breaker Strategy
+Opens circuit after repeated failures to prevent cascading issues.
+
+```python
+context = {
+    "service_name": "llm_provider",
+    "operation": "llm_request"
+}
+```
+
+### 4. Graceful Degradation
+Continues with limited functionality.
+
+```python
+# Automatically applied for agent and RAG errors
+```
+
+---
+
+## Circuit Breakers
+
+### Using Circuit Breakers
+
+```python
+from app.core.circuit_breaker import circuit_breaker_manager, CircuitBreakerConfig
+
+# Configure circuit breaker
+config = CircuitBreakerConfig(
+    failure_threshold=5,      # Open after 5 failures
+    failure_timeout=60,       # Wait 60s before retry
+    success_threshold=2,      # Close after 2 successes
+    call_timeout=30.0,        # 30s timeout per call
+    exponential_backoff=True  # Use exponential backoff
+)
+
+# Use circuit breaker
+try:
+    result = await circuit_breaker_manager.call(
+        name="external_api",
+        func=external_api.call,
+        config=config,
+        fallback=lambda: {"status": "unavailable"}
+    )
+except CircuitBreakerOpenError:
+    # Circuit is open, service unavailable
+    return {"error": "Service temporarily unavailable"}
+```
+
+### Direct Circuit Breaker Usage
+
+```python
+from app.core.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+
+# Create circuit breaker
+breaker = CircuitBreaker(
+    name="llm_provider",
+    config=CircuitBreakerConfig(failure_threshold=3)
+)
+
+# Use it
+async def call_llm():
+    return await breaker.call(
+        func=llm_provider.generate,
+        prompt="Hello",
+        fallback=lambda: "Service unavailable"
+    )
+```
+
+### Monitor Circuit Breakers
+
+```python
+from app.core.circuit_breaker import circuit_breaker_manager
+
+# Get all metrics
+metrics = circuit_breaker_manager.get_all_metrics()
+
+for name, stats in metrics.items():
+    print(f"{name}: {stats['state']} - {stats['success_rate']}% success")
+```
+
+---
+
+## Error Codes
+
+### Error Code Structure
+
+Format: `ERR_XXXX`
+- `1000-1999`: Client errors (validation, auth, not found)
+- `2000-2999`: Service errors (database, LLM, RAG, agents)
+- `3000-3999`: Configuration errors
+- `9000-9999`: Internal/system errors
+
+### Common Error Codes
+
+| Code | Category | Description |
+|------|----------|-------------|
+| `ERR_1000` | Validation | Validation error |
+| `ERR_1100` | Authentication | Authentication failed |
+| `ERR_1200` | Authorization | Access denied |
+| `ERR_1300` | Not Found | Resource not found |
+| `ERR_1500` | Rate Limit | Rate limit exceeded |
+| `ERR_2100` | Database | Database error |
+| `ERR_2200` | LLM Provider | LLM provider error |
+| `ERR_2300` | RAG System | RAG system error |
+| `ERR_2400` | Agent | Agent error |
+| `ERR_9000` | Internal | Internal server error |
+
+### Using Error Codes
+
+```python
+from app.core.error_handling import (
+    ValidationException,
+    AuthenticationException,
+    NotFoundException,
+    LLMProviderException
+)
+
+# Validation error
+if not data.is_valid():
+    raise ValidationException(
+        message="Invalid input data",
+        details={"field": "name", "error": "required"}
     )
 
-
-async def log_critical_error(
-    error: Union[Exception, str],
-    location: str,
-    category: ErrorCategory = ErrorCategory.SYSTEM,
-    **kwargs
-) -> str:
-    """Convenience function for logging critical errors."""
-    return await error_logger.log_error(
-        error=error,
-        severity=ErrorSeverity.CRITICAL,
-        category=category,
-        location=location,
-        **kwargs
+# Not found error
+agent = await get_agent(agent_id)
+if not agent:
+    raise NotFoundException(
+        resource_type="Agent",
+        resource_id=agent_id
     )
+
+# LLM provider error
+try:
+    response = await llm_provider.generate(prompt)
+except Exception as e:
+    raise LLMProviderException(
+        provider="ollama",
+        message="Failed to generate response",
+        original_exception=e
+    )
+```
+
+---
+
+## Error Analysis
+
+The system provides intelligent error analysis:
+
+### Error Pattern Learning
+
+```python
+# Get error statistics
+stats = error_handler.get_error_statistics()
+
+print(f"Total errors: {stats['metrics']['total_errors']}")
+print(f"Recovery rate: {stats['metrics']['recovery_success_rate']}")
+print(f"Error patterns: {stats['total_patterns']}")
+```
+
+### Root Cause Analysis
+
+The system automatically identifies root causes:
+
+- Network connectivity issues
+- Memory exhaustion
+- Permission problems
+- Resource not found
+- Service overload
+
+### Prevention Suggestions
+
+For each error, the system suggests prevention measures:
+
+```python
+error_response = await error_handler.handle_error(error, context)
+
+# Access prevention suggestions
+for suggestion in error_response.prevention_suggestions:
+    print(f"Suggestion: {suggestion}")
+```
+
+---
+
+## Best Practices
+
+### 1. Always Provide Context
+
+```python
+context = {
+    "operation": "create_agent",
+    "user_id": user_id,
+    "agent_type": agent_type,
+    "timestamp": datetime.utcnow().isoformat()
+}
+```
+
+### 2. Use Specific Exceptions
+
+```python
+# Good
+raise NotFoundException("Agent", agent_id)
+
+# Avoid
+raise Exception("Agent not found")
+```
+
+### 3. Enable Auto-Recovery for Transient Errors
+
+```python
+# For network/service errors
+auto_recover=True
+
+# For validation errors
+auto_recover=False
+```
+
+### 4. Implement Fallbacks
+
+```python
+try:
+    result = await primary_service.call()
+except Exception as e:
+    # Use fallback
+    result = await fallback_service.call()
+```
+
+### 5. Monitor Circuit Breakers
+
+```python
+# Regular health check
+metrics = circuit_breaker_manager.get_all_metrics()
+
+for name, stats in metrics.items():
+    if stats['state'] == 'open':
+        logger.warning(f"Circuit breaker {name} is OPEN")
+```
+
+---
+
+## Advanced Features
+
+### Custom Recovery Strategies
+
+```python
+from app.core.error_handling import error_handler
+
+# Register custom recovery strategy
+async def custom_recovery(error, context):
+    # Your custom recovery logic
+    return {
+        "success": True,
+        "attempts": 1,
+        "notes": ["Custom recovery applied"]
+    }
+
+error_handler.recovery_strategies["custom"] = custom_recovery
+```
+
+### Error Event Hooks
+
+```python
+# Hook into error events
+async def on_error(error, analysis):
+    # Send notification, log to external service, etc.
+    await notification_service.send_alert(error, analysis)
+
+# Register hook
+error_handler.on_error_hooks.append(on_error)
+```
+
+---
+
+## Monitoring & Metrics
+
+### Error Metrics
+
+```python
+from app.core.error_handling import error_handler
+
+stats = error_handler.get_error_statistics()
+
+print(f"""
+Error Handling Metrics:
+- Total Errors: {stats['metrics']['total_errors']}
+- Recovered: {stats['metrics']['recovered_errors']}
+- Success Rate: {stats['metrics']['recovery_success_rate']:.2%}
+- Avg Recovery Time: {stats['metrics']['average_recovery_time']:.2f}ms
+- Prevented Errors: {stats['metrics']['prevented_errors']}
+""")
+```
+
+### Circuit Breaker Metrics
+
+```python
+from app.core.circuit_breaker import circuit_breaker_manager
+
+metrics = circuit_breaker_manager.get_all_metrics()
+
+for name, stats in metrics.items():
+    print(f"""
+Circuit Breaker: {name}
+- State: {stats['state']}
+- Success Rate: {stats['success_rate']:.2%}
+- Total Calls: {stats['total_calls']}
+- Failed Calls: {stats['failed_calls']}
+- Rejected Calls: {stats['rejected_calls']}
+- Avg Response Time: {stats['average_response_time']:.2f}s
+""")
+```
+
+---
+
+## Integration Examples
+
+### FastAPI Middleware
+
+```python
+from fastapi import FastAPI, Request
+from app.core.error_handling import error_handler
+
+app = FastAPI()
+
+@app.middleware("http")
+async def error_handling_middleware(request: Request, call_next):
+    try:
+        response = await call_next(request)
+        return response
+    except Exception as e:
+        error_response = await error_handler.handle_error(
+            error=e,
+            context={"path": request.url.path, "method": request.method},
+            request_id=request.state.request_id,
+            auto_recover=True
+        )
+        return JSONResponse(
+            status_code=500,
+            content=error_response.dict()
+        )
+```
+
+### Background Tasks
+
+```python
+from fastapi import BackgroundTasks
+
+async def process_document(doc_id: str):
+    try:
+        await document_processor.process(doc_id)
+    except Exception as e:
+        await error_handler.handle_error(
+            error=e,
+            context={"operation": "process_document", "doc_id": doc_id},
+            auto_recover=True
+        )
+
+@app.post("/documents/{doc_id}/process")
+async def process_document_endpoint(doc_id: str, background_tasks: BackgroundTasks):
+    background_tasks.add_task(process_document, doc_id)
+    return {"status": "processing"}
+```
+
+---
+
+## Troubleshooting
+
+### High Error Rate
+
+1. **Check error patterns** - Identify common errors
+2. **Review recovery strategies** - Are they appropriate?
+3. **Monitor circuit breakers** - Are services failing?
+4. **Check logs** - Look for root causes
+
+### Circuit Breakers Always Open
+
+1. **Check service health** - Is the service actually down?
+2. **Review thresholds** - Are they too aggressive?
+3. **Check timeouts** - Are they too short?
+4. **Monitor metrics** - What's the failure pattern?
+
+### Recovery Not Working
+
+1. **Check recovery strategy** - Is it appropriate for the error?
+2. **Review context** - Is all required info provided?
+3. **Check logs** - What's failing during recovery?
+4. **Test manually** - Can you reproduce the issue?
+
+---
+
+## Summary
+
+The error handling system provides:
+
+✅ **Intelligent Analysis** - AI-powered root cause identification  
+✅ **Automatic Recovery** - Multiple recovery strategies  
+✅ **Circuit Protection** - Prevent cascading failures  
+✅ **Detailed Errors** - Structured error codes and messages  
+✅ **Learning System** - Improves over time  
+✅ **Comprehensive Monitoring** - Detailed metrics and statistics  
+
+**Result**: More reliable system, better error recovery, easier debugging!
+

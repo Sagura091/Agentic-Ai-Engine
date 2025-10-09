@@ -12,7 +12,6 @@ Features:
 - Alert management
 """
 
-import asyncio
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from dataclasses import dataclass

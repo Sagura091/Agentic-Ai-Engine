@@ -47,11 +47,6 @@ except ImportError:
     GlobalEmbeddingManager = None
     get_global_embedding_manager = None
 
-try:
-    from .advanced_caching import AdvancedCacheManager
-except ImportError:
-    AdvancedCacheManager = None
-
 __all__ = [
     # PHASE 1: THE Foundation - Core RAG System
     "UnifiedRAGSystem",
@@ -77,6 +72,5 @@ __all__ = [
 
     # Supporting Components (optional)
     "GlobalEmbeddingManager",
-    "get_global_embedding_manager",
-    "AdvancedCacheManager"
+    "get_global_embedding_manager"
 ]

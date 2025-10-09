@@ -15,9 +15,11 @@ from app.backend_logging.models import LogCategory
 backend_logger = get_logger()
 
 # Import all node definitions
-from app.nodes.timer_node import create_timer_node_definition
-from app.nodes.sequential_execution_node import create_sequential_execution_node_definition
-from app.nodes.agent_message_node import create_agent_message_node_definition
+from app.nodes import (
+    create_timer_node_definition,
+    create_sequential_execution_node_definition,
+    create_agent_message_node_definition
+)
 
 
 class NodeBootstrap:

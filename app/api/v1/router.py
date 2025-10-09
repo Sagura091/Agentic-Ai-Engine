@@ -30,11 +30,8 @@ from app.api.v1.endpoints import (
     nodes,
     session_documents,
     auth,
-    # projects,  # REMOVED: Project management not implemented in optimized schema
     conversations,
-    # notifications,  # REMOVED: Notifications not implemented in optimized schema
-    user_api_keys,  # OPTIMIZED: Simple API key management in users.api_keys JSON field
-    # sso  # REMOVED: SSO not implemented in optimized schema
+    user_api_keys,
     user_settings,
     user_profile,
     admin_settings,
@@ -53,13 +50,6 @@ api_router.include_router(
     tags=["authentication"],
 )
 
-# REMOVED: Project Management API (not implemented in optimized schema)
-# api_router.include_router(
-#     projects.router,
-#     prefix="/projects",
-#     tags=["project-management"],
-# )
-
 # Conversation Management API (Chat history)
 api_router.include_router(
     conversations.router,
@@ -67,25 +57,12 @@ api_router.include_router(
     tags=["conversation-management"],
 )
 
-# REMOVED: Notification System API (not implemented in optimized schema)
-# api_router.include_router(
-#     notifications.router,
-#     prefix="/notifications",
-#     tags=["notification-system"],
-# )
-
 # User API Keys Management (External provider API keys)
 api_router.include_router(
     user_api_keys.router,
     prefix="/api-keys",
     tags=["user-api-keys"],
 )
-
-# Single Sign-On (SSO) Authentication (REMOVED - not implemented in optimized schema)
-# api_router.include_router(
-#     sso.router,
-#     tags=["single-sign-on"],
-# )
 
 api_router.include_router(
     health.router,

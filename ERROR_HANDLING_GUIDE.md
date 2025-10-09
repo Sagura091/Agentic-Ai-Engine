@@ -4,11 +4,12 @@
 
 The Agentic AI Engine features a **revolutionary intelligent error handling system** with:
 
-✅ **Automatic Error Analysis** - AI-powered root cause identification  
-✅ **Smart Recovery** - Multiple recovery strategies  
-✅ **Circuit Breakers** - Protect against cascading failures  
-✅ **Detailed Error Codes** - Structured error responses  
-✅ **Learning System** - Improves over time  
+✅ **Automatic Error Analysis** - AI-powered root cause identification
+✅ **Smart Recovery** - Multiple recovery strategies
+✅ **Detailed Error Codes** - Structured error responses
+✅ **Learning System** - Improves over time
+
+> **⚠️ NOTE:** Circuit Breakers are documented below but **not currently implemented** in the codebase. The circuit breaker module (`app/core/circuit_breaker.py`) was removed as it was never integrated. If you need circuit breaker functionality, you'll need to implement it or use a third-party library like `pybreaker`.
 
 ---
 
@@ -17,9 +18,8 @@ The Agentic AI Engine features a **revolutionary intelligent error handling syst
 ### Components
 
 1. **Intelligent Error Handler** - Analyzes and recovers from errors
-2. **Circuit Breakers** - Protects external service calls
-3. **Error Codes** - Structured error classification
-4. **Recovery Strategies** - Multiple recovery approaches
+2. **Error Codes** - Structured error classification
+3. **Recovery Strategies** - Multiple recovery approaches
 
 ---
 
