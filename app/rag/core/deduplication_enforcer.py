@@ -26,9 +26,12 @@ from enum import Enum
 from collections import defaultdict
 import hashlib
 
-import structlog
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
 
-logger = structlog.get_logger(__name__)
+# Get backend logger instance
+logger = get_logger()
 
 
 class DuplicateAction(str, Enum):
@@ -134,12 +137,16 @@ class DeduplicationEnforcer:
         
         # Lock for thread safety
         self._lock = asyncio.Lock()
-        
+
         logger.info(
             "DeduplicationEnforcer initialized",
-            fuzzy_threshold=fuzzy_threshold,
-            default_action=default_action.value,
-            conflict_resolution=conflict_resolution.value
+            LogCategory.MEMORY_OPERATIONS,
+            "app.rag.core.deduplication_enforcer.DeduplicationEnforcer",
+            data={
+                "fuzzy_threshold": fuzzy_threshold,
+                "default_action": default_action.value,
+                "conflict_resolution": conflict_resolution.value
+            }
         )
     
     async def check_duplicate(
@@ -281,12 +288,23 @@ class DeduplicationEnforcer:
                 # Store metadata
                 if metadata:
                     self._chunk_metadata[chunk_id] = metadata
-                
-                logger.debug(f"Chunk registered: {chunk_id}")
+
+                logger.debug(
+                    f"Chunk registered: {chunk_id}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.deduplication_enforcer.DeduplicationEnforcer",
+                    data={"chunk_id": chunk_id}
+                )
                 return True
-                
+
             except Exception as e:
-                logger.error(f"Failed to register chunk {chunk_id}: {e}")
+                logger.error(
+                    f"Failed to register chunk {chunk_id}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.deduplication_enforcer.DeduplicationEnforcer",
+                    error=e,
+                    data={"chunk_id": chunk_id}
+                )
                 return False
     
     async def unregister_chunk(self, chunk_id: str) -> bool:
@@ -319,12 +337,23 @@ class DeduplicationEnforcer:
                 # Remove metadata
                 if chunk_id in self._chunk_metadata:
                     del self._chunk_metadata[chunk_id]
-                
-                logger.debug(f"Chunk unregistered: {chunk_id}")
+
+                logger.debug(
+                    f"Chunk unregistered: {chunk_id}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.deduplication_enforcer.DeduplicationEnforcer",
+                    data={"chunk_id": chunk_id}
+                )
                 return True
-                
+
             except Exception as e:
-                logger.error(f"Failed to unregister chunk {chunk_id}: {e}")
+                logger.error(
+                    f"Failed to unregister chunk {chunk_id}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.deduplication_enforcer.DeduplicationEnforcer",
+                    error=e,
+                    data={"chunk_id": chunk_id}
+                )
                 return False
 
     async def batch_check_duplicates(
@@ -424,7 +453,11 @@ class DeduplicationEnforcer:
         """Reset deduplication statistics."""
         async with self._lock:
             self._stats = DeduplicationStats()
-            logger.info("Deduplication statistics reset")
+            logger.info(
+                "Deduplication statistics reset",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.deduplication_enforcer.DeduplicationEnforcer"
+            )
 
     async def clear_indexes(self) -> None:
         """Clear all deduplication indexes."""
@@ -432,7 +465,11 @@ class DeduplicationEnforcer:
             self._content_sha_index.clear()
             self._norm_text_sha_index.clear()
             self._chunk_metadata.clear()
-            logger.info("Deduplication indexes cleared")
+            logger.info(
+                "Deduplication indexes cleared",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.deduplication_enforcer.DeduplicationEnforcer"
+            )
 
     async def _resolve_conflict(
         self,
@@ -579,6 +616,10 @@ async def get_deduplication_enforcer(
                 default_action=default_action,
                 conflict_resolution=conflict_resolution
             )
-            logger.info("DeduplicationEnforcer singleton created")
+            logger.info(
+                "DeduplicationEnforcer singleton created",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.deduplication_enforcer"
+            )
 
         return _deduplication_enforcer

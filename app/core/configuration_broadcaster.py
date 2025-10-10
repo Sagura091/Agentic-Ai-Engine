@@ -20,13 +20,14 @@ import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
 from enum import Enum
-import structlog
 
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
 from ..api.websocket.manager import websocket_manager
 from ..models.auth import UserDB
 from ..models.database.base import get_database_session
 
-logger = structlog.get_logger(__name__)
+_backend_logger = get_backend_logger()
 
 
 class BroadcastLevel(str, Enum):
@@ -95,10 +96,18 @@ class ConfigurationBroadcaster:
                         NotificationType.STORAGE_UPDATES: True,
                     }
                 
-                logger.info(f"✅ Configuration broadcaster initialized with {len(self._active_users)} users")
-                
+                _backend_logger.info(
+                    f"✅ Configuration broadcaster initialized with {len(self._active_users)} users",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.configuration_broadcaster"
+                )
+
         except Exception as e:
-            logger.error(f"❌ Failed to initialize configuration broadcaster: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to initialize configuration broadcaster: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.configuration_broadcaster"
+            )
             raise
     
     async def broadcast_configuration_change(
@@ -146,9 +155,13 @@ class ConfigurationBroadcaster:
             }
             
             if broadcast_level == BroadcastLevel.SYSTEM_ONLY:
-                logger.info(f"🔒 System-only change: {section}.{setting_key} - No notifications sent")
+                _backend_logger.info(
+                    f"🔒 System-only change: {section}.{setting_key} - No notifications sent",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.configuration_broadcaster"
+                )
                 return broadcast_stats
-            
+
             elif broadcast_level == BroadcastLevel.ADMIN_ONLY:
                 # Notify only admins
                 admin_message = {
@@ -156,7 +169,7 @@ class ConfigurationBroadcaster:
                     "admin_only": True,
                     "message": f"Admin setting updated: {setting_key}"
                 }
-                
+
                 for admin_id in self._admin_users:
                     try:
                         await websocket_manager.send_personal_message(admin_id, admin_message)
@@ -164,9 +177,13 @@ class ConfigurationBroadcaster:
                         broadcast_stats["notifications_sent"] += 1
                     except Exception as e:
                         broadcast_stats["errors"].append(f"Failed to notify admin {admin_id}: {str(e)}")
-                
-                logger.info(f"📢 Admin-only broadcast: {section}.{setting_key} - {broadcast_stats['admin_notifications']} admins notified")
-                
+
+                _backend_logger.info(
+                    f"📢 Admin-only broadcast: {section}.{setting_key} - {broadcast_stats['admin_notifications']} admins notified",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.configuration_broadcaster"
+                )
+
             elif broadcast_level == BroadcastLevel.PUBLIC:
                 # Broadcast to all users based on their preferences
                 user_message = {
@@ -174,7 +191,7 @@ class ConfigurationBroadcaster:
                     "public": True,
                     "message": self._generate_user_friendly_message(section, setting_key, changes)
                 }
-                
+
                 for user_id, user_data in self._active_users.items():
                     try:
                         # Check user notification preferences
@@ -182,21 +199,25 @@ class ConfigurationBroadcaster:
                         if not user_prefs.get(notification_type, True):
                             broadcast_stats["filtered_out"] += 1
                             continue
-                        
+
                         # Send notification
                         await websocket_manager.send_personal_message(user_id, user_message)
-                        
+
                         if user_data["is_admin"]:
                             broadcast_stats["admin_notifications"] += 1
                         else:
                             broadcast_stats["user_notifications"] += 1
-                        
+
                         broadcast_stats["notifications_sent"] += 1
-                        
+
                     except Exception as e:
                         broadcast_stats["errors"].append(f"Failed to notify user {user_id}: {str(e)}")
-                
-                logger.info(f"📢 Public broadcast: {section}.{setting_key} - {broadcast_stats['notifications_sent']} users notified")
+
+                _backend_logger.info(
+                    f"📢 Public broadcast: {section}.{setting_key} - {broadcast_stats['notifications_sent']} users notified",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.configuration_broadcaster"
+                )
             
             elif broadcast_level == BroadcastLevel.ENCRYPTED:
                 # Special handling for encrypted/secure settings
@@ -218,12 +239,20 @@ class ConfigurationBroadcaster:
                     except Exception as e:
                         broadcast_stats["errors"].append(f"Failed to notify super admin {admin_id}: {str(e)}")
                 
-                logger.info(f"🔐 Encrypted broadcast: {section}.{setting_key} - {broadcast_stats['admin_notifications']} super admins notified")
-            
+                _backend_logger.info(
+                    f"🔐 Encrypted broadcast: {section}.{setting_key} - {broadcast_stats['admin_notifications']} super admins notified",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.configuration_broadcaster"
+                )
+
             return broadcast_stats
-            
+
         except Exception as e:
-            logger.error(f"❌ Failed to broadcast configuration change: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to broadcast configuration change: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.configuration_broadcaster"
+            )
             return {
                 "total_users": 0,
                 "notifications_sent": 0,
@@ -264,12 +293,20 @@ class ConfigurationBroadcaster:
         """Update user notification preferences."""
         try:
             self._user_preferences[user_id] = preferences
-            logger.info(f"✅ Updated notification preferences for user {user_id}")
+            _backend_logger.info(
+                f"✅ Updated notification preferences for user {user_id}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.configuration_broadcaster"
+            )
             return True
         except Exception as e:
-            logger.error(f"❌ Failed to update user preferences: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to update user preferences: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.configuration_broadcaster"
+            )
             return False
-    
+
     async def add_user(self, user_id: str, user_data: Dict[str, Any]) -> None:
         """Add a new user to the broadcaster."""
         self._active_users[user_id] = user_data
@@ -278,16 +315,24 @@ class ConfigurationBroadcaster:
         
         # Set default preferences
         self._user_preferences[user_id] = {nt: True for nt in NotificationType}
-        
-        logger.info(f"✅ Added user {user_id} to configuration broadcaster")
-    
+
+        _backend_logger.info(
+            f"✅ Added user {user_id} to configuration broadcaster",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.configuration_broadcaster"
+        )
+
     async def remove_user(self, user_id: str) -> None:
         """Remove a user from the broadcaster."""
         self._active_users.pop(user_id, None)
         self._admin_users.discard(user_id)
         self._user_preferences.pop(user_id, None)
-        
-        logger.info(f"✅ Removed user {user_id} from configuration broadcaster")
+
+        _backend_logger.info(
+            f"✅ Removed user {user_id} from configuration broadcaster",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.configuration_broadcaster"
+        )
 
     async def broadcast_model_availability(
         self,
@@ -299,7 +344,11 @@ class ConfigurationBroadcaster:
     ) -> None:
         """Broadcast model availability changes to users."""
         try:
-            logger.info(f"📡 Broadcasting model availability: {model_id} ({'available' if is_available else 'removed'})")
+            _backend_logger.info(
+                f"📡 Broadcasting model availability: {model_id} ({'available' if is_available else 'removed'})",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.configuration_broadcaster"
+            )
 
             # Create notification message
             action = "added" if is_available else "removed"
@@ -319,14 +368,26 @@ class ConfigurationBroadcaster:
             if is_public:
                 # Broadcast to all users
                 await self._broadcast_to_all_users(message)
-                logger.info(f"✅ Model availability broadcasted to all users: {model_id}")
+                _backend_logger.info(
+                    f"✅ Model availability broadcasted to all users: {model_id}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.configuration_broadcaster"
+                )
             else:
                 # Broadcast only to admins
                 await self._broadcast_to_admins(message)
-                logger.info(f"✅ Model availability broadcasted to admins only: {model_id}")
+                _backend_logger.info(
+                    f"✅ Model availability broadcasted to admins only: {model_id}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.configuration_broadcaster"
+                )
 
         except Exception as e:
-            logger.error(f"❌ Failed to broadcast model availability: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to broadcast model availability: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.configuration_broadcaster"
+            )
 
     async def broadcast_embedding_model_update(
         self,
@@ -336,7 +397,11 @@ class ConfigurationBroadcaster:
     ) -> None:
         """Broadcast embedding model updates to RAG system users."""
         try:
-            logger.info(f"📡 Broadcasting embedding model update: {old_model} → {new_model}")
+            _backend_logger.info(
+                f"📡 Broadcasting embedding model update: {old_model} → {new_model}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.configuration_broadcaster"
+            )
 
             message = {
                 "type": "embedding_model_update",
@@ -350,10 +415,18 @@ class ConfigurationBroadcaster:
 
             # Broadcast to all users since this affects RAG functionality
             await self._broadcast_to_all_users(message)
-            logger.info(f"✅ Embedding model update broadcasted: {new_model}")
+            _backend_logger.info(
+                f"✅ Embedding model update broadcasted: {new_model}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.configuration_broadcaster"
+            )
 
         except Exception as e:
-            logger.error(f"❌ Failed to broadcast embedding model update: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to broadcast embedding model update: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.configuration_broadcaster"
+            )
 
     async def broadcast_vision_model_update(
         self,
@@ -363,7 +436,11 @@ class ConfigurationBroadcaster:
     ) -> None:
         """Broadcast vision model updates to users."""
         try:
-            logger.info(f"📡 Broadcasting vision model update: {old_model} → {new_model}")
+            _backend_logger.info(
+                f"📡 Broadcasting vision model update: {old_model} → {new_model}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.configuration_broadcaster"
+            )
 
             message = {
                 "type": "vision_model_update",
@@ -377,10 +454,18 @@ class ConfigurationBroadcaster:
 
             # Broadcast to all users
             await self._broadcast_to_all_users(message)
-            logger.info(f"✅ Vision model update broadcasted: {new_model}")
+            _backend_logger.info(
+                f"✅ Vision model update broadcasted: {new_model}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.configuration_broadcaster"
+            )
 
         except Exception as e:
-            logger.error(f"❌ Failed to broadcast vision model update: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to broadcast vision model update: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.configuration_broadcaster"
+            )
 
 
 # Global instance

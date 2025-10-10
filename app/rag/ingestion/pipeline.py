@@ -35,7 +35,6 @@ from pathlib import Path
 from io import BytesIO
 import aiofiles
 
-import structlog
 from pydantic import BaseModel, Field, model_validator
 
 from ..core.unified_rag_system import Document, DocumentChunk
@@ -53,10 +52,8 @@ from .health import get_health_registry, HealthCheckRegistry, check_pipeline_hea
 from app.backend_logging.backend_logger import get_logger
 from app.backend_logging.models import LogCategory, LogLevel
 
-# Legacy structlog for backward compatibility
-logger = structlog.get_logger(__name__)
-# Production backend logger
-backend_logger = get_logger()
+# Get backend logger instance
+logger = get_logger()
 
 
 class RevolutionaryIngestionConfig(BaseModel):
@@ -165,11 +162,15 @@ class RevolutionaryIngestionConfig(BaseModel):
 
             # Warn if frame extraction will be very frequent
             if self.video_frame_interval < 5 and self.max_video_frames > 50:
-                logger.warning(
+                logger.warn(
                     "High frame extraction rate detected",
-                    interval=self.video_frame_interval,
-                    max_frames=self.max_video_frames,
-                    recommendation="Consider increasing video_frame_interval or reducing max_video_frames"
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.ingestion.pipeline.RevolutionaryIngestionConfig",
+                    data={
+                        "interval": self.video_frame_interval,
+                        "max_frames": self.max_video_frames,
+                        "recommendation": "Consider increasing video_frame_interval or reducing max_video_frames"
+                    }
                 )
 
         # Validate archive processing
@@ -185,10 +186,14 @@ class RevolutionaryIngestionConfig(BaseModel):
             # Common sample rates: 8000, 16000, 22050, 44100, 48000
             valid_sample_rates = [8000, 16000, 22050, 44100, 48000]
             if self.audio_sample_rate not in valid_sample_rates:
-                logger.warning(
+                logger.warn(
                     "Unusual audio sample rate",
-                    rate=self.audio_sample_rate,
-                    recommended=valid_sample_rates
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.ingestion.pipeline.RevolutionaryIngestionConfig",
+                    data={
+                        "rate": self.audio_sample_rate,
+                        "recommended": valid_sample_rates
+                    }
                 )
 
         # Validate content length constraints
@@ -210,20 +215,28 @@ class RevolutionaryIngestionConfig(BaseModel):
 
         # Validate batch size and concurrency
         if self.batch_size * self.max_concurrent_jobs > 1000:
-            logger.warning(
+            logger.warn(
                 "Very high concurrency detected",
-                batch_size=self.batch_size,
-                max_concurrent=self.max_concurrent_jobs,
-                total=self.batch_size * self.max_concurrent_jobs,
-                recommendation="Consider reducing batch_size or max_concurrent_jobs to avoid resource exhaustion"
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionConfig",
+                data={
+                    "batch_size": self.batch_size,
+                    "max_concurrent": self.max_concurrent_jobs,
+                    "total": self.batch_size * self.max_concurrent_jobs,
+                    "recommendation": "Consider reducing batch_size or max_concurrent_jobs to avoid resource exhaustion"
+                }
             )
 
         # Validate cache TTL
         if self.cache_ttl_hours > 720:  # 30 days
-            logger.warning(
+            logger.warn(
                 "Very long cache TTL",
-                ttl_hours=self.cache_ttl_hours,
-                recommendation="Consider reducing cache_ttl_hours to avoid stale data"
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionConfig",
+                data={
+                    "ttl_hours": self.cache_ttl_hours,
+                    "recommendation": "Consider reducing cache_ttl_hours to avoid stale data"
+                }
             )
 
         return self
@@ -338,7 +351,12 @@ class RevolutionaryIngestionPipeline:
         self.dlq: Optional[DeadLetterQueue] = None
         self.health_registry: Optional[HealthCheckRegistry] = None
 
-        logger.info("Revolutionary ingestion pipeline initialized", config=config.model_dump())
+        logger.info(
+            "Revolutionary ingestion pipeline initialized",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+            data={"config": config.model_dump()}
+        )
 
     async def initialize(self) -> None:
         """Initialize the revolutionary ingestion pipeline."""
@@ -355,16 +373,29 @@ class RevolutionaryIngestionPipeline:
 
             # Initialize deduplication engine
             self.dedup_engine = DeduplicationEngine(kb_interface)
-            logger.info("Deduplication engine initialized")
+            logger.info(
+                "Deduplication engine initialized",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+            )
 
             # Initialize metrics collector
             self.metrics = await get_metrics_collector()
-            logger.info("Metrics collector initialized")
+            logger.info(
+                "Metrics collector initialized",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+            )
 
             # Initialize DLQ
             dlq_path = Path("data/dlq")
             self.dlq = await get_dlq(dlq_path, max_retries=3)
-            logger.info("Dead Letter Queue initialized", path=str(dlq_path))
+            logger.info(
+                "Dead Letter Queue initialized",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                data={"path": str(dlq_path)}
+            )
 
             # Initialize health check registry
             self.health_registry = await get_health_registry()
@@ -377,7 +408,11 @@ class RevolutionaryIngestionPipeline:
                 cache_ttl_seconds=30
             )
 
-            logger.info("Health check registry initialized")
+            logger.info(
+                "Health check registry initialized",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+            )
 
             # Start background processing (track task to prevent memory leak)
             task = asyncio.create_task(self._process_queue())
@@ -387,24 +422,61 @@ class RevolutionaryIngestionPipeline:
             retry_task = asyncio.create_task(self._dlq_retry_worker())
             self._background_tasks.append(retry_task)
 
-            logger.info("🚀 Revolutionary ingestion pipeline ready with multi-modal capabilities!")
-            logger.info(f"📊 Supported formats: {len(self.processor_registry.get_supported_formats())} categories")
-            logger.info(f"🔧 Active processors: {list(self.processor_registry.list_processors().keys())}")
+            logger.info(
+                "🚀 Revolutionary ingestion pipeline ready with multi-modal capabilities!",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+            )
+            logger.info(
+                f"📊 Supported formats: {len(self.processor_registry.get_supported_formats())} categories",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+            )
+            logger.info(
+                f"🔧 Active processors: {list(self.processor_registry.list_processors().keys())}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+            )
 
             # Log configuration highlights
             if self.config.enable_ocr:
-                logger.info(f"🖼️ OCR enabled with engines: {self.config.ocr_engines}")
+                logger.info(
+                    f"🖼️ OCR enabled with engines: {self.config.ocr_engines}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+                )
             if self.config.enable_video_processing:
-                logger.info(f"🎥 Video processing enabled (max {self.config.max_video_frames} frames)")
+                logger.info(
+                    f"🎥 Video processing enabled (max {self.config.max_video_frames} frames)",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+                )
             if self.config.enable_audio_transcription:
-                logger.info("🎵 Audio transcription enabled")
+                logger.info(
+                    "🎵 Audio transcription enabled",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+                )
             if self.config.enable_archive_extraction:
-                logger.info(f"📦 Archive extraction enabled (depth: {self.config.max_archive_depth})")
+                logger.info(
+                    f"📦 Archive extraction enabled (depth: {self.config.max_archive_depth})",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+                )
             if self.config.enable_content_analysis:
-                logger.info("🧠 AI content analysis enabled")
+                logger.info(
+                    "🧠 AI content analysis enabled",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+                )
 
         except Exception as e:
-            logger.error(f"Failed to initialize revolutionary ingestion pipeline: {str(e)}")
+            logger.error(
+                f"Failed to initialize revolutionary ingestion pipeline: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                error=e
+            )
             raise
     
     async def ingest_file(
@@ -451,13 +523,10 @@ class RevolutionaryIngestionPipeline:
 
             self.stats["jobs_created"] += 1
 
-            logger.info(f"File ingestion job created: {job.id}")
-
-            # Backend logging for RAG operations
-            backend_logger.info(
+            logger.info(
                 f"File ingestion job created: {file_path.name}",
                 LogCategory.RAG_OPERATIONS,
-                "IngestionPipeline",
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
                 data={
                     "job_id": job.id,
                     "file_name": file_path.name,
@@ -470,13 +539,10 @@ class RevolutionaryIngestionPipeline:
             return job.id
 
         except Exception as e:
-            logger.error(f"Failed to create file ingestion job: {str(e)}")
-
-            # Backend logging for errors
-            backend_logger.error(
+            logger.error(
                 f"Failed to create file ingestion job: {file_path}",
                 LogCategory.RAG_OPERATIONS,
-                "IngestionPipeline",
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
                 error=e,
                 data={
                     "file_path": str(file_path),
@@ -526,17 +592,31 @@ class RevolutionaryIngestionPipeline:
             await self.processing_queue.put((job, collection, metadata or {}))
             
             self.stats["jobs_created"] += 1
-            
-            logger.info(f"Content ingestion job created: {job.id}")
+
+            logger.info(
+                f"Content ingestion job created: {job.id}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                data={"job_id": job.id}
+            )
             return job.id
-            
+
         except Exception as e:
-            logger.error(f"Failed to create content ingestion job: {str(e)}")
+            logger.error(
+                f"Failed to create content ingestion job: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                error=e
+            )
             raise
-    
+
     async def _process_queue(self) -> None:
         """Background task to process ingestion queue."""
-        logger.info("Queue processing started")
+        logger.info(
+            "Queue processing started",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+        )
 
         # Track cleanup cycles
         cleanup_counter = 0
@@ -567,17 +647,34 @@ class RevolutionaryIngestionPipeline:
                     cleanup_counter = 0
 
             except asyncio.CancelledError:
-                logger.info("Queue processing cancelled")
+                logger.info(
+                    "Queue processing cancelled",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+                )
                 break
             except Exception as e:
-                logger.error(f"Error in queue processing: {str(e)}")
+                logger.error(
+                    f"Error in queue processing: {str(e)}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                    error=e
+                )
                 await asyncio.sleep(1)  # Brief pause before continuing
 
-        logger.info("Queue processing stopped")
+        logger.info(
+            "Queue processing stopped",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+        )
 
     async def _dlq_retry_worker(self) -> None:
         """Background worker for retrying DLQ entries."""
-        logger.info("DLQ retry worker started")
+        logger.info(
+            "DLQ retry worker started",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+        )
 
         retry_interval = 60  # Check every 60 seconds
 
@@ -604,7 +701,12 @@ class RevolutionaryIngestionPipeline:
                 if not retryable:
                     continue
 
-                logger.info(f"Found {len(retryable)} DLQ entries to retry")
+                logger.info(
+                    f"Found {len(retryable)} DLQ entries to retry",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                    data={"count": len(retryable)}
+                )
 
                 # Retry each entry
                 for entry in retryable:
@@ -622,9 +724,13 @@ class RevolutionaryIngestionPipeline:
 
                             logger.info(
                                 "DLQ entry retried",
-                                original_job_id=entry.job_id,
-                                new_job_id=job_id,
-                                retry_count=entry.retry_count
+                                LogCategory.SYSTEM_OPERATIONS,
+                                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                                data={
+                                    "original_job_id": entry.job_id,
+                                    "new_job_id": job_id,
+                                    "retry_count": entry.retry_count
+                                }
                             )
                         else:
                             # File no longer exists, resolve entry
@@ -633,26 +739,45 @@ class RevolutionaryIngestionPipeline:
                                 resolution_notes="File no longer exists"
                             )
 
-                            logger.warning(
+                            logger.warn(
                                 "DLQ entry resolved - file not found",
-                                job_id=entry.job_id,
-                                file_path=entry.file_path
+                                LogCategory.SYSTEM_OPERATIONS,
+                                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                                data={
+                                    "job_id": entry.job_id,
+                                    "file_path": entry.file_path
+                                }
                             )
 
                     except Exception as e:
                         logger.error(
                             f"Failed to retry DLQ entry: {entry.job_id}",
-                            error=str(e)
+                            LogCategory.SYSTEM_OPERATIONS,
+                            "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                            error=e
                         )
 
             except asyncio.CancelledError:
-                logger.info("DLQ retry worker cancelled")
+                logger.info(
+                    "DLQ retry worker cancelled",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+                )
                 break
             except Exception as e:
-                logger.error(f"Error in DLQ retry worker: {str(e)}")
+                logger.error(
+                    f"Error in DLQ retry worker: {str(e)}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                    error=e
+                )
                 await asyncio.sleep(retry_interval)
 
-        logger.info("DLQ retry worker stopped")
+        logger.info(
+            "DLQ retry worker stopped",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+        )
 
     async def _process_job(
         self,
@@ -696,7 +821,12 @@ class RevolutionaryIngestionPipeline:
             job.progress = 0.2
 
             # Stage 2: Extraction
-            logger.info(f"🔄 Processing {job.file_name} with revolutionary engine")
+            logger.info(
+                f"🔄 Processing {job.file_name} with revolutionary engine",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                data={"file_name": job.file_name, "mime_type": job.mime_type}
+            )
 
             if self.metrics:
                 with self.metrics.timer("stage_duration_ms", {"stage": "extraction"}):
@@ -746,18 +876,33 @@ class RevolutionaryIngestionPipeline:
             # Revolutionary content validation with quality scoring
             if len(extracted_content) < self.config.min_content_length:
                 if confidence_score > 0.8:  # High confidence, might be valid short content
-                    logger.warning(f"Short but high-confidence content: {len(extracted_content)} chars")
+                    logger.warn(
+                        f"Short but high-confidence content: {len(extracted_content)} chars",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                        data={"content_length": len(extracted_content), "confidence": confidence_score}
+                    )
                 else:
                     raise ValueError(f"Content too short and low confidence: {len(extracted_content)} characters")
 
             if len(extracted_content) > self.config.max_content_length:
-                logger.warning(f"Content truncated: {len(extracted_content)} characters")
+                logger.warn(
+                    f"Content truncated: {len(extracted_content)} characters",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                    data={"content_length": len(extracted_content), "max_length": self.config.max_content_length}
+                )
                 extracted_content = extracted_content[:self.config.max_content_length]
                 enhanced_metadata['content_truncated'] = True
 
             # Quality assessment
             if confidence_score < self.config.content_quality_threshold:
-                logger.warning(f"Low confidence processing result: {confidence_score}")
+                logger.warn(
+                    f"Low confidence processing result: {confidence_score}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                    data={"confidence": confidence_score, "threshold": self.config.content_quality_threshold}
+                )
                 enhanced_metadata['quality_warning'] = True
             
             # Create revolutionary document with enhanced metadata
@@ -837,10 +982,14 @@ class RevolutionaryIngestionPipeline:
 
             logger.info(
                 f"Job completed successfully",
-                job_id=job.id,
-                document_id=document_id,
-                chunks=chunks_created,
-                processing_time_ms=(job.completed_at - start_time).total_seconds() * 1000
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                data={
+                    "job_id": job.id,
+                    "document_id": document_id,
+                    "chunks": chunks_created,
+                    "processing_time_ms": (job.completed_at - start_time).total_seconds() * 1000
+                }
             )
 
         except Exception as e:
@@ -887,9 +1036,13 @@ class RevolutionaryIngestionPipeline:
 
             logger.error(
                 f"Job failed and added to DLQ",
-                job_id=job.id,
-                error=str(e),
-                failure_reason=failure_reason.value
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                error=e,
+                data={
+                    "job_id": job.id,
+                    "failure_reason": failure_reason.value
+                }
             )
     
     def _get_document_type(self, mime_type: str) -> str:
@@ -975,12 +1128,16 @@ class RevolutionaryIngestionPipeline:
 
             logger.info(
                 "Deduplication complete",
-                document_id=document_id,
-                total_chunks=len(chunks),
-                unique=len(unique_chunks),
-                duplicates=len(duplicate_chunks),
-                exact_dupes=dedup_stats.get("exact_duplicates", 0),
-                fuzzy_dupes=dedup_stats.get("fuzzy_duplicates", 0)
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                data={
+                    "document_id": document_id,
+                    "total_chunks": len(chunks),
+                    "unique": len(unique_chunks),
+                    "duplicates": len(duplicate_chunks),
+                    "exact_dupes": dedup_stats.get("exact_duplicates", 0),
+                    "fuzzy_dupes": dedup_stats.get("fuzzy_duplicates", 0)
+                }
             )
         else:
             unique_chunks = chunks
@@ -1002,8 +1159,12 @@ class RevolutionaryIngestionPipeline:
 
             logger.info(
                 "Chunks added to knowledge base",
-                document_id=document_id,
-                chunks_added=len(chunk_ids)
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                data={
+                    "document_id": document_id,
+                    "chunks_added": len(chunk_ids)
+                }
             )
 
         # Update document metadata
@@ -1125,12 +1286,16 @@ class RevolutionaryIngestionPipeline:
 
         logger.info(
             "Text chunked with semantic awareness",
-            document_id=document_id,
-            content_length=len(content),
-            chunks_created=len(document_chunks),
-            avg_chunk_size=sum(c.metadata.get("char_count", 0) for c in document_chunks) // len(document_chunks) if document_chunks else 0,
-            content_type=content_type.value,
-            semantic_enabled=self.config.enable_semantic_chunking
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+            data={
+                "document_id": document_id,
+                "content_length": len(content),
+                "chunks_created": len(document_chunks),
+                "avg_chunk_size": sum(c.metadata.get("char_count", 0) for c in document_chunks) // len(document_chunks) if document_chunks else 0,
+                "content_type": content_type.value,
+                "semantic_enabled": self.config.enable_semantic_chunking
+            }
         )
 
         return document_chunks
@@ -1225,8 +1390,12 @@ class RevolutionaryIngestionPipeline:
 
         logger.debug(
             "Cleaned up TTL-expired jobs",
-            removed=len(jobs_to_remove),
-            ttl_hours=self.job_ttl_hours
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+            data={
+                "removed": len(jobs_to_remove),
+                "ttl_hours": self.job_ttl_hours
+            }
         )
 
         # Enforce max_job_history limit (LRU eviction)
@@ -1250,8 +1419,12 @@ class RevolutionaryIngestionPipeline:
 
             logger.debug(
                 "Cleaned up excess jobs (LRU)",
-                removed=lru_removed,
-                max_history=self.max_job_history
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                data={
+                    "removed": lru_removed,
+                    "max_history": self.max_job_history
+                }
             )
 
             jobs_to_remove.extend([job_id for job_id, _ in completed_jobs[:excess_count]])
@@ -1261,8 +1434,12 @@ class RevolutionaryIngestionPipeline:
         if total_removed > 0:
             logger.info(
                 "Job history cleanup complete",
-                removed=total_removed,
-                remaining=len(self.jobs)
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                data={
+                    "removed": total_removed,
+                    "remaining": len(self.jobs)
+                }
             )
 
         return total_removed
@@ -1274,7 +1451,11 @@ class RevolutionaryIngestionPipeline:
         Args:
             timeout: Maximum time to wait for shutdown in seconds
         """
-        logger.info("Shutting down ingestion pipeline...")
+        logger.info(
+            "Shutting down ingestion pipeline...",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+        )
 
         # Signal shutdown
         self._shutdown_event.set()
@@ -1291,8 +1472,21 @@ class RevolutionaryIngestionPipeline:
                     asyncio.gather(*self._background_tasks, return_exceptions=True),
                     timeout=timeout
                 )
-                logger.info("All background tasks completed")
+                logger.info(
+                    "All background tasks completed",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+                )
             except asyncio.TimeoutError:
-                logger.warning(f"Shutdown timeout after {timeout}s, some tasks may not have completed")
+                logger.warn(
+                    f"Shutdown timeout after {timeout}s, some tasks may not have completed",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline",
+                    data={"timeout": timeout}
+                )
 
-        logger.info("Ingestion pipeline shutdown complete")
+        logger.info(
+            "Ingestion pipeline shutdown complete",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.ingestion.pipeline.RevolutionaryIngestionPipeline"
+        )

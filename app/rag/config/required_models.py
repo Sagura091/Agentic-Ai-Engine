@@ -12,9 +12,13 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-import structlog
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class ModelPriority(str, Enum):

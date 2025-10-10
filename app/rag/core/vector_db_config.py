@@ -14,9 +14,12 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from pydantic import BaseModel, Field
 
-import structlog
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
 
-logger = structlog.get_logger(__name__)
+# Get backend logger instance
+logger = get_logger()
 
 
 class VectorDBType(str, Enum):
@@ -120,10 +123,16 @@ class VectorDBConfigManager:
         
         # Determine active database type
         self._determine_active_db_type()
-        
-        logger.info("Vector database configuration manager initialized", 
-                   active_db=self.active_db_type.value,
-                   available_dbs=list(self.configs.keys()))
+
+        logger.info(
+            "Vector database configuration manager initialized",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.core.vector_db_config.VectorDBConfigManager",
+            data={
+                "active_db": self.active_db_type.value,
+                "available_dbs": [str(k) for k in self.configs.keys()]
+            }
+        )
     
     def _load_default_configs(self):
         """Load default configurations for all supported databases."""
@@ -152,11 +161,27 @@ class VectorDBConfigManager:
                                 if hasattr(config_obj, key):
                                     setattr(config_obj, key, value)
                     except ValueError:
-                        logger.warning(f"Unknown database type in config file: {db_type_str}")
-                        
-                logger.info(f"Loaded vector database configuration from {config_path}")
+                        logger.warn(
+                            f"Unknown database type in config file: {db_type_str}",
+                            LogCategory.SYSTEM_OPERATIONS,
+                            "app.rag.core.vector_db_config.VectorDBConfigManager",
+                            data={"db_type_str": db_type_str}
+                        )
+
+                logger.info(
+                    f"Loaded vector database configuration from {config_path}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.vector_db_config.VectorDBConfigManager",
+                    data={"config_path": str(config_path)}
+                )
             except Exception as e:
-                logger.error(f"Failed to load config file {config_path}: {e}")
+                logger.error(
+                    f"Failed to load config file {config_path}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.vector_db_config.VectorDBConfigManager",
+                    error=e,
+                    data={"config_path": str(config_path)}
+                )
     
     def _load_from_environment(self):
         """Load configuration from environment variables."""
@@ -165,7 +190,12 @@ class VectorDBConfigManager:
             try:
                 self.active_db_type = VectorDBType(os.getenv("VECTOR_DB_TYPE"))
             except ValueError:
-                logger.warning(f"Invalid VECTOR_DB_TYPE environment variable: {os.getenv('VECTOR_DB_TYPE')}")
+                logger.warn(
+                    f"Invalid VECTOR_DB_TYPE environment variable: {os.getenv('VECTOR_DB_TYPE')}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.vector_db_config.VectorDBConfigManager",
+                    data={"VECTOR_DB_TYPE": os.getenv('VECTOR_DB_TYPE')}
+                )
         
         # ChromaDB environment variables
         chroma_config = self.configs[VectorDBType.CHROMADB]
@@ -195,8 +225,12 @@ class VectorDBConfigManager:
         qdrant_config.host = os.getenv("QDRANT_HOST", qdrant_config.host)
         qdrant_config.port = int(os.getenv("QDRANT_PORT", qdrant_config.port))
         qdrant_config.api_key = os.getenv("QDRANT_API_KEY", qdrant_config.api_key)
-        
-        logger.debug("Loaded vector database configuration from environment variables")
+
+        logger.debug(
+            "Loaded vector database configuration from environment variables",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.core.vector_db_config.VectorDBConfigManager"
+        )
     
     def _determine_active_db_type(self):
         """Determine which database type should be active."""
@@ -205,12 +239,21 @@ class VectorDBConfigManager:
             for db_type in [VectorDBType.CHROMADB, VectorDBType.PGVECTOR, VectorDBType.WEAVIATE, VectorDBType.QDRANT]:
                 if self._is_database_available(db_type):
                     self.active_db_type = db_type
-                    logger.info(f"Auto-detected vector database: {db_type.value}")
+                    logger.info(
+                        f"Auto-detected vector database: {db_type.value}",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.rag.core.vector_db_config.VectorDBConfigManager",
+                        data={"db_type": db_type.value}
+                    )
                     break
             else:
                 # Fallback to ChromaDB
                 self.active_db_type = VectorDBType.CHROMADB
-                logger.info("No vector database detected, falling back to ChromaDB")
+                logger.info(
+                    "No vector database detected, falling back to ChromaDB",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.vector_db_config.VectorDBConfigManager"
+                )
     
     def _is_database_available(self, db_type: VectorDBType) -> bool:
         """Check if a specific database type is available."""
@@ -287,7 +330,12 @@ class VectorDBConfigManager:
             raise RuntimeError(f"Database type {db_type} is not available")
         
         self.active_db_type = db_type
-        logger.info(f"Switched active vector database to: {db_type.value}")
+        logger.info(
+            f"Switched active vector database to: {db_type.value}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.core.vector_db_config.VectorDBConfigManager",
+            data={"db_type": db_type.value}
+        )
     
     def get_available_databases(self) -> List[VectorDBType]:
         """Get list of available database types."""
@@ -333,8 +381,13 @@ class VectorDBConfigManager:
         
         with open(config_path, 'w') as f:
             json.dump(config_data, f, indent=2)
-        
-        logger.info(f"Saved vector database configuration to {config_path}")
+
+        logger.info(
+            f"Saved vector database configuration to {config_path}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.core.vector_db_config.VectorDBConfigManager",
+            data={"config_path": str(config_path)}
+        )
 
 
 # Global configuration manager instance

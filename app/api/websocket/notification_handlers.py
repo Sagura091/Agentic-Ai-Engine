@@ -18,14 +18,16 @@ import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
-import structlog
+
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
 
 from ...core.configuration_broadcaster import configuration_broadcaster, NotificationType, BroadcastLevel
 from ...models.auth import UserDB
 from ...models.database.base import get_database_session
 from .manager import websocket_manager
 
-logger = structlog.get_logger(__name__)
+_backend_logger = get_backend_logger()
 
 
 class NotificationHandler:
@@ -40,10 +42,18 @@ class NotificationHandler:
         try:
             # Initialize configuration broadcaster
             await configuration_broadcaster.initialize()
-            logger.info("✅ Notification handler initialized")
-            
+            _backend_logger.info(
+                "✅ Notification handler initialized",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
+
         except Exception as e:
-            logger.error(f"❌ Failed to initialize notification handler: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to initialize notification handler: {str(e)}",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
             raise
     
     async def register_user_connection(self, user_id: str, connection_id: str) -> None:
@@ -69,22 +79,38 @@ class NotificationHandler:
             
             # Send any queued notifications
             await self._send_queued_notifications(user_id)
-            
-            logger.info(f"✅ Registered user {user_id} for notifications")
-            
+
+            _backend_logger.info(
+                f"✅ Registered user {user_id} for notifications",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
+
         except Exception as e:
-            logger.error(f"❌ Failed to register user connection: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to register user connection: {str(e)}",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
     
     async def unregister_user_connection(self, user_id: str) -> None:
         """Unregister a user's WebSocket connection."""
         try:
             self._user_connections.pop(user_id, None)
             await configuration_broadcaster.remove_user(user_id)
-            
-            logger.info(f"✅ Unregistered user {user_id} from notifications")
-            
+
+            _backend_logger.info(
+                f"✅ Unregistered user {user_id} from notifications",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
+
         except Exception as e:
-            logger.error(f"❌ Failed to unregister user connection: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to unregister user connection: {str(e)}",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
     
     async def send_model_availability_notification(
         self,
@@ -95,8 +121,12 @@ class NotificationHandler:
     ) -> Dict[str, Any]:
         """Send model availability notifications to users."""
         try:
-            logger.info(f"📢 Broadcasting model {action}: {model_name}")
-            
+            _backend_logger.info(
+                f"📢 Broadcasting model {action}: {model_name}",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
+
             changes = {
                 "available_models_update": {
                     "action": action,
@@ -105,7 +135,7 @@ class NotificationHandler:
                     "timestamp": datetime.utcnow().isoformat()
                 }
             }
-            
+
             # Broadcast via configuration broadcaster
             result = await configuration_broadcaster.broadcast_configuration_change(
                 section="llm_providers",
@@ -115,12 +145,20 @@ class NotificationHandler:
                 admin_user_id=admin_user_id,
                 notification_type=NotificationType.MODEL_UPDATES
             )
-            
-            logger.info(f"✅ Model availability notification sent: {result['notifications_sent']} users notified")
+
+            _backend_logger.info(
+                f"✅ Model availability notification sent: {result['notifications_sent']} users notified",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
             return result
-            
+
         except Exception as e:
-            logger.error(f"❌ Failed to send model availability notification: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to send model availability notification: {str(e)}",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
             return {"notifications_sent": 0, "errors": [str(e)]}
     
     async def send_agent_upgrade_suggestion(
@@ -160,12 +198,20 @@ class NotificationHandler:
             }
             
             await websocket_manager.send_personal_message(connection_id, notification)
-            
-            logger.info(f"✅ Agent upgrade suggestion sent to user {user_id}")
+
+            _backend_logger.info(
+                f"✅ Agent upgrade suggestion sent to user {user_id}",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"❌ Failed to send agent upgrade suggestion: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to send agent upgrade suggestion: {str(e)}",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
             return False
     
     async def send_system_update_notification(
@@ -177,8 +223,12 @@ class NotificationHandler:
     ) -> Dict[str, Any]:
         """Send system update notifications."""
         try:
-            logger.info(f"📢 Broadcasting system update: {update_type}")
-            
+            _backend_logger.info(
+                f"📢 Broadcasting system update: {update_type}",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
+
             changes = {
                 "system_update": {
                     "type": update_type,
@@ -187,7 +237,7 @@ class NotificationHandler:
                     "timestamp": datetime.utcnow().isoformat()
                 }
             }
-            
+
             result = await configuration_broadcaster.broadcast_configuration_change(
                 section="system_configuration",
                 setting_key="system_update",
@@ -196,12 +246,20 @@ class NotificationHandler:
                 admin_user_id="system",
                 notification_type=NotificationType.SYSTEM_UPDATES
             )
-            
-            logger.info(f"✅ System update notification sent: {result['notifications_sent']} users notified")
+
+            _backend_logger.info(
+                f"✅ System update notification sent: {result['notifications_sent']} users notified",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
             return result
-            
+
         except Exception as e:
-            logger.error(f"❌ Failed to send system update notification: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to send system update notification: {str(e)}",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
             return {"notifications_sent": 0, "errors": [str(e)]}
     
     async def send_performance_alert(
@@ -236,12 +294,20 @@ class NotificationHandler:
             }
             
             await websocket_manager.send_personal_message(connection_id, notification)
-            
-            logger.info(f"✅ Performance alert sent to user {user_id}")
+
+            _backend_logger.info(
+                f"✅ Performance alert sent to user {user_id}",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"❌ Failed to send performance alert: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to send performance alert: {str(e)}",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
             return False
     
     async def broadcast_bulk_agent_update_progress(
@@ -268,12 +334,20 @@ class NotificationHandler:
             }
             
             await websocket_manager.send_personal_message(connection_id, notification)
-            
-            logger.debug(f"📊 Bulk update progress sent to user {user_id}: {progress}%")
+
+            _backend_logger.debug(
+                f"📊 Bulk update progress sent to user {user_id}: {progress}%",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"❌ Failed to send bulk update progress: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to send bulk update progress: {str(e)}",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
             return False
     
     async def _queue_notification(self, user_id: str, notification: Dict[str, Any]) -> None:
@@ -286,8 +360,12 @@ class NotificationHandler:
         # Limit queue size to prevent memory issues
         if len(self._notification_queue[user_id]) > 50:
             self._notification_queue[user_id] = self._notification_queue[user_id][-50:]
-        
-        logger.info(f"📥 Queued notification for offline user {user_id}")
+
+        _backend_logger.info(
+            f"📥 Queued notification for offline user {user_id}",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.notification_handlers"
+        )
     
     async def _send_queued_notifications(self, user_id: str) -> None:
         """Send all queued notifications to user."""
@@ -304,15 +382,27 @@ class NotificationHandler:
                 try:
                     await websocket_manager.send_personal_message(connection_id, notification)
                 except Exception as e:
-                    logger.error(f"❌ Failed to send queued notification: {str(e)}")
-            
+                    _backend_logger.error(
+                        f"❌ Failed to send queued notification: {str(e)}",
+                        LogCategory.API_OPERATIONS,
+                        "app.api.websocket.notification_handlers"
+                    )
+
             # Clear queue
             self._notification_queue[user_id] = []
-            
-            logger.info(f"✅ Sent {len(queued)} queued notifications to user {user_id}")
-            
+
+            _backend_logger.info(
+                f"✅ Sent {len(queued)} queued notifications to user {user_id}",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
+
         except Exception as e:
-            logger.error(f"❌ Failed to send queued notifications: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to send queued notifications: {str(e)}",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.notification_handlers"
+            )
 
 
 # Global instance

@@ -23,7 +23,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from collections import defaultdict
 
-import structlog
 from pydantic import BaseModel, Field
 
 # WordNet for synonym expansion
@@ -52,7 +51,12 @@ except ImportError:
     SENTENCE_TRANSFORMERS_AVAILABLE = False
     SentenceTransformer = None
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class ExpansionStrategy(str, Enum):
@@ -146,8 +150,12 @@ class QueryExpander:
         
         logger.info(
             "QueryExpander initialized",
-            strategy=self.config.strategy.value,
-            caching_enabled=self.config.enable_caching
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.query_expansion.QueryExpander",
+            data={
+                "strategy": self.config.strategy.value,
+                "caching_enabled": self.config.enable_caching
+            }
         )
     
     async def initialize(self) -> None:
@@ -165,16 +173,27 @@ class QueryExpander:
                     if SENTENCE_TRANSFORMERS_AVAILABLE:
                         await self._load_semantic_model()
                     else:
-                        logger.warning(
+                        logger.warn(
                             "Semantic expansion requested but sentence-transformers not available",
-                            fallback="WordNet only"
+                            LogCategory.RAG_OPERATIONS,
+                            "app.rag.retrieval.query_expansion.QueryExpander",
+                            data={"fallback": "WordNet only"}
                         )
                 
                 self._initialized = True
-                logger.info("QueryExpander models loaded successfully")
-                
+                logger.info(
+                    "QueryExpander models loaded successfully",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.retrieval.query_expansion.QueryExpander"
+                )
+
             except Exception as e:
-                logger.error(f"Failed to initialize QueryExpander: {e}")
+                logger.error(
+                    f"Failed to initialize QueryExpander: {e}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.retrieval.query_expansion.QueryExpander",
+                    error=e
+                )
                 raise
     
     async def _load_semantic_model(self) -> None:
@@ -187,9 +206,19 @@ class QueryExpander:
                 SentenceTransformer,
                 self.config.semantic_model
             )
-            logger.info(f"Loaded semantic model: {self.config.semantic_model}")
+            logger.info(
+                f"Loaded semantic model: {self.config.semantic_model}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.query_expansion.QueryExpander",
+                data={"model": self.config.semantic_model}
+            )
         except Exception as e:
-            logger.error(f"Failed to load semantic model: {e}")
+            logger.error(
+                f"Failed to load semantic model: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.query_expansion.QueryExpander",
+                error=e
+            )
             self._semantic_model = None
     
     async def expand_query(
@@ -278,8 +307,14 @@ class QueryExpander:
             
         except Exception as e:
             self._metrics['errors'] += 1
-            logger.error(f"Query expansion failed: {e}", query=query, strategy=strategy.value)
-            
+            logger.error(
+                f"Query expansion failed: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.query_expansion.QueryExpander",
+                error=e,
+                data={"query": query, "strategy": strategy.value}
+            )
+
             # Fallback to original query
             processing_time = (time.time() - start_time) * 1000
             return ExpansionResult(
@@ -295,7 +330,11 @@ class QueryExpander:
     async def _expand_wordnet(self, query: str) -> Tuple[List[str], Dict[str, List[str]]]:
         """Expand query using WordNet synonyms."""
         if not WORDNET_AVAILABLE:
-            logger.warning("WordNet not available, returning original query")
+            logger.warn(
+                "WordNet not available, returning original query",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.query_expansion.QueryExpander"
+            )
             return [query], {}
         
         self._metrics['wordnet_expansions'] += 1
@@ -336,14 +375,23 @@ class QueryExpander:
                     if synonym.lower() != word.lower():
                         synonyms.add(synonym)
         except Exception as e:
-            logger.debug(f"WordNet lookup failed for '{word}': {e}")
+            logger.debug(
+                f"WordNet lookup failed for '{word}': {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.query_expansion.QueryExpander",
+                data={"word": word}
+            )
 
         return list(synonyms)
 
     async def _expand_semantic(self, query: str) -> Tuple[List[str], Dict[str, List[str]]]:
         """Expand query using semantic similarity."""
         if not self._semantic_model:
-            logger.warning("Semantic model not available, falling back to WordNet")
+            logger.warn(
+                "Semantic model not available, falling back to WordNet",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.query_expansion.QueryExpander"
+            )
             return await self._expand_wordnet(query)
 
         self._metrics['semantic_expansions'] += 1
@@ -366,7 +414,11 @@ class QueryExpander:
         """Expand query using LLM-based reformulation."""
         # LLM-based expansion would require integration with an LLM
         # For now, fall back to hybrid approach
-        logger.warning("LLM expansion not yet implemented, falling back to hybrid")
+        logger.warn(
+            "LLM expansion not yet implemented, falling back to hybrid",
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.query_expansion.QueryExpander"
+        )
         return await self._expand_hybrid(query)
 
     async def _expand_hybrid(self, query: str) -> Tuple[List[str], Dict[str, List[str]]]:
@@ -415,14 +467,22 @@ class QueryExpander:
     def clear_cache(self) -> None:
         """Clear expansion cache."""
         self._cache.clear()
-        logger.info("Query expansion cache cleared")
+        logger.info(
+            "Query expansion cache cleared",
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.query_expansion.QueryExpander"
+        )
 
     async def cleanup(self) -> None:
         """Cleanup resources."""
         self._cache.clear()
         self._semantic_model = None
         self._initialized = False
-        logger.info("QueryExpander cleaned up")
+        logger.info(
+            "QueryExpander cleaned up",
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.query_expansion.QueryExpander"
+        )
 
 
 # Global query expander instance

@@ -13,9 +13,13 @@ from typing import Dict, List, Optional, Any, Union, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from collections import OrderedDict
-import structlog
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 @dataclass
@@ -95,8 +99,12 @@ class IntelligentCache:
         self._initialized = True
         logger.info(
             "Intelligent cache initialized",
-            max_size=self.max_size,
-            max_memory_mb=self.max_memory_bytes // (1024 * 1024)
+            LogCategory.PERFORMANCE_MONITORING,
+            "app.rag.core.intelligent_cache.IntelligentCache",
+            data={
+                "max_size": self.max_size,
+                "max_memory_mb": self.max_memory_bytes // (1024 * 1024)
+            }
         )
     
     async def get(self, key: str) -> Optional[Any]:
@@ -166,7 +174,12 @@ class IntelligentCache:
             
             # Check memory limit
             if size > self.max_memory_bytes:
-                logger.warning(f"Value too large for cache: {size} bytes")
+                logger.warn(
+                    f"Value too large for cache: {size} bytes",
+                    LogCategory.PERFORMANCE_MONITORING,
+                    "app.rag.core.intelligent_cache.IntelligentCache",
+                    data={"size": size, "max_memory_bytes": self.max_memory_bytes}
+                )
                 return False
             
             # Remove existing entry if present
@@ -209,7 +222,11 @@ class IntelligentCache:
             self._cache.clear()
             self._stats.memory_usage = 0
             self._stats.cache_size = 0
-            logger.info("Cache cleared")
+            logger.info(
+                "Cache cleared",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.rag.core.intelligent_cache.IntelligentCache"
+            )
     
     async def _ensure_space(self, required_size: int):
         """Ensure enough space is available in cache."""
@@ -230,8 +247,13 @@ class IntelligentCache:
         key, entry = self._cache.popitem(last=False)
         self._stats.memory_usage -= entry.size
         self._stats.evictions += 1
-        
-        logger.debug(f"Evicted cache entry: {key}")
+
+        logger.debug(
+            f"Evicted cache entry: {key}",
+            LogCategory.PERFORMANCE_MONITORING,
+            "app.rag.core.intelligent_cache.IntelligentCache",
+            data={"key": key}
+        )
     
     async def _cleanup_loop(self):
         """Background cleanup of expired entries."""
@@ -244,7 +266,12 @@ class IntelligentCache:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error("Cache cleanup failed", error=str(e))
+                logger.error(
+                    "Cache cleanup failed",
+                    LogCategory.PERFORMANCE_MONITORING,
+                    "app.rag.core.intelligent_cache.IntelligentCache",
+                    error=e
+                )
     
     async def _cleanup_expired(self):
         """Remove expired entries."""
@@ -259,9 +286,14 @@ class IntelligentCache:
                 entry = self._cache[key]
                 self._stats.memory_usage -= entry.size
                 del self._cache[key]
-            
+
             if expired_keys:
-                logger.debug(f"Cleaned up {len(expired_keys)} expired cache entries")
+                logger.debug(
+                    f"Cleaned up {len(expired_keys)} expired cache entries",
+                    LogCategory.PERFORMANCE_MONITORING,
+                    "app.rag.core.intelligent_cache.IntelligentCache",
+                    data={"expired_count": len(expired_keys)}
+                )
     
     def _update_stats(self):
         """Update cache statistics."""
@@ -298,7 +330,11 @@ class IntelligentCache:
         
         await self.clear()
         self._initialized = False
-        logger.info("Intelligent cache closed")
+        logger.info(
+            "Intelligent cache closed",
+            LogCategory.PERFORMANCE_MONITORING,
+            "app.rag.core.intelligent_cache.IntelligentCache"
+        )
     
     def get_stats(self) -> CacheStats:
         """Get current cache statistics."""
@@ -362,8 +398,13 @@ async def get_cache(
         
         await cache.initialize()
         _caches[cache_name] = cache
-        logger.info(f"Created {cache_type} cache: {cache_name}")
-    
+        logger.info(
+            f"Created {cache_type} cache: {cache_name}",
+            LogCategory.PERFORMANCE_MONITORING,
+            "app.rag.core.intelligent_cache",
+            data={"cache_type": cache_type, "cache_name": cache_name}
+        )
+
     return _caches[cache_name]
 
 
@@ -371,6 +412,11 @@ async def close_all_caches():
     """Close all cache instances."""
     for cache_name, cache in _caches.items():
         await cache.close()
-        logger.info(f"Closed cache: {cache_name}")
-    
+        logger.info(
+            f"Closed cache: {cache_name}",
+            LogCategory.PERFORMANCE_MONITORING,
+            "app.rag.core.intelligent_cache",
+            data={"cache_name": cache_name}
+        )
+
     _caches.clear()

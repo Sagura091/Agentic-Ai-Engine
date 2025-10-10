@@ -21,7 +21,6 @@ from typing import Dict, List, Optional, Set, Any, Union, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from concurrent.futures import ThreadPoolExecutor
-import structlog
 
 from .memory_models import (
     MemoryEntry, MemoryType, MemoryImportance, RevolutionaryMemoryCollection,
@@ -29,7 +28,12 @@ from .memory_models import (
 )
 from .active_retrieval_engine import ActiveRetrievalEngine, RetrievalContext, RetrievalResult
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class MemoryManagerType(str, Enum):
@@ -75,8 +79,12 @@ class BaseMemoryManager:
         self.stats = MemoryManagerStats(manager_type)
         self.semaphore = asyncio.Semaphore(max_concurrent_ops)
         self.is_active = True
-        
-        logger.info(f"{manager_type.value} memory manager initialized")
+
+        logger.info(
+            f"{manager_type.value} memory manager initialized",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.memory_orchestrator.BaseMemoryManager"
+        )
     
     async def process_operation(self, operation: MemoryOperation) -> Dict[str, Any]:
         """Process a memory operation."""
@@ -96,7 +104,12 @@ class BaseMemoryManager:
             except Exception as e:
                 processing_time = (time.time() - start_time) * 1000
                 self._update_stats(processing_time, False)
-                logger.error(f"Operation failed in {self.manager_type.value} manager: {e}")
+                logger.error(
+                    f"Operation failed in {self.manager_type.value} manager",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.memory.memory_orchestrator.BaseMemoryManager",
+                    error=e
+                )
                 return {"success": False, "error": str(e), "processing_time_ms": processing_time}
             
             finally:
@@ -152,17 +165,32 @@ class CoreMemoryManager(BaseMemoryManager):
     async def _update_persona(self, agent_id: str, content: str) -> Dict[str, Any]:
         """Update persona block in core memory."""
         # Implementation would interact with memory collection
-        logger.info("Updating persona core memory", agent_id=agent_id, content_length=len(content))
+        logger.info(
+            "Updating persona core memory",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.memory_orchestrator.CoreMemoryManager",
+            data={"agent_id": agent_id, "content_length": len(content)}
+        )
         return {"updated": True, "content_length": len(content)}
-    
+
     async def _update_human(self, agent_id: str, content: str) -> Dict[str, Any]:
         """Update human block in core memory."""
-        logger.info("Updating human core memory", agent_id=agent_id, content_length=len(content))
+        logger.info(
+            "Updating human core memory",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.memory_orchestrator.CoreMemoryManager",
+            data={"agent_id": agent_id, "content_length": len(content)}
+        )
         return {"updated": True, "content_length": len(content)}
-    
+
     async def _get_core_context(self, agent_id: str) -> Dict[str, Any]:
         """Get formatted core memory context."""
-        logger.info("Retrieving core memory context", agent_id=agent_id)
+        logger.info(
+            "Retrieving core memory context",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.memory_orchestrator.CoreMemoryManager",
+            data={"agent_id": agent_id}
+        )
         return {"context": "<persona>Agent persona</persona><human>Human info</human>"}
 
 
@@ -198,21 +226,37 @@ class ResourceMemoryManager(BaseMemoryManager):
             size_bytes=len(payload.get("content", ""))
         )
         
-        logger.info("Storing document in resource memory", 
-                   agent_id=agent_id, 
-                   resource_id=resource.resource_id,
-                   title=resource.title)
-        
+        logger.info(
+            "Storing document in resource memory",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.memory_orchestrator.ResourceMemoryManager",
+            data={
+                "agent_id": agent_id,
+                "resource_id": resource.resource_id,
+                "title": resource.title
+            }
+        )
+
         return {"resource_id": resource.resource_id, "stored": True}
-    
+
     async def _retrieve_resource(self, agent_id: str, resource_id: str) -> Dict[str, Any]:
         """Retrieve a specific resource."""
-        logger.info("Retrieving resource", agent_id=agent_id, resource_id=resource_id)
+        logger.info(
+            "Retrieving resource",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.memory_orchestrator.ResourceMemoryManager",
+            data={"agent_id": agent_id, "resource_id": resource_id}
+        )
         return {"resource_id": resource_id, "content": "Resource content"}
-    
+
     async def _search_resources(self, agent_id: str, query: str) -> Dict[str, Any]:
         """Search resources by query."""
-        logger.info("Searching resources", agent_id=agent_id, query=query)
+        logger.info(
+            "Searching resources",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.memory_orchestrator.ResourceMemoryManager",
+            data={"agent_id": agent_id, "query": query}
+        )
         return {"results": [], "total_found": 0}
 
 
@@ -247,26 +291,38 @@ class KnowledgeVaultManager(BaseMemoryManager):
             metadata=payload.get("metadata", {})
         )
         
-        logger.info("Storing secret in knowledge vault", 
-                   agent_id=agent_id, 
-                   entry_id=entry.entry_id,
-                   entry_type=entry.entry_type,
-                   sensitivity=entry.sensitivity_level.value)
-        
+        logger.info(
+            "Storing secret in knowledge vault",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.memory_orchestrator.KnowledgeVaultManager",
+            data={
+                "agent_id": agent_id,
+                "entry_id": entry.entry_id,
+                "entry_type": entry.entry_type,
+                "sensitivity": entry.sensitivity_level.value
+            }
+        )
+
         return {"entry_id": entry.entry_id, "stored": True}
-    
+
     async def _retrieve_secret(self, agent_id: str, entry_id: str) -> Dict[str, Any]:
         """Retrieve a secret from the knowledge vault."""
-        logger.info("Retrieving secret from knowledge vault", 
-                   agent_id=agent_id, 
-                   entry_id=entry_id)
+        logger.info(
+            "Retrieving secret from knowledge vault",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.memory_orchestrator.KnowledgeVaultManager",
+            data={"agent_id": agent_id, "entry_id": entry_id}
+        )
         return {"entry_id": entry_id, "secret_value": "encrypted_secret"}
-    
+
     async def _list_entries(self, agent_id: str, entry_type: Optional[str]) -> Dict[str, Any]:
         """List entries in the knowledge vault."""
-        logger.info("Listing knowledge vault entries", 
-                   agent_id=agent_id, 
-                   entry_type=entry_type)
+        logger.info(
+            "Listing knowledge vault entries",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.memory_orchestrator.KnowledgeVaultManager",
+            data={"agent_id": agent_id, "entry_type": entry_type}
+        )
         return {"entries": [], "total_count": 0}
 
 
@@ -308,24 +364,37 @@ class MemoryOrchestrator:
             "active_agents": 0,
             "total_memory_entries": 0
         }
-        
-        logger.info("Memory Orchestrator initialized with specialized managers")
-    
+
+        logger.info(
+            "Memory Orchestrator initialized with specialized managers",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.memory_orchestrator.MemoryOrchestrator"
+        )
+
     async def initialize(self):
         """Initialize the orchestrator and start processing."""
         if not self.is_processing:
             self.is_processing = True
             asyncio.create_task(self._process_operations())
-            logger.info("Memory Orchestrator processing started")
-    
+            logger.info(
+                "Memory Orchestrator processing started",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.memory_orchestrator.MemoryOrchestrator"
+            )
+
     async def register_agent(self, agent_id: str) -> RevolutionaryMemoryCollection:
         """Register a new agent and create its memory collection."""
         if agent_id not in self.agent_collections:
             collection = RevolutionaryMemoryCollection.create(agent_id)
             self.agent_collections[agent_id] = collection
             self.orchestrator_stats["active_agents"] += 1
-            
-            logger.info("Agent registered with Memory Orchestrator", agent_id=agent_id)
+
+            logger.info(
+                "Agent registered with Memory Orchestrator",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.memory_orchestrator.MemoryOrchestrator",
+                data={"agent_id": agent_id}
+            )
         
         return self.agent_collections[agent_id]
     
@@ -334,13 +403,19 @@ class MemoryOrchestrator:
         await self.operation_queue.put(operation)
         self.orchestrator_stats["total_operations"] += 1
         self.orchestrator_stats["operations_per_manager"][operation.manager_type.value] += 1
-        
-        logger.debug("Memory operation submitted", 
-                    operation_id=operation.operation_id,
-                    agent_id=operation.agent_id,
-                    operation_type=operation.operation_type,
-                    manager_type=operation.manager_type.value)
-        
+
+        logger.debug(
+            "Memory operation submitted",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.memory_orchestrator.MemoryOrchestrator",
+            data={
+                "operation_id": operation.operation_id,
+                "agent_id": operation.agent_id,
+                "operation_type": operation.operation_type,
+                "manager_type": operation.manager_type.value
+            }
+        )
+
         return operation.operation_id
     
     async def active_retrieve(
@@ -371,13 +446,23 @@ class MemoryOrchestrator:
                     # Process operation asynchronously
                     asyncio.create_task(self._execute_operation(manager, operation))
                 else:
-                    logger.warning(f"No active manager for operation type: {operation.manager_type}")
-                
+                    logger.warn(
+                        f"No active manager for operation type: {operation.manager_type}",
+                        LogCategory.MEMORY_OPERATIONS,
+                        "app.memory.memory_orchestrator.MemoryOrchestrator",
+                        data={"operation_type": operation.manager_type}
+                    )
+
             except asyncio.TimeoutError:
                 # No operations in queue, continue
                 continue
             except Exception as e:
-                logger.error(f"Error processing operation: {e}")
+                logger.error(
+                    "Error processing operation",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.memory.memory_orchestrator.MemoryOrchestrator",
+                    error=e
+                )
     
     async def _execute_operation(self, manager: BaseMemoryManager, operation: MemoryOperation):
         """Execute an operation using the specified manager."""
@@ -386,16 +471,32 @@ class MemoryOrchestrator:
                 manager.process_operation(operation),
                 timeout=operation.timeout_seconds
             )
-            
-            logger.debug("Operation completed", 
-                        operation_id=operation.operation_id,
-                        manager_type=manager.manager_type.value,
-                        success=result.get("success", False))
-            
+
+            logger.debug(
+                "Operation completed",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.memory_orchestrator.MemoryOrchestrator",
+                data={
+                    "operation_id": operation.operation_id,
+                    "manager_type": manager.manager_type.value,
+                    "success": result.get("success", False)
+                }
+            )
+
         except asyncio.TimeoutError:
-            logger.error(f"Operation timeout: {operation.operation_id}")
+            logger.error(
+                f"Operation timeout: {operation.operation_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.memory_orchestrator.MemoryOrchestrator",
+                data={"operation_id": operation.operation_id}
+            )
         except Exception as e:
-            logger.error(f"Operation execution failed: {e}")
+            logger.error(
+                "Operation execution failed",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.memory_orchestrator.MemoryOrchestrator",
+                error=e
+            )
     
     def get_orchestrator_stats(self) -> Dict[str, Any]:
         """Get comprehensive orchestrator statistics."""
@@ -423,5 +524,9 @@ class MemoryOrchestrator:
         
         for manager in self.managers.values():
             manager.is_active = False
-        
-        logger.info("Memory Orchestrator shutdown completed")
+
+        logger.info(
+            "Memory Orchestrator shutdown completed",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.memory_orchestrator.MemoryOrchestrator"
+        )

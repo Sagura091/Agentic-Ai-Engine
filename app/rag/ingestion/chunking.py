@@ -14,9 +14,12 @@ from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
-import structlog
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
 
-logger = structlog.get_logger(__name__)
+# Get backend logger instance
+logger = get_logger()
 
 
 class ContentType(str, Enum):
@@ -109,9 +112,13 @@ class SemanticChunker:
         self.config = config or ChunkConfig()
         logger.info(
             "SemanticChunker initialized",
-            min_size=self.config.min_chunk_size,
-            max_size=self.config.max_chunk_size,
-            overlap=f"{self.config.overlap_percentage*100}%"
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.ingestion.chunking.SemanticChunker",
+            data={
+                "min_size": self.config.min_chunk_size,
+                "max_size": self.config.max_chunk_size,
+                "overlap": f"{self.config.overlap_percentage*100}%"
+            }
         )
     
     def chunk_document(self, 
@@ -225,9 +232,13 @@ class SemanticChunker:
         
         logger.debug(
             "Text chunked",
-            content_length=len(content),
-            chunks_created=len(chunks),
-            avg_chunk_size=sum(c.char_count for c in chunks) // len(chunks) if chunks else 0
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.ingestion.chunking.SemanticChunker",
+            data={
+                "content_length": len(content),
+                "chunks_created": len(chunks),
+                "avg_chunk_size": sum(c.char_count for c in chunks) // len(chunks) if chunks else 0
+            }
         )
         
         return chunks

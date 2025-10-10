@@ -24,12 +24,16 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from enum import Enum
 
-import structlog
 from pydantic import BaseModel, Field
 
 from .unified_rag_system import UnifiedRAGSystem, AgentCollections, Document
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class AccessLevel(str, Enum):
@@ -92,7 +96,11 @@ class CollectionBasedKBManager:
             "active_agents": 0
         }
 
-        logger.info("THE Collection-based KB manager initialized")
+        logger.info(
+            "THE Collection-based KB manager initialized",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.rag.core.collection_based_kb_manager.CollectionBasedKBManager"
+        )
 
     async def initialize(self) -> None:
         """Initialize THE knowledge base manager."""
@@ -105,10 +113,19 @@ class CollectionBasedKBManager:
                 await self.unified_rag.initialize()
 
             self.is_initialized = True
-            logger.info("THE KB manager initialization completed")
+            logger.info(
+                "THE KB manager initialization completed",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.collection_based_kb_manager.CollectionBasedKBManager"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to initialize THE KB manager: {str(e)}")
+            logger.error(
+                "Failed to initialize THE KB manager",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.collection_based_kb_manager.CollectionBasedKBManager",
+                error=e
+            )
             raise
 
     async def create_knowledge_base(
@@ -137,7 +154,12 @@ class CollectionBasedKBManager:
             # Check if agent already has a knowledge base (one-to-one mapping)
             if owner_agent_id in self.agent_kb_mapping:
                 existing_kb_id = self.agent_kb_mapping[owner_agent_id]
-                logger.warning(f"Agent {owner_agent_id} already has knowledge base: {existing_kb_id}")
+                logger.warn(
+                    f"Agent {owner_agent_id} already has knowledge base: {existing_kb_id}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.collection_based_kb_manager.CollectionBasedKBManager",
+                    data={"owner_agent_id": owner_agent_id, "existing_kb_id": existing_kb_id}
+                )
                 return existing_kb_id
 
             # Generate simple KB ID
@@ -172,11 +194,21 @@ class CollectionBasedKBManager:
             self.stats["total_knowledge_bases"] += 1
             self.stats["active_agents"] += 1
 
-            logger.info(f"Created THE knowledge base: {kb_id} for agent {owner_agent_id}")
+            logger.info(
+                f"Created THE knowledge base: {kb_id} for agent {owner_agent_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.collection_based_kb_manager.CollectionBasedKBManager",
+                data={"kb_id": kb_id, "owner_agent_id": owner_agent_id, "access_level": access_level}
+            )
             return kb_id
 
         except Exception as e:
-            logger.error(f"Failed to create knowledge base: {str(e)}")
+            logger.error(
+                "Failed to create knowledge base",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.collection_based_kb_manager.CollectionBasedKBManager",
+                error=e
+            )
             raise
 
     async def get_knowledge_base(self, kb_id: str) -> Optional[KnowledgeBaseInfo]:
@@ -206,11 +238,22 @@ class CollectionBasedKBManager:
             # Update stats
             self.stats["total_knowledge_bases"] -= 1
 
-            logger.info(f"Deleted knowledge base: {kb_id}")
+            logger.info(
+                f"Deleted knowledge base: {kb_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.collection_based_kb_manager.CollectionBasedKBManager",
+                data={"kb_id": kb_id}
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to delete knowledge base {kb_id}: {str(e)}")
+            logger.error(
+                f"Failed to delete knowledge base {kb_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.collection_based_kb_manager.CollectionBasedKBManager",
+                error=e,
+                data={"kb_id": kb_id}
+            )
             return False
 
     def get_stats(self) -> Dict[str, Any]:
@@ -270,11 +313,22 @@ class CollectionBasedKBManager:
 
             self.stats["total_documents"] += 1
 
-            logger.info(f"Added document to knowledge base {kb_id}")
+            logger.info(
+                f"Added document to knowledge base {kb_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.collection_based_kb_manager.CollectionBasedKBManager",
+                data={"kb_id": kb_id, "document_id": document.id}
+            )
             return document.id
 
         except Exception as e:
-            logger.error(f"Failed to add document to KB {kb_id}: {str(e)}")
+            logger.error(
+                f"Failed to add document to KB {kb_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.collection_based_kb_manager.CollectionBasedKBManager",
+                error=e,
+                data={"kb_id": kb_id}
+            )
             raise
     
     async def search_knowledge_base(
@@ -319,11 +373,22 @@ class CollectionBasedKBManager:
             # Update stats
             self.stats["total_queries"] += 1
 
-            logger.debug(f"Searched knowledge base {kb_id}")
+            logger.debug(
+                f"Searched knowledge base {kb_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.collection_based_kb_manager.CollectionBasedKBManager",
+                data={"kb_id": kb_id, "query": query, "top_k": top_k}
+            )
             return results
 
         except Exception as e:
-            logger.error(f"Failed to search KB {kb_id}: {str(e)}")
+            logger.error(
+                f"Failed to search KB {kb_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.collection_based_kb_manager.CollectionBasedKBManager",
+                error=e,
+                data={"kb_id": kb_id}
+            )
             raise
 
 

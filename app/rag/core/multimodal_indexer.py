@@ -24,9 +24,12 @@ from datetime import datetime
 from enum import Enum
 from collections import defaultdict
 
-import structlog
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
 
-logger = structlog.get_logger(__name__)
+# Get backend logger instance
+logger = get_logger()
 
 
 class ContentType(str, Enum):
@@ -104,8 +107,13 @@ class ContentTypeIndex:
             'total_searches': 0,
             'avg_search_time_ms': 0.0
         }
-        
-        logger.debug(f"ContentTypeIndex initialized: {self.content_type.value}")
+
+        logger.debug(
+            f"ContentTypeIndex initialized: {self.content_type.value}",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.rag.core.multimodal_indexer.ContentTypeIndex",
+            data={"content_type": self.content_type.value}
+        )
     
     def add_chunk(
         self,
@@ -141,12 +149,23 @@ class ContentTypeIndex:
                     self._keyword_index[term].add(chunk_id)
             
             self._metrics['total_chunks'] += 1
-            
-            logger.debug(f"Chunk added to {self.content_type.value} index: {chunk_id}")
+
+            logger.debug(
+                f"Chunk added to {self.content_type.value} index: {chunk_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.multimodal_indexer.ContentTypeIndex",
+                data={"content_type": self.content_type.value, "chunk_id": chunk_id}
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to add chunk {chunk_id} to {self.content_type.value} index: {e}")
+            logger.error(
+                f"Failed to add chunk {chunk_id} to {self.content_type.value} index",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.multimodal_indexer.ContentTypeIndex",
+                error=e,
+                data={"content_type": self.content_type.value, "chunk_id": chunk_id}
+            )
             return False
     
     def remove_chunk(self, chunk_id: str) -> bool:
@@ -171,12 +190,23 @@ class ContentTypeIndex:
             del self._chunks[chunk_id]
             
             self._metrics['total_chunks'] -= 1
-            
-            logger.debug(f"Chunk removed from {self.content_type.value} index: {chunk_id}")
+
+            logger.debug(
+                f"Chunk removed from {self.content_type.value} index: {chunk_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.multimodal_indexer.ContentTypeIndex",
+                data={"content_type": self.content_type.value, "chunk_id": chunk_id}
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to remove chunk {chunk_id} from {self.content_type.value} index: {e}")
+            logger.error(
+                f"Failed to remove chunk {chunk_id} from {self.content_type.value} index",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.multimodal_indexer.ContentTypeIndex",
+                error=e,
+                data={"content_type": self.content_type.value, "chunk_id": chunk_id}
+            )
             return False
     
     def search(
@@ -227,14 +257,25 @@ class ContentTypeIndex:
             
             logger.debug(
                 f"Search completed in {self.content_type.value} index",
-                results=len(results),
-                time_ms=search_time
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.multimodal_indexer.ContentTypeIndex",
+                data={
+                    "content_type": self.content_type.value,
+                    "results": len(results),
+                    "time_ms": search_time
+                }
             )
-            
+
             return results
-            
+
         except Exception as e:
-            logger.error(f"Search failed in {self.content_type.value} index: {e}")
+            logger.error(
+                f"Search failed in {self.content_type.value} index",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.multimodal_indexer.ContentTypeIndex",
+                error=e,
+                data={"content_type": self.content_type.value}
+            )
             return []
     
     def _semantic_search(
@@ -545,7 +586,11 @@ class MultimodalIndexer:
             'chunks_by_type': defaultdict(int)
         }
 
-        logger.info("MultimodalIndexer initialized with all content types")
+        logger.info(
+            "MultimodalIndexer initialized with all content types",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.rag.core.multimodal_indexer.MultimodalIndexer"
+        )
 
     async def add_chunk(
         self,
@@ -570,7 +615,12 @@ class MultimodalIndexer:
         """
         try:
             if content_type not in self._indexes:
-                logger.warning(f"Unknown content type: {content_type}, using UNKNOWN index")
+                logger.warn(
+                    f"Unknown content type: {content_type}, using UNKNOWN index",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.multimodal_indexer.MultimodalIndexer",
+                    data={"content_type": str(content_type)}
+                )
                 content_type = ContentType.UNKNOWN
 
             index = self._indexes[content_type]
@@ -583,7 +633,13 @@ class MultimodalIndexer:
             return success
 
         except Exception as e:
-            logger.error(f"Failed to add chunk {chunk_id}: {e}")
+            logger.error(
+                f"Failed to add chunk {chunk_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.multimodal_indexer.MultimodalIndexer",
+                error=e,
+                data={"chunk_id": chunk_id}
+            )
             return False
 
     async def remove_chunk(
@@ -615,7 +671,13 @@ class MultimodalIndexer:
             return success
 
         except Exception as e:
-            logger.error(f"Failed to remove chunk {chunk_id}: {e}")
+            logger.error(
+                f"Failed to remove chunk {chunk_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.multimodal_indexer.MultimodalIndexer",
+                error=e,
+                data={"chunk_id": chunk_id}
+            )
             return False
 
     async def search(
@@ -664,15 +726,24 @@ class MultimodalIndexer:
 
             logger.debug(
                 f"Multimodal search completed",
-                indexes_searched=len(indexes_to_search),
-                total_results=len(all_results),
-                final_results=len(final_results)
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.multimodal_indexer.MultimodalIndexer",
+                data={
+                    "indexes_searched": len(indexes_to_search),
+                    "total_results": len(all_results),
+                    "final_results": len(final_results)
+                }
             )
 
             return final_results
 
         except Exception as e:
-            logger.error(f"Multimodal search failed: {e}")
+            logger.error(
+                "Multimodal search failed",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.multimodal_indexer.MultimodalIndexer",
+                error=e
+            )
             return []
 
     async def search_by_type(
@@ -696,7 +767,12 @@ class MultimodalIndexer:
         """
         try:
             if content_type not in self._indexes:
-                logger.warning(f"Unknown content type: {content_type}")
+                logger.warn(
+                    f"Unknown content type: {content_type}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.multimodal_indexer.MultimodalIndexer",
+                    data={"content_type": str(content_type)}
+                )
                 return []
 
             index = self._indexes[content_type]
@@ -705,7 +781,13 @@ class MultimodalIndexer:
             return results
 
         except Exception as e:
-            logger.error(f"Search by type failed for {content_type}: {e}")
+            logger.error(
+                f"Search by type failed for {content_type}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.multimodal_indexer.MultimodalIndexer",
+                error=e,
+                data={"content_type": str(content_type)}
+            )
             return []
 
     def update_config(
@@ -741,16 +823,32 @@ class MultimodalIndexer:
                 # Replace index
                 self._indexes[content_type] = new_index
 
-                logger.info(f"Config updated for {content_type.value}")
+                logger.info(
+                    f"Config updated for {content_type.value}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.multimodal_indexer.MultimodalIndexer",
+                    data={"content_type": content_type.value}
+                )
                 return True
             else:
                 # Create new index
                 self._indexes[content_type] = ContentTypeIndex(config)
-                logger.info(f"New index created for {content_type.value}")
+                logger.info(
+                    f"New index created for {content_type.value}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.multimodal_indexer.MultimodalIndexer",
+                    data={"content_type": content_type.value}
+                )
                 return True
 
         except Exception as e:
-            logger.error(f"Failed to update config for {content_type}: {e}")
+            logger.error(
+                f"Failed to update config for {content_type}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.multimodal_indexer.MultimodalIndexer",
+                error=e,
+                data={"content_type": str(content_type)}
+            )
             return False
 
     def get_metrics(self) -> Dict[str, Any]:
@@ -787,6 +885,10 @@ async def get_multimodal_indexer() -> MultimodalIndexer:
     async with _indexer_lock:
         if _multimodal_indexer is None:
             _multimodal_indexer = MultimodalIndexer()
-            logger.info("MultimodalIndexer singleton created")
+            logger.info(
+                "MultimodalIndexer singleton created",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.multimodal_indexer"
+            )
 
         return _multimodal_indexer

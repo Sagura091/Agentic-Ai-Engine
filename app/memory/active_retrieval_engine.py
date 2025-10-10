@@ -29,15 +29,19 @@ from dataclasses import dataclass, field
 from collections import defaultdict
 import numpy as np
 import threading
-import structlog
 
 from .memory_models import (
-    MemoryEntry, MemoryType, MemoryImportance, 
+    MemoryEntry, MemoryType, MemoryImportance,
     RevolutionaryMemoryCollection, CoreMemoryBlock,
     ResourceMemoryEntry, KnowledgeVaultEntry
 )
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 @dataclass
@@ -104,8 +108,12 @@ class ActiveRetrievalEngine:
         self._score_cache: Dict[str, Dict[str, float]] = {}
         self._cache_timestamp: Dict[str, datetime] = {}
         self._cache_ttl_seconds = 300  # 5 minutes
-        
-        logger.info("OPTIMIZED Active Retrieval Engine initialized")
+
+        logger.info(
+            "OPTIMIZED Active Retrieval Engine initialized",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.active_retrieval_engine.ActiveRetrievalEngine"
+        )
     
     async def retrieve_active_memories(
         self,
@@ -128,7 +136,11 @@ class ActiveRetrievalEngine:
                     cache_age = (datetime.now() - self._cache_timestamp.get(cache_key, datetime.min)).total_seconds()
                     if cache_age < self._cache_ttl_seconds:
                         self.retrieval_stats["cache_hits"] += 1
-                        logger.debug(f"Cache hit for agent {memory_collection.agent_id}")
+                        logger.debug(
+                            f"Cache hit for agent {memory_collection.agent_id}",
+                            LogCategory.MEMORY_OPERATIONS,
+                            "app.memory.active_retrieval_engine.ActiveRetrievalEngine"
+                        )
                         return self._result_cache[cache_key]
                     else:
                         # Cache expired, remove it
@@ -199,18 +211,27 @@ class ActiveRetrievalEngine:
             
             logger.info(
                 "OPTIMIZED active memory retrieval completed",
-                agent_id=memory_collection.agent_id,
-                candidates=len(candidate_memories),
-                retrieved=len(memories),
-                retrieval_time_ms=f"{retrieval_time:.2f}",
-                avg_relevance=f"{np.mean(list(relevance_scores.values())):.3f}" if relevance_scores else "0.000",
-                cache_hit=False
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.active_retrieval_engine.ActiveRetrievalEngine",
+                data={
+                    "agent_id": memory_collection.agent_id,
+                    "candidates": len(candidate_memories),
+                    "retrieved": len(memories),
+                    "retrieval_time_ms": f"{retrieval_time:.2f}",
+                    "avg_relevance": f"{np.mean(list(relevance_scores.values())):.3f}" if relevance_scores else "0.000",
+                    "cache_hit": False
+                }
             )
             
             return result
             
         except Exception as e:
-            logger.error(f"Active memory retrieval failed: {e}")
+            logger.error(
+                "Active memory retrieval failed",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.active_retrieval_engine.ActiveRetrievalEngine",
+                error=e
+            )
             return RetrievalResult(
                 memories=[],
                 relevance_scores={},
@@ -319,9 +340,14 @@ class ActiveRetrievalEngine:
             )
             
             return max(0.0, similarity)
-            
+
         except Exception as e:
-            logger.warning(f"Semantic similarity calculation failed: {e}")
+            logger.warn(
+                "Semantic similarity calculation failed",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.active_retrieval_engine.ActiveRetrievalEngine",
+                data={"error": str(e)}
+            )
             return self._simple_keyword_similarity(memory, context)
     
     def _simple_keyword_similarity(self, memory: MemoryEntry, context: RetrievalContext) -> float:
@@ -598,9 +624,14 @@ class ActiveRetrievalEngine:
             )
             
             return max(0.0, similarity)
-            
+
         except Exception as e:
-            logger.warning(f"Semantic similarity calculation failed: {e}")
+            logger.warn(
+                "Semantic similarity calculation failed",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.active_retrieval_engine.ActiveRetrievalEngine",
+                data={"error": str(e)}
+            )
             return self._simple_keyword_similarity(memory, context)
 
     def _generate_retrieval_reasons_fast(

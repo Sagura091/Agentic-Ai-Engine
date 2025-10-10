@@ -16,13 +16,17 @@ The bridge ensures:
 
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
-import structlog
 
 from app.memory.unified_memory_system import UnifiedMemorySystem
 from app.memory.memory_models import MemoryType, MemoryImportance, MemoryEntry
 from app.agents.autonomous.persistent_memory import PersistentMemorySystem
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class MemorySystemBridge:
@@ -51,12 +55,14 @@ class MemorySystemBridge:
         
         # Track persistent memory systems by agent_id
         self.persistent_systems: Dict[str, PersistentMemorySystem] = {}
-        
+
         logger.info(
             "Memory system bridge initialized",
-            enable_sync=enable_sync
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.memory_system_bridge.MemorySystemBridge",
+            data={"enable_sync": enable_sync}
         )
-    
+
     def register_persistent_system(
         self,
         agent_id: str,
@@ -64,9 +70,9 @@ class MemorySystemBridge:
     ):
         """
         Register a PersistentMemorySystem for an agent.
-        
+
         This enables bidirectional synchronization between the two systems.
-        
+
         Args:
             agent_id: The agent's unique identifier
             persistent_system: The PersistentMemorySystem instance
@@ -74,6 +80,8 @@ class MemorySystemBridge:
         self.persistent_systems[agent_id] = persistent_system
         logger.info(
             f"Persistent memory system registered for agent {agent_id}",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.memory_system_bridge.MemorySystemBridge",
             agent_id=agent_id
         )
     
@@ -137,14 +145,16 @@ class MemorySystemBridge:
                 )
                 logger.debug(
                     f"Memory synced to persistent system for agent {agent_id}",
-                    agent_id=agent_id,
-                    memory_id=memory_id
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.memory.memory_system_bridge.MemorySystemBridge",
+                    data={"agent_id": agent_id, "memory_id": memory_id}
                 )
             except Exception as e:
-                logger.warning(
-                    f"Failed to sync memory to persistent system: {e}",
-                    agent_id=agent_id,
-                    error=str(e)
+                logger.warn(
+                    "Failed to sync memory to persistent system",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.memory.memory_system_bridge.MemorySystemBridge",
+                    data={"agent_id": agent_id, "error": str(e)}
                 )
         
         return memory_id
@@ -193,17 +203,19 @@ class MemorySystemBridge:
                 
                 logger.debug(
                     f"Retrieved {len(memories)} memories from persistent system",
-                    agent_id=agent_id,
-                    count=len(memories)
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.memory.memory_system_bridge.MemorySystemBridge",
+                    data={"agent_id": agent_id, "count": len(memories)}
                 )
-                
+
                 return memories
-                
+
             except Exception as e:
-                logger.warning(
-                    f"Failed to retrieve from persistent system, falling back to unified: {e}",
-                    agent_id=agent_id,
-                    error=str(e)
+                logger.warn(
+                    "Failed to retrieve from persistent system, falling back to unified",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.memory.memory_system_bridge.MemorySystemBridge",
+                    data={"agent_id": agent_id, "error": str(e)}
                 )
         
         # Use UnifiedMemorySystem
@@ -247,25 +259,29 @@ class MemorySystemBridge:
                 result = await persistent_system.consolidate_memories()
                 
                 logger.info(
-                    f"Consolidated memories using persistent system",
-                    agent_id=agent_id,
-                    result=result
+                    "Consolidated memories using persistent system",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.memory.memory_system_bridge.MemorySystemBridge",
+                    data={"agent_id": agent_id, "result": result}
                 )
-                
+
                 return result
-                
+
             except Exception as e:
-                logger.warning(
-                    f"Failed to consolidate with persistent system, using unified: {e}",
-                    agent_id=agent_id,
-                    error=str(e)
+                logger.warn(
+                    "Failed to consolidate with persistent system, using unified",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.memory.memory_system_bridge.MemorySystemBridge",
+                    data={"agent_id": agent_id, "error": str(e)}
                 )
-        
+
         # Use UnifiedMemorySystem
         result = await self.unified_system.run_consolidation_for_agent(agent_id)
-        
+
         logger.info(
-            f"Consolidated memories using unified system",
+            "Consolidated memories using unified system",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.memory_system_bridge.MemorySystemBridge",
             agent_id=agent_id,
             result=result
         )

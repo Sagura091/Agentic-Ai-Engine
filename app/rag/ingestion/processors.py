@@ -39,7 +39,6 @@ from pathlib import Path
 from typing import Dict, Any, Optional, Union, BinaryIO, List, Tuple
 
 import aiofiles
-import structlog
 from bs4 import BeautifulSoup
 from PIL import Image, ImageEnhance
 import numpy as np
@@ -58,7 +57,12 @@ from .processor_presentation import PresentationProcessor
 from .processor_email import EmailProcessor
 from .processor_code import CodeProcessor
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class DocumentProcessor(ABC):
@@ -133,7 +137,11 @@ class RevolutionaryOCREngine:
             engines.append('paddleocr')
 
         if not engines:
-            logger.error("No OCR engines available! Install at least one: pytesseract, easyocr, or paddleocr")
+            logger.error(
+                "No OCR engines available! Install at least one: pytesseract, easyocr, or paddleocr",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.OCRProcessor"
+            )
 
         return engines
 
@@ -200,7 +208,12 @@ class RevolutionaryOCREngine:
             }
 
         except Exception as e:
-            logger.error(f"OCR extraction failed: {e}")
+            logger.error(
+                f"OCR extraction failed: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.OCRProcessor",
+                error=e
+            )
             return {
                 'text': '',
                 'confidence': 0.0,
@@ -234,7 +247,12 @@ class RevolutionaryOCREngine:
             return image
 
         except Exception as e:
-            logger.warning(f"Image enhancement failed: {e}")
+            logger.warn(
+                f"Image enhancement failed: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.OCRProcessor",
+                error=e
+            )
             return image
 
     async def _ocr_with_tesseract(self, image: Image.Image, languages: List[str]) -> Dict[str, Any]:
@@ -265,7 +283,12 @@ class RevolutionaryOCREngine:
             }
 
         except Exception as e:
-            logger.error(f"Tesseract OCR failed: {e}")
+            logger.error(
+                f"Tesseract OCR failed: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.OCRProcessor",
+                error=e
+            )
             return {'text': '', 'confidence': 0.0, 'engine': 'tesseract', 'error': str(e)}
 
     async def _ocr_with_easyocr(self, image: Image.Image, languages: List[str]) -> Dict[str, Any]:
@@ -303,7 +326,12 @@ class RevolutionaryOCREngine:
             }
 
         except Exception as e:
-            logger.error(f"EasyOCR failed: {e}")
+            logger.error(
+                f"EasyOCR failed: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.OCRProcessor",
+                error=e
+            )
             return {'text': '', 'confidence': 0.0, 'engine': 'easyocr', 'error': str(e)}
 
     async def _ocr_with_paddleocr(self, image: Image.Image, languages: List[str]) -> Dict[str, Any]:
@@ -344,7 +372,12 @@ class RevolutionaryOCREngine:
             }
 
         except Exception as e:
-            logger.error(f"PaddleOCR failed: {e}")
+            logger.error(
+                f"PaddleOCR failed: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.OCRProcessor",
+                error=e
+            )
             return {'text': '', 'confidence': 0.0, 'engine': 'paddleocr', 'error': str(e)}
 
     async def _combine_ocr_results(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -404,7 +437,12 @@ class RevolutionaryImageProcessor(DocumentProcessor):
     async def process(self, content: bytes, filename: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Process image and extract text using revolutionary OCR."""
         try:
-            logger.info(f"Processing image: {filename}")
+            logger.info(
+                f"Processing image: {filename}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.ImageProcessor",
+                data={"filename": filename}
+            )
 
             # Get OCR engine
             ocr_engine = await get_ocr_engine()
@@ -439,7 +477,13 @@ class RevolutionaryImageProcessor(DocumentProcessor):
             }
 
         except Exception as e:
-            logger.error(f"Failed to process image {filename}: {e}")
+            logger.error(
+                f"Failed to process image {filename}: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.ImageProcessor",
+                error=e,
+                data={"filename": filename}
+            )
             return {
                 'text': f"[Image: {filename}] - Processing failed: {str(e)}",
                 'metadata': {'error': str(e), 'processing_method': 'image_fallback'},
@@ -476,7 +520,12 @@ class RevolutionaryImageProcessor(DocumentProcessor):
             return metadata
 
         except Exception as e:
-            logger.warning(f"Failed to extract image metadata: {e}")
+            logger.warn(
+                f"Failed to extract image metadata: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.ImageProcessor",
+                error=e
+            )
             return {'error': str(e)}
 
     async def _analyze_image_content(self, content: bytes) -> Dict[str, Any]:
@@ -502,7 +551,12 @@ class RevolutionaryImageProcessor(DocumentProcessor):
             return analysis
 
         except Exception as e:
-            logger.warning(f"Failed to analyze image content: {e}")
+            logger.warn(
+                f"Failed to analyze image content: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.ImageProcessor",
+                error=e
+            )
             return {'error': str(e)}
 
     def _get_dominant_colors(self, img_array: np.ndarray, k: int = 3) -> List[List[int]]:
@@ -577,7 +631,12 @@ class RevolutionaryVideoProcessor(DocumentProcessor):
     async def process(self, content: bytes, filename: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Process video and extract text from frames and audio."""
         try:
-            logger.info(f"Processing video: {filename}")
+            logger.info(
+                f"Processing video: {filename}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.VideoProcessor",
+                data={"filename": filename}
+            )
 
             # Create temporary file for video processing
             with tempfile.NamedTemporaryFile(suffix=Path(filename).suffix, delete=False) as temp_file:
@@ -627,7 +686,13 @@ class RevolutionaryVideoProcessor(DocumentProcessor):
                 os.unlink(temp_path)
 
         except Exception as e:
-            logger.error(f"Failed to process video {filename}: {e}")
+            logger.error(
+                f"Failed to process video {filename}: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.VideoProcessor",
+                error=e,
+                data={"filename": filename}
+            )
             return {
                 'text': f"[Video: {filename}] - Processing failed: {str(e)}",
                 'metadata': {'error': str(e), 'processing_method': 'video_fallback'},
@@ -682,7 +747,13 @@ class RevolutionaryVideoProcessor(DocumentProcessor):
                         else:
                             fps = float(frame_rate_str)
                     except (ValueError, ZeroDivisionError, AttributeError) as e:
-                        logger.warning(f"Failed to parse frame rate: {frame_rate_str}", error=str(e))
+                        logger.warn(
+                            f"Failed to parse frame rate: {frame_rate_str}",
+                            LogCategory.RAG_OPERATIONS,
+                            "app.rag.ingestion.processors.VideoProcessor",
+                            error=e,
+                            data={"frame_rate_str": frame_rate_str}
+                        )
                         fps = 0.0
 
                     metadata.update({
@@ -703,7 +774,12 @@ class RevolutionaryVideoProcessor(DocumentProcessor):
                 return metadata
 
         except Exception as e:
-            logger.warning(f"Failed to extract video metadata: {e}")
+            logger.warn(
+                f"Failed to extract video metadata: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.VideoProcessor",
+                error=e
+            )
 
         return {'error': 'metadata_extraction_failed'}
 
@@ -761,7 +837,12 @@ class RevolutionaryVideoProcessor(DocumentProcessor):
             return frame_texts
 
         except Exception as e:
-            logger.warning(f"Failed to extract text from video frames: {e}")
+            logger.warn(
+                f"Failed to extract text from video frames: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.VideoProcessor",
+                error=e
+            )
             return []
 
     async def _extract_audio_transcript(self, video_path: str) -> Optional[str]:
@@ -804,7 +885,11 @@ class RevolutionaryVideoProcessor(DocumentProcessor):
                                 continue
 
                     except ImportError:
-                        logger.warning("speech_recognition library not available")
+                        logger.warn(
+                            "speech_recognition library not available",
+                            LogCategory.RAG_OPERATIONS,
+                            "app.rag.ingestion.processors.VideoProcessor"
+                        )
 
             finally:
                 # Clean up (ensure cleanup even on error)
@@ -814,7 +899,12 @@ class RevolutionaryVideoProcessor(DocumentProcessor):
                     pass
 
         except Exception as e:
-            logger.warning(f"Failed to extract audio transcript: {e}")
+            logger.warn(
+                f"Failed to extract audio transcript: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.VideoProcessor",
+                error=e
+            )
 
         return None
 
@@ -860,7 +950,12 @@ class EnhancedTextProcessor(DocumentProcessor):
                 try:
                     text = content.decode(encoding)
                     used_encoding = encoding
-                    logger.debug(f"Successfully decoded text with {encoding}")
+                    logger.debug(
+                        f"Successfully decoded text with {encoding}",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.ingestion.processors.TextProcessor",
+                        data={"encoding": encoding}
+                    )
                     break
                 except UnicodeDecodeError:
                     continue
@@ -869,7 +964,12 @@ class EnhancedTextProcessor(DocumentProcessor):
                 # If all encodings fail, use utf-8 with error handling
                 text = content.decode('utf-8', errors='replace')
                 used_encoding = 'utf-8-fallback'
-                logger.warning(f"Used fallback decoding for {filename}")
+                logger.warn(
+                    f"Used fallback decoding for {filename}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.ingestion.processors.TextProcessor",
+                    data={"filename": filename}
+                )
 
             text = text.strip()
 
@@ -900,7 +1000,13 @@ class EnhancedTextProcessor(DocumentProcessor):
             }
 
         except Exception as e:
-            logger.error(f"Failed to process text file {filename}: {str(e)}")
+            logger.error(
+                f"Failed to process text file {filename}: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.TextProcessor",
+                error=e,
+                data={"filename": filename}
+            )
             return {
                 'text': f"[Text file: {filename}] - Processing failed: {str(e)}",
                 'metadata': {'error': str(e), 'processing_method': 'text_fallback'},
@@ -1042,17 +1148,34 @@ class PDFProcessor(DocumentProcessor):
                     if page_text.strip():
                         text_parts.append(f"--- Page {page_num + 1} ---\n{page_text}")
                 except Exception as e:
-                    logger.warning(f"Failed to extract text from page {page_num + 1}: {str(e)}")
+                    logger.warn(
+                        f"Failed to extract text from page {page_num + 1}: {str(e)}",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.ingestion.processors.PDFProcessor",
+                        error=e,
+                        data={"page_num": page_num + 1}
+                    )
 
             if not text_parts:
                 raise ValueError("No text could be extracted from PDF")
 
             extracted_text = "\n\n".join(text_parts)
-            logger.info(f"Extracted text from PDF: {len(extracted_text)} characters")
+            logger.info(
+                f"Extracted text from PDF: {len(extracted_text)} characters",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.PDFProcessor",
+                data={"text_length": len(extracted_text)}
+            )
             return extracted_text
 
         except Exception as e:
-            logger.error(f"Failed to process PDF file {filename}: {str(e)}")
+            logger.error(
+                f"Failed to process PDF file {filename}: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.PDFProcessor",
+                error=e,
+                data={"filename": filename}
+            )
             raise
     
     def supports_mime_type(self, mime_type: str) -> bool:
@@ -1100,11 +1223,22 @@ class DOCXProcessor(DocumentProcessor):
                 raise ValueError("No text could be extracted from DOCX")
 
             extracted_text = "\n\n".join(text_parts)
-            logger.info(f"Extracted text from DOCX: {len(extracted_text)} characters")
+            logger.info(
+                f"Extracted text from DOCX: {len(extracted_text)} characters",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.DOCXProcessor",
+                data={"text_length": len(extracted_text)}
+            )
             return extracted_text
 
         except Exception as e:
-            logger.error(f"Failed to process DOCX file {filename}: {str(e)}")
+            logger.error(
+                f"Failed to process DOCX file {filename}: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.DOCXProcessor",
+                error=e,
+                data={"filename": filename}
+            )
             raise
     
     def supports_mime_type(self, mime_type: str) -> bool:
@@ -1141,12 +1275,23 @@ class HTMLProcessor(DocumentProcessor):
             
             if not text.strip():
                 raise ValueError("No text could be extracted from HTML")
-            
-            logger.info(f"Extracted text from HTML: {len(text)} characters")
+
+            logger.info(
+                f"Extracted text from HTML: {len(text)} characters",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.HTMLProcessor",
+                data={"text_length": len(text)}
+            )
             return text
-            
+
         except Exception as e:
-            logger.error(f"Failed to process HTML file {filename}: {str(e)}")
+            logger.error(
+                f"Failed to process HTML file {filename}: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.HTMLProcessor",
+                error=e,
+                data={"filename": filename}
+            )
             raise
     
     def supports_mime_type(self, mime_type: str) -> bool:
@@ -1174,11 +1319,22 @@ class JSONProcessor(DocumentProcessor):
                 raise ValueError("No text could be extracted from JSON")
             
             extracted_text = "\n".join(text_parts)
-            logger.info(f"Extracted text from JSON: {len(extracted_text)} characters")
+            logger.info(
+                f"Extracted text from JSON: {len(extracted_text)} characters",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.JSONProcessor",
+                data={"text_length": len(extracted_text)}
+            )
             return extracted_text
-            
+
         except Exception as e:
-            logger.error(f"Failed to process JSON file {filename}: {str(e)}")
+            logger.error(
+                f"Failed to process JSON file {filename}: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.JSONProcessor",
+                error=e,
+                data={"filename": filename}
+            )
             raise
     
     def _extract_text_from_json(self, obj: Any, text_parts: list, prefix: str = "") -> None:
@@ -1224,15 +1380,30 @@ class ProcessorRegistry:
             
             for name, processor in processors:
                 self.processors[name] = processor
-                logger.debug(f"Registered processor: {name}")
-            
+                logger.debug(
+                    f"Registered processor: {name}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.ingestion.processors.ProcessorRegistry",
+                    data={"processor_name": name}
+                )
+
             # Build MIME type mapping
             self._build_mime_type_mapping()
-            
-            logger.info(f"Processor registry initialized with {len(self.processors)} processors")
-            
+
+            logger.info(
+                f"Processor registry initialized with {len(self.processors)} processors",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.ProcessorRegistry",
+                data={"processor_count": len(self.processors)}
+            )
+
         except Exception as e:
-            logger.error(f"Failed to initialize processor registry: {str(e)}")
+            logger.error(
+                f"Failed to initialize processor registry: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.ProcessorRegistry",
+                error=e
+            )
             raise
     
     def _build_mime_type_mapping(self) -> None:
@@ -1266,14 +1437,24 @@ class ProcessorRegistry:
         # Fallback to text processor for unknown types
         if mime_type.startswith('text/'):
             return self.processors.get('text')
-        
-        logger.warning(f"No processor found for MIME type: {mime_type}")
+
+        logger.warn(
+            f"No processor found for MIME type: {mime_type}",
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.ingestion.processors.ProcessorRegistry",
+            data={"mime_type": mime_type}
+        )
         return None
-    
+
     def register_processor(self, name: str, processor: DocumentProcessor) -> None:
         """Register a custom processor."""
         self.processors[name] = processor
-        logger.info(f"Custom processor registered: {name}")
+        logger.info(
+            f"Custom processor registered: {name}",
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.ingestion.processors.ProcessorRegistry",
+            data={"processor_name": name}
+        )
     
     def list_processors(self) -> Dict[str, str]:
         """List all available processors."""
@@ -1328,7 +1509,11 @@ class RevolutionaryProcessorRegistry:
         self.register_processor('html', HTMLProcessor())
         self.register_processor('json', JSONProcessor())
 
-        logger.info("Revolutionary processor registry initialized with all advanced processors")
+        logger.info(
+            "Revolutionary processor registry initialized with all advanced processors",
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.ingestion.processors.RevolutionaryProcessorRegistry"
+        )
 
     def register_processor(self, name: str, processor: DocumentProcessor):
         """Register a document processor and update MIME type mappings."""
@@ -1339,7 +1524,12 @@ class RevolutionaryProcessorRegistry:
             for mime_type in processor.supported_formats:
                 self.mime_type_mapping[mime_type] = name
 
-        logger.info(f"Registered revolutionary processor: {name}")
+        logger.info(
+            f"Registered revolutionary processor: {name}",
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.ingestion.processors.RevolutionaryProcessorRegistry",
+            data={"processor_name": name}
+        )
 
     def get_processor_for_mime_type(self, mime_type: str) -> Optional[DocumentProcessor]:
         """Get appropriate processor for MIME type with intelligent fallback."""
@@ -1473,13 +1663,23 @@ class RevolutionaryProcessorRegistry:
             processor = self.get_processor_for_mime_type(mime_type)
 
             if not processor:
-                logger.warning(f"No processor found for {mime_type}, using text fallback")
+                logger.warn(
+                    f"No processor found for {mime_type}, using text fallback",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.ingestion.processors.RevolutionaryProcessorRegistry",
+                    data={"mime_type": mime_type, "filename": filename}
+                )
                 processor = self.processors.get('enhanced_text')
 
             if not processor:
                 raise ValueError("No processors available")
 
-            logger.info(f"Processing {filename} with {processor.__class__.__name__}")
+            logger.info(
+                f"Processing {filename} with {processor.__class__.__name__}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.RevolutionaryProcessorRegistry",
+                data={"filename": filename, "processor": processor.__class__.__name__}
+            )
 
             # Process document
             result = await processor.process(content, filename, metadata)
@@ -1496,7 +1696,13 @@ class RevolutionaryProcessorRegistry:
             return result
 
         except Exception as e:
-            logger.error(f"Failed to process document {filename}: {e}")
+            logger.error(
+                f"Failed to process document {filename}: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.ingestion.processors.RevolutionaryProcessorRegistry",
+                error=e,
+                data={"filename": filename, "mime_type": mime_type}
+            )
             return {
                 'text': f"[Document: {filename}] - Processing failed: {str(e)}",
                 'metadata': {

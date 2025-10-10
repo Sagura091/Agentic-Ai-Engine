@@ -15,11 +15,14 @@ from datetime import datetime
 from dataclasses import dataclass
 from enum import Enum
 
-import structlog
-
 from app.rag.core.agent_isolation_manager import AgentIsolationManager
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class SecurityLevel(str, Enum):
@@ -130,7 +133,11 @@ class AdvancedAccessController:
             "rules_count": 0
         }
 
-        logger.info("Advanced access controller initialized")
+        logger.info(
+            "Advanced access controller initialized",
+            LogCategory.SECURITY_OPERATIONS,
+            "app.optimization.advanced_access_controls.AdvancedAccessController"
+        )
     async def initialize(self) -> None:
         """Initialize the access controller."""
         try:
@@ -150,10 +157,19 @@ class AdvancedAccessController:
             self.agent_roles["admin"] = "admin"
 
             self.is_initialized = True
-            logger.info("Access controller initialized successfully")
+            logger.info(
+                "Access controller initialized successfully",
+                LogCategory.SECURITY_OPERATIONS,
+                "app.optimization.advanced_access_controls.AdvancedAccessController"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to initialize access controller: {str(e)}")
+            logger.error(
+                "Failed to initialize access controller",
+                LogCategory.SECURITY_OPERATIONS,
+                "app.optimization.advanced_access_controls.AdvancedAccessController",
+                error=e
+            )
             raise
     async def evaluate_access(
         self,
@@ -219,7 +235,12 @@ class AdvancedAccessController:
             return PolicyEffect.DENY
 
         except Exception as e:
-            logger.error(f"Failed to evaluate access: {str(e)}")
+            logger.error(
+                "Failed to evaluate access",
+                LogCategory.SECURITY_OPERATIONS,
+                "app.optimization.advanced_access_controls.AdvancedAccessController",
+                error=e
+            )
             return PolicyEffect.DENY
     def add_access_rule(
         self,
@@ -234,21 +255,41 @@ class AdvancedAccessController:
             self.access_rules.append(rule)
             self.stats["rules_count"] = len(self.access_rules)
 
-            logger.info(f"Added access rule for agent {agent_id}")
+            logger.info(
+                f"Added access rule for agent {agent_id}",
+                LogCategory.SECURITY_OPERATIONS,
+                "app.optimization.advanced_access_controls.AdvancedAccessController",
+                data={"agent_id": agent_id, "resource": resource, "action": action.value, "effect": effect.value}
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to add access rule: {str(e)}")
+            logger.error(
+                "Failed to add access rule",
+                LogCategory.SECURITY_OPERATIONS,
+                "app.optimization.advanced_access_controls.AdvancedAccessController",
+                error=e
+            )
             return False
     def assign_role_to_agent(self, agent_id: str, role: str) -> bool:
         """Assign a role to an agent."""
         try:
             self.agent_roles[agent_id] = role
-            logger.info(f"Assigned role {role} to agent {agent_id}")
+            logger.info(
+                f"Assigned role {role} to agent {agent_id}",
+                LogCategory.SECURITY_OPERATIONS,
+                "app.optimization.advanced_access_controls.AdvancedAccessController",
+                data={"agent_id": agent_id, "role": role}
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to assign role: {str(e)}")
+            logger.error(
+                "Failed to assign role",
+                LogCategory.SECURITY_OPERATIONS,
+                "app.optimization.advanced_access_controls.AdvancedAccessController",
+                error=e
+            )
             return False
 
     def get_agent_role(self, agent_id: str) -> Optional[str]:

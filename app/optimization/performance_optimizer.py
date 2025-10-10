@@ -31,14 +31,17 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from enum import Enum
 
-import structlog
-
 from app.rag.core.unified_rag_system import UnifiedRAGSystem
 from app.memory.unified_memory_system import UnifiedMemorySystem
 from app.tools.unified_tool_repository import UnifiedToolRepository
 from app.communication.agent_communication_system import AgentCommunicationSystem
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class OptimizationStrategy(str, Enum):
@@ -138,7 +141,11 @@ class PerformanceOptimizer:
             "total_operations": 0
         }
 
-        logger.info("Performance optimizer created")
+        logger.info(
+            "Performance optimizer created",
+            LogCategory.PERFORMANCE_MONITORING,
+            "app.optimization.performance_optimizer.PerformanceOptimizer"
+        )
     async def initialize(self) -> None:
         """Initialize the performance optimizer."""
         try:
@@ -146,10 +153,19 @@ class PerformanceOptimizer:
                 return
 
             self.is_initialized = True
-            logger.info("Performance optimizer initialized successfully")
+            logger.info(
+                "Performance optimizer initialized successfully",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.optimization.performance_optimizer.PerformanceOptimizer"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to initialize performance optimizer: {str(e)}")
+            logger.error(
+                "Failed to initialize performance optimizer",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.optimization.performance_optimizer.PerformanceOptimizer",
+                error=e
+            )
             raise
 
     async def collect_metrics(self) -> PerformanceMetrics:
@@ -178,7 +194,12 @@ class PerformanceOptimizer:
             return metrics
 
         except Exception as e:
-            logger.error(f"Failed to collect metrics: {str(e)}")
+            logger.error(
+                "Failed to collect metrics",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.optimization.performance_optimizer.PerformanceOptimizer",
+                error=e
+            )
             return PerformanceMetrics.create(0.0, 0.0, 0.0)
     async def optimize_system_performance(self) -> List[str]:
         """Perform simple system-wide performance optimization."""
@@ -202,11 +223,21 @@ class PerformanceOptimizer:
                 optimizations_applied.append("memory_cleanup")
                 self.stats["optimizations_applied"] += 1
 
-            logger.info(f"Applied {len(optimizations_applied)} optimizations")
+            logger.info(
+                f"Applied {len(optimizations_applied)} optimizations",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.optimization.performance_optimizer.PerformanceOptimizer",
+                data={"optimizations_count": len(optimizations_applied), "optimizations": optimizations_applied}
+            )
             return optimizations_applied
 
         except Exception as e:
-            logger.error(f"Failed to optimize system performance: {str(e)}")
+            logger.error(
+                "Failed to optimize system performance",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.optimization.performance_optimizer.PerformanceOptimizer",
+                error=e
+            )
             return []
     async def _cleanup_cache(self) -> None:
         """Simple cache cleanup."""
@@ -218,10 +249,20 @@ class PerformanceOptimizer:
             for key in keys_to_remove:
                 del self.query_cache[key]
 
-            logger.info(f"Cleaned up {len(keys_to_remove)} cache entries")
+            logger.info(
+                f"Cleaned up {len(keys_to_remove)} cache entries",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.optimization.performance_optimizer.PerformanceOptimizer",
+                data={"entries_removed": len(keys_to_remove)}
+            )
 
         except Exception as e:
-            logger.error(f"Failed to cleanup cache: {str(e)}")
+            logger.error(
+                "Failed to cleanup cache",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.optimization.performance_optimizer.PerformanceOptimizer",
+                error=e
+            )
 
     async def _cleanup_memory(self) -> None:
         """Simple memory cleanup."""
@@ -237,10 +278,19 @@ class PerformanceOptimizer:
             if len(self.resource_usage_history) > 50:
                 self.resource_usage_history = self.resource_usage_history[-50:]
 
-            logger.info("Performed memory cleanup")
+            logger.info(
+                "Performed memory cleanup",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.optimization.performance_optimizer.PerformanceOptimizer"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to cleanup memory: {str(e)}")
+            logger.error(
+                "Failed to cleanup memory",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.optimization.performance_optimizer.PerformanceOptimizer",
+                error=e
+            )
     def get_cached_result(self, key: str) -> Optional[Any]:
         """Get a cached result."""
         try:
@@ -253,7 +303,12 @@ class PerformanceOptimizer:
                 return None
 
         except Exception as e:
-            logger.error(f"Failed to get cached result: {str(e)}")
+            logger.error(
+                "Failed to get cached result",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.optimization.performance_optimizer.PerformanceOptimizer",
+                error=e
+            )
             return None
 
     def set_cached_result(self, key: str, value: Any) -> None:
@@ -269,7 +324,12 @@ class PerformanceOptimizer:
                     del self.query_cache[k]
 
         except Exception as e:
-            logger.error(f"Failed to set cached result: {str(e)}")
+            logger.error(
+                "Failed to set cached result",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.optimization.performance_optimizer.PerformanceOptimizer",
+                error=e
+            )
 
     def record_resource_usage(self, resource_type: ResourceType, usage: float) -> None:
         """Record resource usage."""
@@ -282,7 +342,12 @@ class PerformanceOptimizer:
                 self.resource_usage_history = self.resource_usage_history[-100:]
 
         except Exception as e:
-            logger.error(f"Failed to record resource usage: {str(e)}")
+            logger.error(
+                "Failed to record resource usage",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.optimization.performance_optimizer.PerformanceOptimizer",
+                error=e
+            )
 
     def get_stats(self) -> Dict[str, Any]:
         """Get performance optimizer statistics."""

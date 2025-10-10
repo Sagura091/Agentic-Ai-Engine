@@ -9,10 +9,12 @@ import asyncio
 import json
 from typing import Dict, List, Optional
 
-import structlog
 from fastapi import WebSocket, WebSocketDisconnect
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
+_backend_logger = get_backend_logger()
 
 
 class WebSocketManager:
@@ -25,28 +27,40 @@ class WebSocketManager:
         self.active_connections: Dict[str, WebSocket] = {}
         self.connection_metadata: Dict[str, Dict] = {}
         self.is_initialized = False
-        
-        logger.info("WebSocket manager created")
-    
+
+        _backend_logger.info(
+            "WebSocket manager created",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.manager"
+        )
+
     async def initialize(self) -> None:
         """Initialize the WebSocket manager."""
         if self.is_initialized:
             return
-        
+
         self.is_initialized = True
-        logger.info("WebSocket manager initialized")
-    
+        _backend_logger.info(
+            "WebSocket manager initialized",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.manager"
+        )
+
     async def shutdown(self) -> None:
         """Shutdown the WebSocket manager."""
         if not self.is_initialized:
             return
-        
+
         # Close all active connections
         for connection_id in list(self.active_connections.keys()):
             await self.disconnect(connection_id)
-        
+
         self.is_initialized = False
-        logger.info("WebSocket manager shut down")
+        _backend_logger.info(
+            "WebSocket manager shut down",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.manager"
+        )
     
     async def connect(
         self,
@@ -66,11 +80,15 @@ class WebSocketManager:
         
         self.active_connections[connection_id] = websocket
         self.connection_metadata[connection_id] = metadata or {}
-        
-        logger.info(
+
+        _backend_logger.info(
             "WebSocket connection established",
-            connection_id=connection_id,
-            total_connections=len(self.active_connections)
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.manager",
+            data={
+                "connection_id": connection_id,
+                "total_connections": len(self.active_connections)
+            }
         )
         
         # Send welcome message
@@ -95,19 +113,27 @@ class WebSocketManager:
                 websocket = self.active_connections[connection_id]
                 await websocket.close()
             except Exception as e:
-                logger.warning(
+                _backend_logger.warn(
                     "Error closing WebSocket",
-                    connection_id=connection_id,
-                    error=str(e)
+                    LogCategory.API_OPERATIONS,
+                    "app.api.websocket.manager",
+                    data={
+                        "connection_id": connection_id,
+                        "error": str(e)
+                    }
                 )
-            
+
             del self.active_connections[connection_id]
             del self.connection_metadata[connection_id]
-            
-            logger.info(
+
+            _backend_logger.info(
                 "WebSocket connection closed",
-                connection_id=connection_id,
-                total_connections=len(self.active_connections)
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.manager",
+                data={
+                    "connection_id": connection_id,
+                    "total_connections": len(self.active_connections)
+                }
             )
     
     async def send_personal_message(
@@ -123,28 +149,36 @@ class WebSocketManager:
             message: Message to send
         """
         if connection_id not in self.active_connections:
-            logger.warning(
+            _backend_logger.warn(
                 "Attempted to send message to non-existent connection",
-                connection_id=connection_id
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.manager",
+                data={"connection_id": connection_id}
             )
             return
-        
+
         try:
             websocket = self.active_connections[connection_id]
             await websocket.send_text(json.dumps(message))
-            
+
         except WebSocketDisconnect:
-            logger.info(
+            _backend_logger.info(
                 "WebSocket disconnected during message send",
-                connection_id=connection_id
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.manager",
+                data={"connection_id": connection_id}
             )
             await self.disconnect(connection_id)
-            
+
         except Exception as e:
-            logger.error(
+            _backend_logger.error(
                 "Error sending WebSocket message",
-                connection_id=connection_id,
-                error=str(e)
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.manager",
+                data={
+                    "connection_id": connection_id,
+                    "error": str(e)
+                }
             )
             await self.disconnect(connection_id)
     
@@ -165,11 +199,15 @@ class WebSocketManager:
         ]
         
         await asyncio.gather(*tasks, return_exceptions=True)
-        
-        logger.info(
+
+        _backend_logger.info(
             "Message broadcasted",
-            message_type=message.get("type"),
-            connections=len(self.active_connections)
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.manager",
+            data={
+                "message_type": message.get("type"),
+                "connections": len(self.active_connections)
+            }
         )
     
     async def send_agent_update(

@@ -29,11 +29,15 @@ from dataclasses import dataclass, field
 from enum import Enum
 from collections import defaultdict
 
-import structlog
 from pydantic import BaseModel, Field
 import numpy as np
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class FusionStrategy(str, Enum):
@@ -111,8 +115,12 @@ class HybridFusion:
         
         logger.info(
             "HybridFusion initialized",
-            strategy=self.config.strategy.value,
-            weights=self.config.weights
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.hybrid_fusion.HybridFusion",
+            data={
+                "strategy": self.config.strategy.value,
+                "weights": self.config.weights
+            }
         )
     
     def fuse_results(
@@ -138,7 +146,11 @@ class HybridFusion:
         
         # Validate inputs
         if not results_by_method:
-            logger.warning("No results to fuse")
+            logger.warn(
+                "No results to fuse",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.hybrid_fusion.HybridFusion"
+            )
             return []
         
         # Normalize scores if configured
@@ -159,7 +171,12 @@ class HybridFusion:
         elif strategy == FusionStrategy.MIN_SCORE:
             fused_results = self._fuse_min_score(results_by_method)
         else:
-            logger.error(f"Unknown fusion strategy: {strategy}")
+            logger.error(
+                f"Unknown fusion strategy: {strategy}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.hybrid_fusion.HybridFusion",
+                data={"strategy": strategy}
+            )
             fused_results = []
         
         # Filter by minimum score
@@ -193,10 +210,14 @@ class HybridFusion:
         
         logger.debug(
             f"Fusion completed",
-            strategy=strategy.value,
-            methods=list(results_by_method.keys()),
-            results_count=len(fused_results),
-            fusion_time_ms=fusion_time_ms
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.hybrid_fusion.HybridFusion",
+            data={
+                "strategy": strategy.value,
+                "methods": list(results_by_method.keys()),
+                "results_count": len(fused_results),
+                "fusion_time_ms": fusion_time_ms
+            }
         )
         
         return fused_results

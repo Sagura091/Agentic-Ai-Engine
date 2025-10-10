@@ -15,7 +15,6 @@ import hashlib
 import numpy as np
 from PIL import Image
 import torch
-import structlog
 
 # Import with fallbacks for missing dependencies
 try:
@@ -32,7 +31,12 @@ except ImportError:
 
 from pydantic import BaseModel, Field
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class CLIPConfig(BaseModel):
@@ -92,38 +96,64 @@ class RevolutionaryCLIPEmbedding:
             if self.is_initialized:
                 return True
             
-            logger.info("Initializing Revolutionary CLIP Embedding System...")
-            
+            logger.info(
+                "Initializing Revolutionary CLIP Embedding System...",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding"
+            )
+
             # Check dependencies
             if not SENTENCE_TRANSFORMERS_AVAILABLE:
-                logger.warning("sentence-transformers not available, using fallback")
+                logger.warn(
+                    "sentence-transformers not available, using fallback",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding"
+                )
                 return await self._initialize_fallback()
-            
+
             if not TRANSFORMERS_AVAILABLE:
-                logger.warning("transformers not available, using fallback")
+                logger.warn(
+                    "transformers not available, using fallback",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding"
+                )
                 return await self._initialize_fallback()
-            
+
             # Determine device
             if self.config.device == "auto":
                 self.device = "cuda" if torch.cuda.is_available() else "cpu"
             else:
                 self.device = self.config.device
-            
-            logger.info(f"Using device: {self.device}")
-            
+
+            logger.info(
+                f"Using device: {self.device}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding",
+                data={"device": self.device}
+            )
+
             # Load CLIP model
             await self._load_clip_model()
-            
+
             # Verify model functionality
             await self._verify_model()
-            
+
             self.is_initialized = True
-            logger.info("Revolutionary CLIP Embedding System initialized successfully!")
-            
+            logger.info(
+                "Revolutionary CLIP Embedding System initialized successfully!",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding"
+            )
+
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to initialize CLIP embedding system: {str(e)}")
+            logger.error(
+                f"Failed to initialize CLIP embedding system: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding",
+                error=e
+            )
             return await self._initialize_fallback()
     
     async def _load_clip_model(self) -> None:
@@ -150,19 +180,35 @@ class RevolutionaryCLIPEmbedding:
                     if model_info and model_info.is_downloaded:
                         logger.info(
                             f"Loading CLIP from centralized storage: {model_spec.local_name}",
-                            path=model_info.local_path
+                            LogCategory.RAG_OPERATIONS,
+                            "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding",
+                            data={"path": model_info.local_path}
                         )
                         model_path = model_info.local_path
 
             except ImportError:
-                logger.warning("Model manager not available, loading CLIP directly from HuggingFace")
+                logger.warn(
+                    "Model manager not available, loading CLIP directly from HuggingFace",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding"
+                )
 
             # Load sentence-transformers CLIP model
             if model_path:
-                logger.info(f"Loading CLIP model from: {model_path}")
+                logger.info(
+                    f"Loading CLIP model from: {model_path}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding",
+                    data={"model_path": model_path}
+                )
                 self.model = SentenceTransformer(model_path, device=self.device)
             else:
-                logger.info(f"Loading CLIP model from HuggingFace: {self.config.model_name}")
+                logger.info(
+                    f"Loading CLIP model from HuggingFace: {self.config.model_name}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding",
+                    data={"model_name": self.config.model_name}
+                )
                 self.model = SentenceTransformer(self.config.model_name, device=self.device)
 
             # Get embedding dimension
@@ -174,14 +220,33 @@ class RevolutionaryCLIPEmbedding:
                     # Load CLIP processor for image preprocessing
                     self.processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
                     self.tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
-                    logger.info("Additional CLIP processors loaded")
+                    logger.info(
+                        "Additional CLIP processors loaded",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding"
+                    )
                 except Exception as e:
-                    logger.warning(f"Could not load additional processors: {str(e)}")
+                    logger.warn(
+                        f"Could not load additional processors: {str(e)}",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding",
+                        error=e
+                    )
 
-            logger.info(f"CLIP model loaded successfully, embedding dimension: {self.embedding_dimension}")
-            
+            logger.info(
+                f"CLIP model loaded successfully, embedding dimension: {self.embedding_dimension}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding",
+                data={"embedding_dimension": self.embedding_dimension}
+            )
+
         except Exception as e:
-            logger.error(f"Failed to load CLIP model: {str(e)}")
+            logger.error(
+                f"Failed to load CLIP model: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding",
+                error=e
+            )
             raise
     
     async def _verify_model(self) -> None:
@@ -203,13 +268,31 @@ class RevolutionaryCLIPEmbedding:
                 if len(image_embedding) != self.embedding_dimension:
                     raise ValueError(f"Unexpected image embedding dimension: {len(image_embedding)}")
                 
-                logger.info("Model verification successful - both text and image embeddings working")
+                logger.info(
+                    "Model verification successful - both text and image embeddings working",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding"
+                )
             except Exception as e:
-                logger.warning(f"Image embedding test failed: {str(e)}")
-                logger.info("Model verification successful - text embeddings working")
-            
+                logger.warn(
+                    f"Image embedding test failed: {str(e)}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding",
+                    error=e
+                )
+                logger.info(
+                    "Model verification successful - text embeddings working",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding"
+                )
+
         except Exception as e:
-            logger.error(f"Model verification failed: {str(e)}")
+            logger.error(
+                f"Model verification failed: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding",
+                error=e
+            )
             raise
     
     async def embed_text(self, text: str, use_cache: bool = True) -> List[float]:
@@ -251,7 +334,12 @@ class RevolutionaryCLIPEmbedding:
             return embedding_list
             
         except Exception as e:
-            logger.error(f"Text embedding failed: {str(e)}")
+            logger.error(
+                f"Text embedding failed: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding",
+                error=e
+            )
             return await self._generate_fallback_embedding(text)
     
     async def embed_image(self, image: Image.Image, use_cache: bool = True) -> List[float]:
@@ -297,7 +385,12 @@ class RevolutionaryCLIPEmbedding:
             return embedding_list
             
         except Exception as e:
-            logger.error(f"Image embedding failed: {str(e)}")
+            logger.error(
+                f"Image embedding failed: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding",
+                error=e
+            )
             return await self._generate_fallback_image_embedding(image)
     
     async def compute_similarity(
@@ -333,7 +426,12 @@ class RevolutionaryCLIPEmbedding:
             )
             
         except Exception as e:
-            logger.error(f"Similarity computation failed: {str(e)}")
+            logger.error(
+                f"Similarity computation failed: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding",
+                error=e
+            )
             return VisionTextSimilarity(
                 similarity_score=0.0,
                 confidence=0.0,
@@ -386,7 +484,12 @@ class RevolutionaryCLIPEmbedding:
             )
             
         except Exception as e:
-            logger.error(f"Multimodal embedding failed: {str(e)}")
+            logger.error(
+                f"Multimodal embedding failed: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding",
+                error=e
+            )
             # Return fallback with just text embedding
             return MultimodalEmbedding(
                 text_embedding=await self._generate_fallback_embedding(text),
@@ -408,7 +511,12 @@ class RevolutionaryCLIPEmbedding:
             return image
             
         except Exception as e:
-            logger.error(f"Image preprocessing failed: {str(e)}")
+            logger.error(
+                f"Image preprocessing failed: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding",
+                error=e
+            )
             return image
     
     def _generate_cache_key(self, text: str) -> str:
@@ -432,7 +540,11 @@ class RevolutionaryCLIPEmbedding:
     
     async def _initialize_fallback(self) -> bool:
         """Initialize fallback embedding system."""
-        logger.warning("Initializing fallback embedding system")
+        logger.warn(
+            "Initializing fallback embedding system",
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding"
+        )
         self.is_initialized = True
         self.embedding_dimension = 384  # Standard fallback dimension
         return True
@@ -478,17 +590,26 @@ class RevolutionaryCLIPEmbedding:
             return embedding
             
         except Exception as e:
-            logger.error(f"Fallback image embedding failed: {str(e)}")
+            logger.error(
+                f"Fallback image embedding failed: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding",
+                error=e
+            )
             return [0.0] * self.embedding_dimension
-    
+
     def get_performance_metrics(self) -> Dict[str, Any]:
         """Get performance metrics."""
         return self.performance_metrics.copy()
-    
+
     def clear_cache(self) -> None:
         """Clear embedding cache."""
         self.embedding_cache.clear()
-        logger.info("Embedding cache cleared")
+        logger.info(
+            "Embedding cache cleared",
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.vision.clip_embeddings.RevolutionaryCLIPEmbedding"
+        )
 
 
 # Global CLIP embedding instance

@@ -12,9 +12,13 @@ from typing import List, Dict, Any, Optional, Callable, TypeVar, Generic, Union
 from dataclasses import dataclass, field
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import structlog
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 T = TypeVar('T')
 R = TypeVar('R')
@@ -63,11 +67,15 @@ class BatchProcessor(Generic[T, R]):
         
         # Thread pool for CPU-bound operations
         self._thread_pool = ThreadPoolExecutor(max_workers=self.config.max_concurrent_batches)
-        
+
         logger.info(
             "Batch processor initialized",
-            max_batch_size=self.config.max_batch_size,
-            max_concurrent=self.config.max_concurrent_batches
+            LogCategory.PERFORMANCE_MONITORING,
+            "app.rag.core.batch_processor.BatchProcessor",
+            data={
+                "max_batch_size": self.config.max_batch_size,
+                "max_concurrent": self.config.max_concurrent_batches
+            }
         )
     
     async def process_batch(self, items: List[T]) -> List[R]:
@@ -94,20 +102,29 @@ class BatchProcessor(Generic[T, R]):
             # Update adaptive sizing
             if self.config.adaptive_sizing:
                 self._update_optimal_batch_size(processing_time, len(items))
-            
+
             logger.info(
                 "Batch processing completed",
-                items=len(items),
-                batches=len(batches),
-                batch_size=batch_size,
-                processing_time=f"{processing_time:.2f}s",
-                throughput=f"{len(items)/processing_time:.1f} items/s"
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.rag.core.batch_processor.BatchProcessor",
+                data={
+                    "items": len(items),
+                    "batches": len(batches),
+                    "batch_size": batch_size,
+                    "processing_time": f"{processing_time:.2f}s",
+                    "throughput": f"{len(items)/processing_time:.1f} items/s"
+                }
             )
-            
+
             return results
-            
+
         except Exception as e:
-            logger.error(f"Batch processing failed: {e}")
+            logger.error(
+                "Batch processing failed",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.rag.core.batch_processor.BatchProcessor",
+                error=e
+            )
             self.stats.failed_items += len(items)
             raise
     
@@ -149,7 +166,12 @@ class BatchProcessor(Generic[T, R]):
         results = []
         for batch_result in batch_results:
             if isinstance(batch_result, Exception):
-                logger.error(f"Batch processing error: {batch_result}")
+                logger.error(
+                    "Batch processing error",
+                    LogCategory.PERFORMANCE_MONITORING,
+                    "app.rag.core.batch_processor.BatchProcessor",
+                    error=batch_result
+                )
                 continue
             results.extend(batch_result)
         
@@ -180,13 +202,21 @@ class BatchProcessor(Generic[T, R]):
                 last_exception = e
                 if attempt < self.config.retry_attempts - 1:
                     wait_time = 2 ** attempt  # Exponential backoff
-                    logger.warning(
+                    logger.warn(
                         f"Batch processing attempt {attempt + 1} failed, retrying in {wait_time}s",
-                        error=str(e)
+                        LogCategory.PERFORMANCE_MONITORING,
+                        "app.rag.core.batch_processor.BatchProcessor",
+                        error=e,
+                        data={"attempt": attempt + 1, "wait_time": wait_time}
                     )
                     await asyncio.sleep(wait_time)
                 else:
-                    logger.error(f"Batch processing failed after {self.config.retry_attempts} attempts")
+                    logger.error(
+                        f"Batch processing failed after {self.config.retry_attempts} attempts",
+                        LogCategory.PERFORMANCE_MONITORING,
+                        "app.rag.core.batch_processor.BatchProcessor",
+                        data={"retry_attempts": self.config.retry_attempts}
+                    )
         
         raise last_exception or Exception("Batch processing failed")
     
@@ -247,7 +277,11 @@ class BatchProcessor(Generic[T, R]):
     async def close(self):
         """Close the batch processor and cleanup resources."""
         self._thread_pool.shutdown(wait=True)
-        logger.info("Batch processor closed")
+        logger.info(
+            "Batch processor closed",
+            LogCategory.PERFORMANCE_MONITORING,
+            "app.rag.core.batch_processor.BatchProcessor"
+        )
 
 
 class DocumentBatchProcessor(BatchProcessor[Dict[str, Any], Dict[str, Any]]):
@@ -300,8 +334,13 @@ async def get_batch_processor(
             processor = BatchProcessor(processor_func, config=batch_config)
         
         _batch_processors[processor_name] = processor
-        logger.info(f"Created {processor_type} batch processor: {processor_name}")
-    
+        logger.info(
+            f"Created {processor_type} batch processor: {processor_name}",
+            LogCategory.PERFORMANCE_MONITORING,
+            "app.rag.core.batch_processor",
+            data={"processor_type": processor_type, "processor_name": processor_name}
+        )
+
     return _batch_processors[processor_name]
 
 
@@ -309,6 +348,11 @@ async def close_all_batch_processors():
     """Close all batch processors."""
     for processor_name, processor in _batch_processors.items():
         await processor.close()
-        logger.info(f"Closed batch processor: {processor_name}")
+        logger.info(
+            f"Closed batch processor: {processor_name}",
+            LogCategory.PERFORMANCE_MONITORING,
+            "app.rag.core.batch_processor",
+            data={"processor_name": processor_name}
+        )
     
     _batch_processors.clear()

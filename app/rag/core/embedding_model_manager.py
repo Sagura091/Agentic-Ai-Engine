@@ -18,9 +18,13 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from enum import Enum
-import structlog
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class ModelType(str, Enum):
@@ -73,8 +77,13 @@ class CentralizedModelManager:
         
         # Initialize model discovery
         self._discover_models()
-        
-        logger.info("🚀 Centralized Model Manager initialized", models_dir=str(self.models_dir))
+
+        logger.info(
+            "🚀 Centralized Model Manager initialized",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.core.embedding_model_manager.CentralizedModelManager",
+            data={"models_dir": str(self.models_dir)}
+        )
     
     def _discover_models(self) -> None:
         """Discover existing models in the data/models directory."""
@@ -100,10 +109,20 @@ class CentralizedModelManager:
                     if model_path.is_dir() and not self._should_skip_directory(model_path):
                         self._register_model(model_path, ModelType.RERANKING)
 
-            logger.info(f"✅ Discovered {len(self._models)} models", models=list(self._models.keys()))
+            logger.info(
+                f"✅ Discovered {len(self._models)} models",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.embedding_model_manager.CentralizedModelManager",
+                data={"model_count": len(self._models), "models": list(self._models.keys())}
+            )
 
         except Exception as e:
-            logger.error(f"❌ Failed to discover models: {str(e)}")
+            logger.error(
+                "❌ Failed to discover models",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.embedding_model_manager.CentralizedModelManager",
+                error=e
+            )
 
     def _should_skip_directory(self, model_path: Path) -> bool:
         """Check if a directory should be skipped during model discovery."""
@@ -149,14 +168,30 @@ class CentralizedModelManager:
             )
             
             self._models[model_id] = model_info
-            
+
             if is_downloaded:
-                logger.info(f"✅ Registered {model_type.value} model: {model_id}", path=str(model_path))
+                logger.info(
+                    f"✅ Registered {model_type.value} model: {model_id}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.embedding_model_manager.CentralizedModelManager",
+                    data={"model_id": model_id, "model_type": model_type.value, "path": str(model_path)}
+                )
             else:
-                logger.warning(f"⚠️ Incomplete {model_type.value} model: {model_id}", path=str(model_path))
-                
+                logger.warn(
+                    f"⚠️ Incomplete {model_type.value} model: {model_id}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.embedding_model_manager.CentralizedModelManager",
+                    data={"model_id": model_id, "model_type": model_type.value, "path": str(model_path)}
+                )
+
         except Exception as e:
-            logger.error(f"❌ Failed to register model {model_path.name}: {str(e)}")
+            logger.error(
+                f"❌ Failed to register model {model_path.name}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.embedding_model_manager.CentralizedModelManager",
+                error=e,
+                data={"model_path": model_path.name}
+            )
     
     def _validate_model_files(self, model_path: Path, model_type: ModelType) -> bool:
         """Validate that a model has the required files."""
@@ -179,11 +214,16 @@ class CentralizedModelManager:
                 return any((model_path / file).exists() for file in required_files)
             
             return False
-            
+
         except Exception as e:
-            logger.error(f"❌ Failed to validate model files: {str(e)}")
+            logger.error(
+                "❌ Failed to validate model files",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.embedding_model_manager.CentralizedModelManager",
+                error=e
+            )
             return False
-    
+
     def _calculate_model_size(self, model_path: Path) -> float:
         """Calculate the size of a model in MB."""
         try:
@@ -193,7 +233,12 @@ class CentralizedModelManager:
                     total_size += file_path.stat().st_size
             return round(total_size / (1024 * 1024), 2)  # Convert to MB
         except Exception as e:
-            logger.error(f"❌ Failed to calculate model size: {str(e)}")
+            logger.error(
+                "❌ Failed to calculate model size",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.embedding_model_manager.CentralizedModelManager",
+                error=e
+            )
             return 0.0
     
     def get_model_info(self, model_id: str) -> Optional[ModelInfo]:
@@ -224,7 +269,11 @@ class CentralizedModelManager:
         async with self._lock:
             self._models.clear()
             self._discover_models()
-            logger.info("🔄 Model registry refreshed")
+            logger.info(
+                "🔄 Model registry refreshed",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.embedding_model_manager.CentralizedModelManager"
+            )
     
     def get_model_path(self, model_id: str) -> Optional[str]:
         """Get the local path for a model."""
@@ -258,7 +307,12 @@ class CentralizedModelManager:
 
             # Check if already downloaded
             if local_path.exists() and not force_redownload:
-                logger.info(f"Model {model_id} already exists at {local_path}")
+                logger.info(
+                    f"Model {model_id} already exists at {local_path}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.embedding_model_manager.CentralizedModelManager",
+                    data={"model_id": model_id, "local_path": str(local_path)}
+                )
                 return True
 
             # Create directory
@@ -268,42 +322,83 @@ class CentralizedModelManager:
             os.environ['TRANSFORMERS_CACHE'] = str(local_path.parent)
             os.environ['HF_HOME'] = str(local_path.parent)
 
-            logger.info(f"Downloading {model_type.value} model: {model_id}")
+            logger.info(
+                f"Downloading {model_type.value} model: {model_id}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.embedding_model_manager.CentralizedModelManager",
+                data={"model_id": model_id, "model_type": model_type.value}
+            )
 
             if model_type == ModelType.EMBEDDING:
                 # Try sentence-transformers first, fallback to transformers
                 try:
                     from sentence_transformers import SentenceTransformer
-                    logger.info("Using sentence-transformers for download...")
+                    logger.info(
+                        "Using sentence-transformers for download...",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.rag.core.embedding_model_manager.CentralizedModelManager"
+                    )
                     model = SentenceTransformer(model_id, cache_folder=str(local_path.parent))
                     model.save(str(local_path))
-                    logger.info(f"✅ Saved embedding model to: {local_path}")
+                    logger.info(
+                        f"✅ Saved embedding model to: {local_path}",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.rag.core.embedding_model_manager.CentralizedModelManager",
+                        data={"local_path": str(local_path)}
+                    )
                 except ImportError:
-                    logger.warning("sentence-transformers not available, using transformers...")
+                    logger.warn(
+                        "sentence-transformers not available, using transformers...",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.rag.core.embedding_model_manager.CentralizedModelManager"
+                    )
                     from transformers import AutoModel, AutoTokenizer
                     model = AutoModel.from_pretrained(model_id, cache_dir=str(local_path.parent))
                     tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=str(local_path.parent))
                     model.save_pretrained(str(local_path))
                     tokenizer.save_pretrained(str(local_path))
-                    logger.info(f"✅ Saved embedding model to: {local_path}")
+                    logger.info(
+                        f"✅ Saved embedding model to: {local_path}",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.rag.core.embedding_model_manager.CentralizedModelManager",
+                        data={"local_path": str(local_path)}
+                    )
 
             elif model_type == ModelType.VISION:
                 from transformers import AutoModel, AutoProcessor
-                logger.info("Downloading vision model...")
+                logger.info(
+                    "Downloading vision model...",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.embedding_model_manager.CentralizedModelManager"
+                )
                 model = AutoModel.from_pretrained(model_id, cache_dir=str(local_path.parent))
                 processor = AutoProcessor.from_pretrained(model_id, cache_dir=str(local_path.parent))
                 model.save_pretrained(str(local_path))
                 processor.save_pretrained(str(local_path))
-                logger.info(f"✅ Saved vision model to: {local_path}")
+                logger.info(
+                    f"✅ Saved vision model to: {local_path}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.embedding_model_manager.CentralizedModelManager",
+                    data={"local_path": str(local_path)}
+                )
 
             elif model_type == ModelType.RERANKING:
                 from transformers import AutoModel, AutoTokenizer
-                logger.info("Downloading reranking model...")
+                logger.info(
+                    "Downloading reranking model...",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.embedding_model_manager.CentralizedModelManager"
+                )
                 model = AutoModel.from_pretrained(model_id, cache_dir=str(local_path.parent))
                 tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=str(local_path.parent))
                 model.save_pretrained(str(local_path))
                 tokenizer.save_pretrained(str(local_path))
-                logger.info(f"✅ Saved reranking model to: {local_path}")
+                logger.info(
+                    f"✅ Saved reranking model to: {local_path}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.embedding_model_manager.CentralizedModelManager",
+                    data={"local_path": str(local_path)}
+                )
 
             # Refresh model registry
             await self.refresh_models()
@@ -311,7 +406,13 @@ class CentralizedModelManager:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to download model {model_id}: {str(e)}")
+            logger.error(
+                f"Failed to download model {model_id}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.embedding_model_manager.CentralizedModelManager",
+                error=e,
+                data={"model_id": model_id}
+            )
             return False
 
     def _infer_model_type(self, model_id: str) -> ModelType:
@@ -326,7 +427,12 @@ class CentralizedModelManager:
             return ModelType.RERANKING
         else:
             # Default to embedding
-            logger.warning(f"Could not infer model type for {model_id}, defaulting to EMBEDDING")
+            logger.warn(
+                f"Could not infer model type for {model_id}, defaulting to EMBEDDING",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.embedding_model_manager.CentralizedModelManager",
+                data={"model_id": model_id}
+            )
             return ModelType.EMBEDDING
 
 

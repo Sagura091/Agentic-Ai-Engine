@@ -22,9 +22,12 @@ from pathlib import Path
 import threading
 from collections import defaultdict
 
-import structlog
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
 
-logger = structlog.get_logger(__name__)
+# Get backend logger instance
+logger = get_logger()
 
 
 class MemoryType(str, Enum):
@@ -285,10 +288,16 @@ class CoreMemoryBlock:
     def update_content(self, new_content: str) -> bool:
         """Update block content with size validation."""
         if len(new_content) > self.max_size:
-            logger.warning(f"Core memory block content exceeds max size",
-                         block_type=self.block_type,
-                         size=len(new_content),
-                         max_size=self.max_size)
+            logger.warn(
+                "Core memory block content exceeds max size",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.memory_models.CoreMemoryBlock",
+                data={
+                    "block_type": self.block_type,
+                    "size": len(new_content),
+                    "max_size": self.max_size
+                }
+            )
             return False
 
         self.content = new_content
@@ -314,10 +323,16 @@ class KnowledgeVaultEntry:
         """Access the secret value with logging."""
         self.access_count += 1
         self.last_accessed = datetime.now()
-        logger.info("Knowledge vault entry accessed",
-                   entry_id=self.entry_id,
-                   entry_type=self.entry_type,
-                   sensitivity=self.sensitivity_level.value)
+        logger.info(
+            "Knowledge vault entry accessed",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.memory_models.KnowledgeVaultEntry",
+            data={
+                "entry_id": self.entry_id,
+                "entry_type": self.entry_type,
+                "sensitivity": self.sensitivity_level.value
+            }
+        )
         return self.secret_value
 
 

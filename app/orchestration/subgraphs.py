@@ -13,7 +13,6 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from enum import Enum
 
-import structlog
 from langchain_core.language_models import BaseLanguageModel
 from langchain_core.tools import BaseTool
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
@@ -24,7 +23,12 @@ from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.types import Command
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class AutonomyLevel(str, Enum):
@@ -144,14 +148,19 @@ class LangGraphSubgraph(ABC):
         self.checkpoint_saver = checkpoint_saver
         self.graph: Optional[StateGraph] = None
         self.compiled_graph = None
-        
-        logger.info("Subgraph initialized", subgraph_id=subgraph_id)
-    
+
+        logger.info(
+            "Subgraph initialized",
+            LogCategory.ORCHESTRATION,
+            "app.orchestration.subgraphs.BaseSubgraph",
+            data={"subgraph_id": subgraph_id}
+        )
+
     @abstractmethod
     async def build_graph(self) -> StateGraph:
         """Build the subgraph workflow."""
         pass
-    
+
     async def compile(self) -> None:
         """Compile the subgraph."""
         try:
@@ -159,11 +168,22 @@ class LangGraphSubgraph(ABC):
             self.compiled_graph = self.graph.compile(
                 checkpointer=self.checkpoint_saver
             )
-            
-            logger.info("Subgraph compiled", subgraph_id=self.subgraph_id)
-            
+
+            logger.info(
+                "Subgraph compiled",
+                LogCategory.ORCHESTRATION,
+                "app.orchestration.subgraphs.BaseSubgraph",
+                data={"subgraph_id": self.subgraph_id}
+            )
+
         except Exception as e:
-            logger.error("Failed to compile subgraph", subgraph_id=self.subgraph_id, error=str(e))
+            logger.error(
+                "Failed to compile subgraph",
+                LogCategory.ORCHESTRATION,
+                "app.orchestration.subgraphs.BaseSubgraph",
+                error=e,
+                data={"subgraph_id": self.subgraph_id}
+            )
             raise
     
     async def execute(
@@ -196,14 +216,24 @@ class LangGraphSubgraph(ABC):
             
             logger.info(
                 "Subgraph execution completed",
-                subgraph_id=self.subgraph_id,
-                status=result.get("status", "unknown")
+                LogCategory.ORCHESTRATION,
+                "app.orchestration.subgraphs.BaseSubgraph",
+                data={
+                    "subgraph_id": self.subgraph_id,
+                    "status": result.get("status", "unknown")
+                }
             )
-            
+
             return result
-            
+
         except Exception as e:
-            logger.error("Subgraph execution failed", subgraph_id=self.subgraph_id, error=str(e))
+            logger.error(
+                "Subgraph execution failed",
+                LogCategory.ORCHESTRATION,
+                "app.orchestration.subgraphs.BaseSubgraph",
+                error=e,
+                data={"subgraph_id": self.subgraph_id}
+            )
             raise
 
 
@@ -441,7 +471,11 @@ class HierarchicalWorkflowOrchestrator:
         self.main_workflow: Optional[StateGraph] = None
         self.compiled_workflow = None
 
-        logger.info("Hierarchical workflow orchestrator initialized")
+        logger.info(
+            "Hierarchical workflow orchestrator initialized",
+            LogCategory.ORCHESTRATION,
+            "app.orchestration.subgraphs.HierarchicalWorkflowOrchestrator"
+        )
 
     async def register_subgraph(
         self,
@@ -453,7 +487,12 @@ class HierarchicalWorkflowOrchestrator:
         await subgraph.compile()
         self.subgraphs[subgraph_id] = subgraph
 
-        logger.info("Subgraph registered", subgraph_id=subgraph_id)
+        logger.info(
+            "Subgraph registered",
+            LogCategory.ORCHESTRATION,
+            "app.orchestration.subgraphs.HierarchicalWorkflowOrchestrator",
+            data={"subgraph_id": subgraph_id}
+        )
 
     async def build_hierarchical_workflow(self) -> StateGraph:
         """Build the main hierarchical workflow."""
@@ -529,7 +568,11 @@ class HierarchicalWorkflowOrchestrator:
         """Call the research team subgraph."""
 
         if "research_team" not in self.subgraphs:
-            logger.warning("Research team subgraph not registered")
+            logger.warn(
+                "Research team subgraph not registered",
+                LogCategory.ORCHESTRATION,
+                "app.orchestration.subgraphs.HierarchicalWorkflowOrchestrator"
+            )
             return {"status": "error", "error": "Research team not available"}
 
         try:
@@ -554,14 +597,23 @@ class HierarchicalWorkflowOrchestrator:
             }
 
         except Exception as e:
-            logger.error("Research team execution failed", error=str(e))
+            logger.error(
+                "Research team execution failed",
+                LogCategory.ORCHESTRATION,
+                "app.orchestration.subgraphs.HierarchicalWorkflowOrchestrator",
+                error=e
+            )
             return {"status": "error", "error": str(e)}
 
     async def _call_document_team(self, state: HierarchicalWorkflowState) -> Dict[str, Any]:
         """Call the document team subgraph."""
 
         if "document_team" not in self.subgraphs:
-            logger.warning("Document team subgraph not registered")
+            logger.warn(
+                "Document team subgraph not registered",
+                LogCategory.ORCHESTRATION,
+                "app.orchestration.subgraphs.HierarchicalWorkflowOrchestrator"
+            )
             return {"status": "error", "error": "Document team not available"}
 
         try:
@@ -590,7 +642,12 @@ class HierarchicalWorkflowOrchestrator:
             }
 
         except Exception as e:
-            logger.error("Document team execution failed", error=str(e))
+            logger.error(
+                "Document team execution failed",
+                LogCategory.ORCHESTRATION,
+                "app.orchestration.subgraphs.HierarchicalWorkflowOrchestrator",
+                error=e
+            )
             return {"status": "error", "error": str(e)}
 
     async def _integration_node(self, state: HierarchicalWorkflowState) -> Dict[str, Any]:
@@ -655,10 +712,19 @@ class HierarchicalWorkflowOrchestrator:
                 checkpointer=self.checkpoint_saver
             )
 
-            logger.info("Hierarchical workflow compiled successfully")
+            logger.info(
+                "Hierarchical workflow compiled successfully",
+                LogCategory.ORCHESTRATION,
+                "app.orchestration.subgraphs.HierarchicalWorkflowOrchestrator"
+            )
 
         except Exception as e:
-            logger.error("Failed to compile hierarchical workflow", error=str(e))
+            logger.error(
+                "Failed to compile hierarchical workflow",
+                LogCategory.ORCHESTRATION,
+                "app.orchestration.subgraphs.HierarchicalWorkflowOrchestrator",
+                error=e
+            )
             raise
 
     async def execute_hierarchical_workflow(
@@ -698,12 +764,21 @@ class HierarchicalWorkflowOrchestrator:
 
             logger.info(
                 "Hierarchical workflow execution completed",
-                workflow_id=workflow_id,
-                status=result.get("status", "unknown")
+                LogCategory.ORCHESTRATION,
+                "app.orchestration.subgraphs.HierarchicalWorkflowOrchestrator",
+                data={
+                    "workflow_id": workflow_id,
+                    "status": result.get("status", "unknown")
+                }
             )
 
             return result
 
         except Exception as e:
-            logger.error("Hierarchical workflow execution failed", error=str(e))
+            logger.error(
+                "Hierarchical workflow execution failed",
+                LogCategory.ORCHESTRATION,
+                "app.orchestration.subgraphs.HierarchicalWorkflowOrchestrator",
+                error=e
+            )
             raise

@@ -17,7 +17,6 @@ import time
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Any, AsyncGenerator, Union
 from datetime import datetime
-import structlog
 from langchain_core.language_models import BaseLanguageModel
 
 try:
@@ -57,10 +56,8 @@ from .models import (
 from app.backend_logging.backend_logger import get_logger
 from app.backend_logging.models import LogCategory, LogLevel
 
-# Legacy structlog for backward compatibility
-logger = structlog.get_logger(__name__)
-# Production backend logger
-backend_logger = get_logger()
+# Get backend logger instance
+logger = get_logger()
 
 
 # ============================================================================
@@ -80,7 +77,12 @@ class ConnectionPool:
             "total_expired": 0,
             "active_connections": 0
         }
-        logger.debug("ConnectionPool initialized", max_connections=max_connections, max_idle_time=max_idle_time)
+        logger.debug(
+            "ConnectionPool initialized",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.ConnectionPool",
+            data={"max_connections": max_connections, "max_idle_time": max_idle_time}
+        )
 
     async def get_connection(self, provider_key: str, factory_func) -> Any:
         """Get or create a connection from the pool."""
@@ -93,14 +95,23 @@ class ConnectionPool:
             # Check if connection is still valid
             if (now - conn_info["created_at"]).seconds < self.max_idle_time:
                 self.connection_stats["total_reused"] += 1
-                logger.debug("Reusing connection from pool", provider_key=provider_key,
-                           age_seconds=(now - conn_info["created_at"]).seconds)
+                logger.debug(
+                    "Reusing connection from pool",
+                    LogCategory.LLM_OPERATIONS,
+                    "app.llm.providers.ConnectionPool",
+                    data={"provider_key": provider_key, "age_seconds": (now - conn_info["created_at"]).seconds}
+                )
                 return conn_info["connection"]
             else:
                 # Connection expired
                 del self.connections[provider_key]
                 self.connection_stats["total_expired"] += 1
-                logger.debug("Connection expired, removing from pool", provider_key=provider_key)
+                logger.debug(
+                    "Connection expired, removing from pool",
+                    LogCategory.LLM_OPERATIONS,
+                    "app.llm.providers.ConnectionPool",
+                    data={"provider_key": provider_key}
+                )
 
         # Create new connection
         if len(self.connections) >= self.max_connections:
@@ -108,10 +119,20 @@ class ConnectionPool:
             oldest_key = min(self.connections.keys(),
                            key=lambda k: self.connections[k]["created_at"])
             del self.connections[oldest_key]
-            logger.debug("Pool full, removed oldest connection", removed_key=oldest_key)
+            logger.debug(
+                "Pool full, removed oldest connection",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.ConnectionPool",
+                data={"removed_key": oldest_key}
+            )
 
         # Create new connection
-        logger.info("Creating new connection", provider_key=provider_key)
+        logger.info(
+            "Creating new connection",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.ConnectionPool",
+            data={"provider_key": provider_key}
+        )
         connection = await factory_func()
         self.connections[provider_key] = {
             "connection": connection,
@@ -122,10 +143,16 @@ class ConnectionPool:
         self.connection_stats["total_created"] += 1
         self.connection_stats["active_connections"] = len(self.connections)
 
-        logger.info("New connection created and added to pool",
-                   provider_key=provider_key,
-                   pool_size=len(self.connections),
-                   stats=self.connection_stats)
+        logger.info(
+            "New connection created and added to pool",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.ConnectionPool",
+            data={
+                "provider_key": provider_key,
+                "pool_size": len(self.connections),
+                "stats": self.connection_stats
+            }
+        )
 
         return connection
 
@@ -147,9 +174,12 @@ class CircuitBreaker:
         self.failure_count = 0
         self.last_failure_time = None
         self.state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
-        logger.debug("CircuitBreaker initialized",
-                    failure_threshold=failure_threshold,
-                    recovery_timeout=recovery_timeout)
+        logger.debug(
+            "CircuitBreaker initialized",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.CircuitBreaker",
+            data={"failure_threshold": failure_threshold, "recovery_timeout": recovery_timeout}
+        )
 
     def can_execute(self) -> bool:
         """Check if execution is allowed."""
@@ -158,11 +188,18 @@ class CircuitBreaker:
         elif self.state == "OPEN":
             if self._should_attempt_reset():
                 self.state = "HALF_OPEN"
-                logger.info("Circuit breaker transitioning to HALF_OPEN state")
+                logger.info(
+                    "Circuit breaker transitioning to HALF_OPEN state",
+                    LogCategory.LLM_OPERATIONS,
+                    "app.llm.providers.CircuitBreaker"
+                )
                 return True
-            logger.warning("Circuit breaker is OPEN, blocking execution",
-                         failure_count=self.failure_count,
-                         last_failure=self.last_failure_time)
+            logger.warn(
+                "Circuit breaker is OPEN, blocking execution",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.CircuitBreaker",
+                data={"failure_count": self.failure_count, "last_failure": str(self.last_failure_time)}
+            )
             return False
         else:  # HALF_OPEN
             return True
@@ -173,7 +210,11 @@ class CircuitBreaker:
         self.failure_count = 0
         self.state = "CLOSED"
         if old_state != "CLOSED":
-            logger.info("Circuit breaker reset to CLOSED state after successful execution")
+            logger.info(
+                "Circuit breaker reset to CLOSED state after successful execution",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.CircuitBreaker"
+            )
 
     def record_failure(self) -> None:
         """Record failed execution."""
@@ -184,9 +225,12 @@ class CircuitBreaker:
             old_state = self.state
             self.state = "OPEN"
             if old_state != "OPEN":
-                logger.error("Circuit breaker opened due to failures",
-                           failure_count=self.failure_count,
-                           threshold=self.failure_threshold)
+                logger.error(
+                    "Circuit breaker opened due to failures",
+                    LogCategory.LLM_OPERATIONS,
+                    "app.llm.providers.CircuitBreaker",
+                    data={"failure_count": self.failure_count, "threshold": self.failure_threshold}
+                )
 
     def _should_attempt_reset(self) -> bool:
         """Check if we should attempt to reset the circuit breaker."""
@@ -216,16 +260,23 @@ class ProviderMetrics:
         self.total_execution_time = 0.0
         self.recent_errors = []
         self.max_recent_errors = 10
-        logger.debug("ProviderMetrics initialized")
+        logger.debug(
+            "ProviderMetrics initialized",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.ProviderMetrics"
+        )
 
     def record_success(self, execution_time: float) -> None:
         """Record successful request."""
         self.total_requests += 1
         self.successful_requests += 1
         self.total_execution_time += execution_time
-        logger.debug("Request success recorded",
-                    execution_time=execution_time,
-                    total_requests=self.total_requests)
+        logger.debug(
+            "Request success recorded",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.ProviderMetrics",
+            data={"execution_time": execution_time, "total_requests": self.total_requests}
+        )
 
     def record_failure(self, execution_time: float, error_message: str) -> None:
         """Record failed request."""
@@ -244,10 +295,12 @@ class ProviderMetrics:
         if len(self.recent_errors) > self.max_recent_errors:
             self.recent_errors = self.recent_errors[-self.max_recent_errors:]
 
-        logger.error("Request failure recorded",
-                    error=error_message,
-                    execution_time=execution_time,
-                    total_failures=self.failed_requests)
+        logger.error(
+            "Request failure recorded",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.ProviderMetrics",
+            data={"error_message": error_message, "execution_time": execution_time, "total_failures": self.failed_requests}
+        )
 
     def get_stats(self) -> Dict[str, Any]:
         """Get performance statistics."""
@@ -298,9 +351,12 @@ class LLMProvider(ABC):
         self._circuit_breaker = CircuitBreaker()
         self._metrics = ProviderMetrics()
 
-        logger.info("LLM Provider initialized",
-                   provider=self.provider_type.value,
-                   has_credentials=credentials is not None)
+        logger.info(
+            "LLM Provider initialized",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.LLMProvider",
+            data={"provider": self.provider_type.value, "has_credentials": credentials is not None}
+        )
 
     @abstractmethod
     def _get_provider_type(self) -> ProviderType:
@@ -321,23 +377,41 @@ class LLMProvider(ABC):
         """Initialize the provider."""
         try:
             if self._is_initialized:
-                logger.debug("Provider already initialized", provider=self.provider_type.value)
+                logger.debug(
+                    "Provider already initialized",
+                    LogCategory.LLM_OPERATIONS,
+                    "app.llm.providers.LLMProvider",
+                    data={"provider": self.provider_type.value}
+                )
                 return True
 
-            logger.info("Initializing provider", provider=self.provider_type.value)
+            logger.info(
+                "Initializing provider",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.LLMProvider",
+                data={"provider": self.provider_type.value}
+            )
 
             # Test basic connectivity
             await self._test_basic_connectivity()
 
             self._is_initialized = True
-            logger.info("Provider initialized successfully", provider=self.provider_type.value)
+            logger.info(
+                "Provider initialized successfully",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.LLMProvider",
+                data={"provider": self.provider_type.value}
+            )
             return True
 
         except Exception as e:
-            logger.error("Provider initialization failed",
-                        provider=self.provider_type.value,
-                        error=str(e),
-                        error_type=type(e).__name__)
+            logger.error(
+                "Provider initialization failed",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.LLMProvider",
+                error=e,
+                data={"provider": self.provider_type.value, "error_type": type(e).__name__}
+            )
             return False
 
     @abstractmethod
@@ -361,32 +435,33 @@ class LLMProvider(ABC):
         - Comprehensive logging
         """
         if not self._is_initialized:
-            logger.info("Provider not initialized, initializing now", provider=self.provider_type.value)
+            logger.info(
+                "Provider not initialized, initializing now",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.LLMProvider",
+                data={"provider": self.provider_type.value}
+            )
             await self.initialize()
 
         # Check circuit breaker
         if not self._circuit_breaker.can_execute():
             error_msg = "Circuit breaker is open - too many recent failures"
-            logger.error(error_msg,
-                        provider=self.provider_type.value,
-                        circuit_breaker_stats=self._circuit_breaker.get_stats())
+            logger.error(
+                error_msg,
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.LLMProvider",
+                data={"provider": self.provider_type.value, "circuit_breaker_stats": self._circuit_breaker.get_stats()}
+            )
             raise ConnectionError(error_msg)
 
         provider_key = f"{self.provider_type.value}_{config.model_id}"
 
         try:
             start_time = time.time()
-            logger.info("Creating LLM instance",
-                       provider=self.provider_type.value,
-                       model=config.model_id,
-                       temperature=config.temperature,
-                       max_tokens=config.max_tokens)
-
-            # Backend logging for LLM operations
-            backend_logger.info(
-                f"Creating LLM instance: {self.provider_type.value}/{config.model_id}",
+            logger.info(
+                "Creating LLM instance",
                 LogCategory.LLM_OPERATIONS,
-                "LLMProvider",
+                "app.llm.providers.LLMProvider",
                 data={
                     "provider": self.provider_type.value,
                     "model": config.model_id,
@@ -405,28 +480,26 @@ class LLMProvider(ABC):
             if config.model_id != "phi4:latest":
                 await self._test_llm_instance(llm)
             else:
-                logger.info("Skipping LLM test for phi4:latest to avoid timeout", model=config.model_id)
+                logger.info(
+                    "Skipping LLM test for phi4:latest to avoid timeout",
+                    LogCategory.LLM_OPERATIONS,
+                    "app.llm.providers.LLMProvider",
+                    data={"model": config.model_id}
+                )
 
             # Record success
             execution_time = time.time() - start_time
             self._circuit_breaker.record_success()
             self._metrics.record_success(execution_time)
 
-            logger.info("LLM instance created successfully",
-                       provider=self.provider_type.value,
-                       model=config.model_id,
-                       execution_time=execution_time,
-                       pool_stats=self._connection_pool.get_stats())
-
-            # Backend logging for successful creation
-            backend_logger.info(
-                f"LLM instance created successfully: {self.provider_type.value}/{config.model_id}",
+            logger.info(
+                "LLM instance created successfully",
                 LogCategory.LLM_OPERATIONS,
-                "LLMProvider",
+                "app.llm.providers.LLMProvider",
                 data={
                     "provider": self.provider_type.value,
                     "model": config.model_id,
-                    "execution_time_ms": execution_time * 1000,
+                    "execution_time": execution_time,
                     "pool_stats": self._connection_pool.get_stats()
                 }
             )
@@ -439,25 +512,16 @@ class LLMProvider(ABC):
             self._circuit_breaker.record_failure()
             self._metrics.record_failure(execution_time, str(e))
 
-            logger.error("Failed to create LLM instance",
-                        provider=self.provider_type.value,
-                        model=config.model_id,
-                        error=str(e),
-                        error_type=type(e).__name__,
-                        execution_time=execution_time,
-                        metrics=self._metrics.get_stats())
-
-            # Backend logging for errors
-            backend_logger.error(
-                f"Failed to create LLM instance: {self.provider_type.value}/{config.model_id}",
+            logger.error(
+                "Failed to create LLM instance",
                 LogCategory.LLM_OPERATIONS,
-                "LLMProvider",
+                "app.llm.providers.LLMProvider",
                 error=e,
                 data={
                     "provider": self.provider_type.value,
                     "model": config.model_id,
                     "error_type": type(e).__name__,
-                    "execution_time_ms": execution_time * 1000,
+                    "execution_time": execution_time,
                     "metrics": self._metrics.get_stats()
                 }
             )
@@ -471,9 +535,12 @@ class LLMProvider(ABC):
         """
         llm = await self.create_llm_instance(config)
 
-        logger.info("Creating streaming LLM",
-                   provider=self.provider_type.value,
-                   model=config.model_id)
+        logger.info(
+            "Creating streaming LLM",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.LLMProvider",
+            data={"provider": self.provider_type.value, "model": config.model_id}
+        )
 
         # Return the LLM instance configured for streaming
         # The actual streaming happens when the LLM is invoked
@@ -482,7 +549,11 @@ class LLMProvider(ABC):
     async def _test_llm_instance(self, llm: BaseLanguageModel) -> None:
         """Test LLM instance with a simple request."""
         try:
-            logger.debug("Testing LLM instance with simple prompt")
+            logger.debug(
+                "Testing LLM instance with simple prompt",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.LLMProvider"
+            )
             # Use simple string instead of HumanMessage for better compatibility
             test_prompt = "Test"
 
@@ -495,13 +566,28 @@ class LLMProvider(ABC):
             if not response or not hasattr(response, 'content'):
                 raise ValueError("Invalid response from LLM")
 
-            logger.debug("LLM instance test successful", response_length=len(str(response.content)))
+            logger.debug(
+                "LLM instance test successful",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.LLMProvider",
+                data={"response_length": len(str(response.content))}
+            )
 
         except asyncio.TimeoutError:
-            logger.error("LLM test timed out after 60 seconds")
+            logger.error(
+                "LLM test timed out after 60 seconds",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.LLMProvider"
+            )
             raise ConnectionError("LLM test timed out")
         except Exception as e:
-            logger.error("LLM test failed", error=str(e), error_type=type(e).__name__)
+            logger.error(
+                "LLM test failed",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.LLMProvider",
+                error=e,
+                data={"error_type": type(e).__name__}
+            )
             raise ConnectionError(f"LLM test failed: {e}")
 
     @abstractmethod
@@ -511,10 +597,20 @@ class LLMProvider(ABC):
 
     async def cleanup(self) -> None:
         """Cleanup provider resources."""
-        logger.info("Cleaning up provider resources", provider=self.provider_type.value)
+        logger.info(
+            "Cleaning up provider resources",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.LLMProvider",
+            data={"provider": self.provider_type.value}
+        )
         # Connection pool cleanup is handled automatically
         self._is_initialized = False
-        logger.info("Provider cleanup complete", provider=self.provider_type.value)
+        logger.info(
+            "Provider cleanup complete",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.LLMProvider",
+            data={"provider": self.provider_type.value}
+        )
 
     def get_metrics(self) -> Dict[str, Any]:
         """Get provider metrics."""
@@ -563,7 +659,12 @@ class OllamaProvider(LLMProvider):
         )
 
         try:
-            logger.debug("Testing Ollama connectivity", base_url=base_url)
+            logger.debug(
+                "Testing Ollama connectivity",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OllamaProvider",
+                data={"base_url": base_url}
+            )
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(f"{base_url}/api/tags") as response:
@@ -572,15 +673,21 @@ class OllamaProvider(LLMProvider):
 
                     data = await response.json()
                     models = data.get("models", [])
-                    logger.info("Ollama connectivity test passed",
-                               base_url=base_url,
-                               available_models=len(models))
+                    logger.info(
+                        "Ollama connectivity test passed",
+                        LogCategory.LLM_OPERATIONS,
+                        "app.llm.providers.OllamaProvider",
+                        data={"base_url": base_url, "available_models": len(models)}
+                    )
 
         except Exception as e:
-            logger.error("Ollama connectivity test failed",
-                        base_url=base_url,
-                        error=str(e),
-                        error_type=type(e).__name__)
+            logger.error(
+                "Ollama connectivity test failed",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OllamaProvider",
+                error=e,
+                data={"base_url": base_url, "error_type": type(e).__name__}
+            )
             raise ConnectionError(f"Ollama connectivity test failed: {e}")
 
     async def _create_llm_connection(self, config: LLMConfig) -> BaseLanguageModel:
@@ -593,11 +700,17 @@ class OllamaProvider(LLMProvider):
             else PROVIDER_DEFAULTS[ProviderType.OLLAMA]["base_url"]
         )
 
-        logger.debug("Creating Ollama LLM connection",
-                    model=config.model_id,
-                    base_url=base_url,
-                    temperature=config.temperature,
-                    max_tokens=config.max_tokens)
+        logger.debug(
+            "Creating Ollama LLM connection",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.OllamaProvider",
+            data={
+                "model": config.model_id,
+                "base_url": base_url,
+                "temperature": config.temperature,
+                "max_tokens": config.max_tokens
+            }
+        )
 
         # Production configuration
         ollama_config = {
@@ -626,17 +739,26 @@ class OllamaProvider(LLMProvider):
 
         try:
             llm = ChatOllama(**ollama_config)
-            logger.info("Ollama LLM created successfully",
-                       model=config.model_id,
-                       base_url=base_url,
-                       config_keys=list(ollama_config.keys()))
+            logger.info(
+                "Ollama LLM created successfully",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OllamaProvider",
+                data={
+                    "model": config.model_id,
+                    "base_url": base_url,
+                    "config_keys": list(ollama_config.keys())
+                }
+            )
             return llm
 
         except Exception as e:
-            logger.error("Failed to create Ollama LLM",
-                        model=config.model_id,
-                        error=str(e),
-                        error_type=type(e).__name__)
+            logger.error(
+                "Failed to create Ollama LLM",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OllamaProvider",
+                error=e,
+                data={"model": config.model_id, "error_type": type(e).__name__}
+            )
             raise
 
     async def get_available_models(self) -> List[ModelInfo]:
@@ -649,7 +771,12 @@ class OllamaProvider(LLMProvider):
         )
 
         try:
-            logger.debug("Fetching available Ollama models", base_url=base_url)
+            logger.debug(
+                "Fetching available Ollama models",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OllamaProvider",
+                data={"base_url": base_url}
+            )
             timeout = aiohttp.ClientTimeout(total=30)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(f"{base_url}/api/tags") as response:
@@ -688,18 +815,28 @@ class OllamaProvider(LLMProvider):
                         )
                         models.append(model_info)
 
-                    logger.info("Successfully fetched Ollama models",
-                               count=len(models),
-                               models=[m.id for m in models])
+                    logger.info(
+                        "Successfully fetched Ollama models",
+                        LogCategory.LLM_OPERATIONS,
+                        "app.llm.providers.OllamaProvider",
+                        data={"count": len(models), "models": [m.id for m in models]}
+                    )
                     return models
 
         except Exception as e:
-            logger.error("Failed to get Ollama models",
-                        base_url=base_url,
-                        error=str(e),
-                        error_type=type(e).__name__)
+            logger.error(
+                "Failed to get Ollama models",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OllamaProvider",
+                error=e,
+                data={"base_url": base_url, "error_type": type(e).__name__}
+            )
             # Return default models as fallback
-            logger.info("Returning default Ollama models as fallback")
+            logger.info(
+                "Returning default Ollama models as fallback",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OllamaProvider"
+            )
             return [
                 ModelInfo(
                     id=model_id,
@@ -715,15 +852,28 @@ class OllamaProvider(LLMProvider):
     async def validate_model(self, model_id: str) -> bool:
         """Validate Ollama model availability."""
         try:
-            logger.debug("Validating Ollama model", model_id=model_id)
+            logger.debug(
+                "Validating Ollama model",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OllamaProvider",
+                data={"model_id": model_id}
+            )
             models = await self.get_available_models()
             is_valid = any(model.id == model_id for model in models)
-            logger.debug("Model validation result", model_id=model_id, is_valid=is_valid)
+            logger.debug(
+                "Model validation result",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OllamaProvider",
+                data={"model_id": model_id, "is_valid": is_valid}
+            )
             return is_valid
         except Exception as e:
-            logger.warning("Model validation failed, checking defaults",
-                          model_id=model_id,
-                          error=str(e))
+            logger.warn(
+                "Model validation failed, checking defaults",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OllamaProvider",
+                data={"model_id": model_id, "error": str(e)}
+            )
             return model_id in DEFAULT_MODELS[ProviderType.OLLAMA]
 
     async def test_connection(self) -> ProviderStatus:
@@ -731,7 +881,11 @@ class OllamaProvider(LLMProvider):
         status = ProviderStatus(provider=ProviderType.OLLAMA)
 
         try:
-            logger.info("Testing Ollama connection")
+            logger.info(
+                "Testing Ollama connection",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OllamaProvider"
+            )
             start_time = time.time()
 
             # Test basic connectivity
@@ -742,8 +896,12 @@ class OllamaProvider(LLMProvider):
                 models = await self.get_available_models()
                 status.available_models = [model.id for model in models]
             except Exception as model_error:
-                logger.warning("Failed to get Ollama models during connection test",
-                             error=str(model_error))
+                logger.warn(
+                    "Failed to get Ollama models during connection test",
+                    LogCategory.LLM_OPERATIONS,
+                    "app.llm.providers.OllamaProvider",
+                    data={"error": str(model_error)}
+                )
                 # Still mark as available if basic connectivity works
                 status.available_models = []
 
@@ -753,15 +911,22 @@ class OllamaProvider(LLMProvider):
             status.is_authenticated = True  # Ollama doesn't require auth
             status.response_time_ms = response_time
 
-            logger.info("Ollama connection test successful",
-                       response_time_ms=response_time,
-                       models_count=len(status.available_models))
+            logger.info(
+                "Ollama connection test successful",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OllamaProvider",
+                data={"response_time_ms": response_time, "models_count": len(status.available_models)}
+            )
 
         except Exception as e:
             status.error_message = str(e)
-            logger.error("Ollama connection test failed",
-                        error=str(e),
-                        error_type=type(e).__name__)
+            logger.error(
+                "Ollama connection test failed",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OllamaProvider",
+                error=e,
+                data={"error_type": type(e).__name__}
+            )
 
         return status
 
@@ -798,7 +963,12 @@ class OpenAIProvider(LLMProvider):
         base_url = self.credentials.base_url or "https://api.openai.com/v1"
 
         try:
-            logger.debug("Testing OpenAI connectivity", base_url=base_url)
+            logger.debug(
+                "Testing OpenAI connectivity",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OpenAIProvider",
+                data={"base_url": base_url}
+            )
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(f"{base_url}/models", headers=headers) as response:
@@ -809,15 +979,21 @@ class OpenAIProvider(LLMProvider):
 
                     data = await response.json()
                     models = data.get("data", [])
-                    logger.info("OpenAI connectivity test passed",
-                               base_url=base_url,
-                               available_models=len(models))
+                    logger.info(
+                        "OpenAI connectivity test passed",
+                        LogCategory.LLM_OPERATIONS,
+                        "app.llm.providers.OpenAIProvider",
+                        data={"base_url": base_url, "available_models": len(models)}
+                    )
 
         except Exception as e:
-            logger.error("OpenAI connectivity test failed",
-                        base_url=base_url,
-                        error=str(e),
-                        error_type=type(e).__name__)
+            logger.error(
+                "OpenAI connectivity test failed",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OpenAIProvider",
+                error=e,
+                data={"base_url": base_url, "error_type": type(e).__name__}
+            )
             raise ConnectionError(f"OpenAI connectivity test failed: {e}")
 
     async def _create_llm_connection(self, config: LLMConfig) -> BaseLanguageModel:
@@ -828,10 +1004,16 @@ class OpenAIProvider(LLMProvider):
         if not self.credentials or not self.credentials.api_key:
             raise ValueError("OpenAI API key is required")
 
-        logger.debug("Creating OpenAI LLM connection",
-                    model=config.model_id,
-                    temperature=config.temperature,
-                    max_tokens=config.max_tokens)
+        logger.debug(
+            "Creating OpenAI LLM connection",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.OpenAIProvider",
+            data={
+                "model": config.model_id,
+                "temperature": config.temperature,
+                "max_tokens": config.max_tokens
+            }
+        )
 
         # Production configuration
         openai_config = {
@@ -857,22 +1039,35 @@ class OpenAIProvider(LLMProvider):
 
         try:
             llm = ChatOpenAI(**openai_config)
-            logger.info("OpenAI LLM created successfully",
-                       model=config.model_id,
-                       has_base_url=bool(self.credentials.base_url),
-                       has_organization=bool(getattr(self.credentials, 'organization', None)))
+            logger.info(
+                "OpenAI LLM created successfully",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OpenAIProvider",
+                data={
+                    "model": config.model_id,
+                    "has_base_url": bool(self.credentials.base_url),
+                    "has_organization": bool(getattr(self.credentials, 'organization', None))
+                }
+            )
             return llm
 
         except Exception as e:
-            logger.error("Failed to create OpenAI LLM",
-                        model=config.model_id,
-                        error=str(e),
-                        error_type=type(e).__name__)
+            logger.error(
+                "Failed to create OpenAI LLM",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OpenAIProvider",
+                error=e,
+                data={"model": config.model_id, "error_type": type(e).__name__}
+            )
             raise
 
     async def get_available_models(self) -> List[ModelInfo]:
         """Get available OpenAI models."""
-        logger.debug("Fetching available OpenAI models")
+        logger.debug(
+            "Fetching available OpenAI models",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.OpenAIProvider"
+        )
         models = []
 
         # Return default models (in production, could fetch from OpenAI API)
@@ -891,16 +1086,29 @@ class OpenAIProvider(LLMProvider):
                 context_length=128000 if "gpt-4" in model_id else 16385
             ))
 
-        logger.info("Successfully fetched OpenAI models",
-                   count=len(models),
-                   models=[m.id for m in models])
+        logger.info(
+            "Successfully fetched OpenAI models",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.OpenAIProvider",
+            data={"count": len(models), "models": [m.id for m in models]}
+        )
         return models
 
     async def validate_model(self, model_id: str) -> bool:
         """Validate OpenAI model availability."""
-        logger.debug("Validating OpenAI model", model_id=model_id)
+        logger.debug(
+            "Validating OpenAI model",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.OpenAIProvider",
+            data={"model_id": model_id}
+        )
         is_valid = model_id in DEFAULT_MODELS[ProviderType.OPENAI]
-        logger.debug("Model validation result", model_id=model_id, is_valid=is_valid)
+        logger.debug(
+            "Model validation result",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.OpenAIProvider",
+            data={"model_id": model_id, "is_valid": is_valid}
+        )
         return is_valid
 
     async def test_connection(self) -> ProviderStatus:
@@ -908,7 +1116,11 @@ class OpenAIProvider(LLMProvider):
         status = ProviderStatus(provider=ProviderType.OPENAI)
 
         try:
-            logger.info("Testing OpenAI connection")
+            logger.info(
+                "Testing OpenAI connection",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OpenAIProvider"
+            )
             start_time = time.time()
 
             # Test basic connectivity
@@ -921,15 +1133,22 @@ class OpenAIProvider(LLMProvider):
             status.available_models = DEFAULT_MODELS[ProviderType.OPENAI]
             status.response_time_ms = response_time
 
-            logger.info("OpenAI connection test successful",
-                       response_time_ms=response_time,
-                       models_count=len(status.available_models))
+            logger.info(
+                "OpenAI connection test successful",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OpenAIProvider",
+                data={"response_time_ms": response_time, "models_count": len(status.available_models)}
+            )
 
         except Exception as e:
             status.error_message = str(e)
-            logger.error("OpenAI connection test failed",
-                        error=str(e),
-                        error_type=type(e).__name__)
+            logger.error(
+                "OpenAI connection test failed",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.OpenAIProvider",
+                error=e,
+                data={"error_type": type(e).__name__}
+            )
 
         return status
 
@@ -958,7 +1177,11 @@ class AnthropicProvider(LLMProvider):
 
         # For Anthropic, we'll test with a simple message
         try:
-            logger.debug("Testing Anthropic connectivity")
+            logger.debug(
+                "Testing Anthropic connectivity",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.AnthropicProvider"
+            )
             from langchain_core.messages import HumanMessage
 
             # Create a minimal test instance
@@ -978,12 +1201,20 @@ class AnthropicProvider(LLMProvider):
             if not response:
                 raise ConnectionError("No response from Anthropic API")
 
-            logger.info("Anthropic connectivity test passed")
+            logger.info(
+                "Anthropic connectivity test passed",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.AnthropicProvider"
+            )
 
         except Exception as e:
-            logger.error("Anthropic connectivity test failed",
-                        error=str(e),
-                        error_type=type(e).__name__)
+            logger.error(
+                "Anthropic connectivity test failed",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.AnthropicProvider",
+                error=e,
+                data={"error_type": type(e).__name__}
+            )
             raise ConnectionError(f"Anthropic connectivity test failed: {e}")
 
     async def _create_llm_connection(self, config: LLMConfig) -> BaseLanguageModel:
@@ -994,10 +1225,16 @@ class AnthropicProvider(LLMProvider):
         if not self.credentials or not self.credentials.api_key:
             raise ValueError("Anthropic API key is required")
 
-        logger.debug("Creating Anthropic LLM connection",
-                    model=config.model_id,
-                    temperature=config.temperature,
-                    max_tokens=config.max_tokens)
+        logger.debug(
+            "Creating Anthropic LLM connection",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.AnthropicProvider",
+            data={
+                "model": config.model_id,
+                "temperature": config.temperature,
+                "max_tokens": config.max_tokens
+            }
+        )
 
         # Production configuration
         anthropic_config = {
@@ -1016,21 +1253,31 @@ class AnthropicProvider(LLMProvider):
 
         try:
             llm = ChatAnthropic(**anthropic_config)
-            logger.info("Anthropic LLM created successfully",
-                       model=config.model_id,
-                       has_base_url=bool(self.credentials.base_url))
+            logger.info(
+                "Anthropic LLM created successfully",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.AnthropicProvider",
+                data={"model": config.model_id, "has_base_url": bool(self.credentials.base_url)}
+            )
             return llm
 
         except Exception as e:
-            logger.error("Failed to create Anthropic LLM",
-                        model=config.model_id,
-                        error=str(e),
-                        error_type=type(e).__name__)
+            logger.error(
+                "Failed to create Anthropic LLM",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.AnthropicProvider",
+                error=e,
+                data={"model": config.model_id, "error_type": type(e).__name__}
+            )
             raise
 
     async def get_available_models(self) -> List[ModelInfo]:
         """Get available Anthropic models."""
-        logger.debug("Fetching available Anthropic models")
+        logger.debug(
+            "Fetching available Anthropic models",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.AnthropicProvider"
+        )
         models = []
 
         for model_id in DEFAULT_MODELS[ProviderType.ANTHROPIC]:
@@ -1049,16 +1296,29 @@ class AnthropicProvider(LLMProvider):
                 context_length=200000
             ))
 
-        logger.info("Successfully fetched Anthropic models",
-                   count=len(models),
-                   models=[m.id for m in models])
+        logger.info(
+            "Successfully fetched Anthropic models",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.AnthropicProvider",
+            data={"count": len(models), "models": [m.id for m in models]}
+        )
         return models
 
     async def validate_model(self, model_id: str) -> bool:
         """Validate Anthropic model availability."""
-        logger.debug("Validating Anthropic model", model_id=model_id)
+        logger.debug(
+            "Validating Anthropic model",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.AnthropicProvider",
+            data={"model_id": model_id}
+        )
         is_valid = model_id in DEFAULT_MODELS[ProviderType.ANTHROPIC]
-        logger.debug("Model validation result", model_id=model_id, is_valid=is_valid)
+        logger.debug(
+            "Model validation result",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.AnthropicProvider",
+            data={"model_id": model_id, "is_valid": is_valid}
+        )
         return is_valid
 
     async def test_connection(self) -> ProviderStatus:
@@ -1066,7 +1326,11 @@ class AnthropicProvider(LLMProvider):
         status = ProviderStatus(provider=ProviderType.ANTHROPIC)
 
         try:
-            logger.info("Testing Anthropic connection")
+            logger.info(
+                "Testing Anthropic connection",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.AnthropicProvider"
+            )
             start_time = time.time()
 
             # Test basic connectivity
@@ -1079,15 +1343,22 @@ class AnthropicProvider(LLMProvider):
             status.available_models = DEFAULT_MODELS[ProviderType.ANTHROPIC]
             status.response_time_ms = response_time
 
-            logger.info("Anthropic connection test successful",
-                       response_time_ms=response_time,
-                       models_count=len(status.available_models))
+            logger.info(
+                "Anthropic connection test successful",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.AnthropicProvider",
+                data={"response_time_ms": response_time, "models_count": len(status.available_models)}
+            )
 
         except Exception as e:
             status.error_message = str(e)
-            logger.error("Anthropic connection test failed",
-                        error=str(e),
-                        error_type=type(e).__name__)
+            logger.error(
+                "Anthropic connection test failed",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.AnthropicProvider",
+                error=e,
+                data={"error_type": type(e).__name__}
+            )
 
         return status
 
@@ -1117,7 +1388,11 @@ class GoogleProvider(LLMProvider):
             raise ValueError("Google API key is required")
 
         try:
-            logger.debug("Testing Google connectivity")
+            logger.debug(
+                "Testing Google connectivity",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.GoogleProvider"
+            )
             from langchain_core.messages import HumanMessage
 
             # Create a minimal test instance
@@ -1137,12 +1412,20 @@ class GoogleProvider(LLMProvider):
             if not response:
                 raise ConnectionError("No response from Google API")
 
-            logger.info("Google connectivity test passed")
+            logger.info(
+                "Google connectivity test passed",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.GoogleProvider"
+            )
 
         except Exception as e:
-            logger.error("Google connectivity test failed",
-                        error=str(e),
-                        error_type=type(e).__name__)
+            logger.error(
+                "Google connectivity test failed",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.GoogleProvider",
+                error=e,
+                data={"error_type": type(e).__name__}
+            )
             raise ConnectionError(f"Google connectivity test failed: {e}")
 
     async def _create_llm_connection(self, config: LLMConfig) -> BaseLanguageModel:
@@ -1153,10 +1436,16 @@ class GoogleProvider(LLMProvider):
         if not self.credentials or not self.credentials.api_key:
             raise ValueError("Google API key is required")
 
-        logger.debug("Creating Google LLM connection",
-                    model=config.model_id,
-                    temperature=config.temperature,
-                    max_tokens=config.max_tokens)
+        logger.debug(
+            "Creating Google LLM connection",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.GoogleProvider",
+            data={
+                "model": config.model_id,
+                "temperature": config.temperature,
+                "max_tokens": config.max_tokens
+            }
+        )
 
         # Production configuration
         google_config = {
@@ -1180,21 +1469,34 @@ class GoogleProvider(LLMProvider):
 
         try:
             llm = ChatGoogleGenerativeAI(**google_config)
-            logger.info("Google LLM created successfully",
-                       model=config.model_id,
-                       has_safety_settings=bool("safety_settings" in config.additional_params))
+            logger.info(
+                "Google LLM created successfully",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.GoogleProvider",
+                data={
+                    "model": config.model_id,
+                    "has_safety_settings": bool("safety_settings" in config.additional_params)
+                }
+            )
             return llm
 
         except Exception as e:
-            logger.error("Failed to create Google LLM",
-                        model=config.model_id,
-                        error=str(e),
-                        error_type=type(e).__name__)
+            logger.error(
+                "Failed to create Google LLM",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.GoogleProvider",
+                error=e,
+                data={"model": config.model_id, "error_type": type(e).__name__}
+            )
             raise
 
     async def get_available_models(self) -> List[ModelInfo]:
         """Get available Google models."""
-        logger.debug("Fetching available Google models")
+        logger.debug(
+            "Fetching available Google models",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.GoogleProvider"
+        )
         models = []
 
         for model_id in DEFAULT_MODELS[ProviderType.GOOGLE]:
@@ -1212,16 +1514,29 @@ class GoogleProvider(LLMProvider):
                 context_length=32768
             ))
 
-        logger.info("Successfully fetched Google models",
-                   count=len(models),
-                   models=[m.id for m in models])
+        logger.info(
+            "Successfully fetched Google models",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.GoogleProvider",
+            data={"count": len(models), "models": [m.id for m in models]}
+        )
         return models
 
     async def validate_model(self, model_id: str) -> bool:
         """Validate Google model availability."""
-        logger.debug("Validating Google model", model_id=model_id)
+        logger.debug(
+            "Validating Google model",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.GoogleProvider",
+            data={"model_id": model_id}
+        )
         is_valid = model_id in DEFAULT_MODELS[ProviderType.GOOGLE]
-        logger.debug("Model validation result", model_id=model_id, is_valid=is_valid)
+        logger.debug(
+            "Model validation result",
+            LogCategory.LLM_OPERATIONS,
+            "app.llm.providers.GoogleProvider",
+            data={"model_id": model_id, "is_valid": is_valid}
+        )
         return is_valid
 
     async def test_connection(self) -> ProviderStatus:
@@ -1229,7 +1544,11 @@ class GoogleProvider(LLMProvider):
         status = ProviderStatus(provider=ProviderType.GOOGLE)
 
         try:
-            logger.info("Testing Google connection")
+            logger.info(
+                "Testing Google connection",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.GoogleProvider"
+            )
             start_time = time.time()
 
             # Test basic connectivity
@@ -1242,14 +1561,21 @@ class GoogleProvider(LLMProvider):
             status.available_models = DEFAULT_MODELS[ProviderType.GOOGLE]
             status.response_time_ms = response_time
 
-            logger.info("Google connection test successful",
-                       response_time_ms=response_time,
-                       models_count=len(status.available_models))
+            logger.info(
+                "Google connection test successful",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.GoogleProvider",
+                data={"response_time_ms": response_time, "models_count": len(status.available_models)}
+            )
 
         except Exception as e:
             status.error_message = str(e)
-            logger.error("Google connection test failed",
-                        error=str(e),
-                        error_type=type(e).__name__)
+            logger.error(
+                "Google connection test failed",
+                LogCategory.LLM_OPERATIONS,
+                "app.llm.providers.GoogleProvider",
+                error=e,
+                data={"error_type": type(e).__name__}
+            )
 
         return status

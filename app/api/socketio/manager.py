@@ -10,11 +10,13 @@ import json
 import uuid
 from typing import Dict, Any, Optional
 
-import structlog
 import socketio
 from fastapi import FastAPI
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
+_backend_logger = get_backend_logger()
 
 
 class SocketIOManager:
@@ -41,8 +43,12 @@ class SocketIOManager:
         
         # Setup event handlers
         self._setup_event_handlers()
-        
-        logger.info("Socket.IO manager created")
+
+        _backend_logger.info(
+            "Socket.IO manager created",
+            LogCategory.API_OPERATIONS,
+            "app.api.socketio.manager"
+        )
     
     def _setup_event_handlers(self):
         """Setup Socket.IO event handlers."""
@@ -50,7 +56,12 @@ class SocketIOManager:
         @self.sio.event
         async def connect(sid, environ, auth):
             """Handle client connection."""
-            logger.info("Socket.IO connection attempt", session_id=sid, auth=auth, environ_keys=list(environ.keys()) if environ else None)
+            _backend_logger.info(
+                "Socket.IO connection attempt",
+                LogCategory.API_OPERATIONS,
+                "app.api.socketio.manager",
+                data={"session_id": sid, "auth": auth, "environ_keys": list(environ.keys()) if environ else None}
+            )
 
             # Always allow connection - no authentication required
             connection_id = str(uuid.uuid4())
@@ -61,11 +72,15 @@ class SocketIOManager:
                 'environ': environ
             }
 
-            logger.info(
+            _backend_logger.info(
                 "Socket.IO client connected",
-                session_id=sid,
-                connection_id=connection_id,
-                total_connections=len(self.active_connections)
+                LogCategory.API_OPERATIONS,
+                "app.api.socketio.manager",
+                data={
+                    "session_id": sid,
+                    "connection_id": connection_id,
+                    "total_connections": len(self.active_connections)
+                }
             )
 
             # Send welcome message
@@ -84,17 +99,21 @@ class SocketIOManager:
         async def disconnect(sid):
             """Handle client disconnection."""
             connection_id = self.active_connections.get(sid)
-            
+
             if connection_id:
                 del self.active_connections[sid]
                 if connection_id in self.connection_metadata:
                     del self.connection_metadata[connection_id]
-            
-            logger.info(
+
+            _backend_logger.info(
                 "Socket.IO client disconnected",
-                session_id=sid,
-                connection_id=connection_id,
-                total_connections=len(self.active_connections)
+                LogCategory.API_OPERATIONS,
+                "app.api.socketio.manager",
+                data={
+                    "session_id": sid,
+                    "connection_id": connection_id,
+                    "total_connections": len(self.active_connections)
+                }
             )
         
         @self.sio.event
@@ -131,11 +150,21 @@ class SocketIOManager:
                     'result': f'Mock result for task: {task}',
                     'timestamp': asyncio.get_event_loop().time()
                 }, room=sid)
-                
-                logger.info("Agent execution completed", agent_id=agent_id, task=task)
-                
+
+                _backend_logger.info(
+                    "Agent execution completed",
+                    LogCategory.API_OPERATIONS,
+                    "app.api.socketio.manager",
+                    data={"agent_id": agent_id, "task": task}
+                )
+
             except Exception as e:
-                logger.error("Error executing agent", error=str(e))
+                _backend_logger.error(
+                    "Error executing agent",
+                    LogCategory.API_OPERATIONS,
+                    "app.api.socketio.manager",
+                    data={"error": str(e)}
+                )
                 await self.sio.emit('error', {'message': f'Agent execution failed: {str(e)}'}, room=sid)
         
         @self.sio.event
@@ -165,11 +194,21 @@ class SocketIOManager:
                     'agents': agents_data,
                     'total_count': len(agents_data)
                 }, room=sid)
-                
-                logger.info("Agents list sent", agents_count=len(agents_data))
-                
+
+                _backend_logger.info(
+                    "Agents list sent",
+                    LogCategory.API_OPERATIONS,
+                    "app.api.socketio.manager",
+                    data={"agents_count": len(agents_data)}
+                )
+
             except Exception as e:
-                logger.error("Error getting agents", error=str(e))
+                _backend_logger.error(
+                    "Error getting agents",
+                    LogCategory.API_OPERATIONS,
+                    "app.api.socketio.manager",
+                    data={"error": str(e)}
+                )
                 await self.sio.emit('error', {'message': f'Failed to get agents: {str(e)}'}, room=sid)
         
         @self.sio.event
@@ -241,10 +280,20 @@ class SocketIOManager:
                     'timestamp': asyncio.get_event_loop().time()
                 }, room=sid)
 
-                logger.info("Agent created via Socket.IO", agent_id=agent_id, name=name)
+                _backend_logger.info(
+                    "Agent created via Socket.IO",
+                    LogCategory.API_OPERATIONS,
+                    "app.api.socketio.manager",
+                    data={"agent_id": agent_id, "name": name}
+                )
 
             except Exception as e:
-                logger.error("Error creating agent via Socket.IO", error=str(e))
+                _backend_logger.error(
+                    "Error creating agent via Socket.IO",
+                    LogCategory.API_OPERATIONS,
+                    "app.api.socketio.manager",
+                    data={"error": str(e)}
+                )
                 await self.sio.emit('error', {'message': f'Agent creation failed: {str(e)}'}, room=sid)
 
         @self.sio.event
@@ -270,27 +319,40 @@ class SocketIOManager:
             }
             
             await self.sio.emit('system_status', status, room=sid)
-            
+
         except Exception as e:
-            logger.error("Error sending system status", error=str(e))
+            _backend_logger.error(
+                "Error sending system status",
+                LogCategory.API_OPERATIONS,
+                "app.api.socketio.manager",
+                data={"error": str(e)}
+            )
     
     async def initialize(self) -> None:
         """Initialize the Socket.IO manager."""
         if self.is_initialized:
             return
-        
+
         self.is_initialized = True
-        logger.info("Socket.IO manager initialized")
+        _backend_logger.info(
+            "Socket.IO manager initialized",
+            LogCategory.API_OPERATIONS,
+            "app.api.socketio.manager"
+        )
     
     def mount_to_app(self, app: FastAPI) -> None:
         """Mount Socket.IO to FastAPI app."""
         # Create ASGI app for Socket.IO
         sio_asgi_app = socketio.ASGIApp(self.sio, other_asgi_app=app)
-        
+
         # Replace the app's __call__ method to handle Socket.IO
         app.mount("/socket.io", sio_asgi_app)
-        
-        logger.info("Socket.IO mounted to FastAPI app")
+
+        _backend_logger.info(
+            "Socket.IO mounted to FastAPI app",
+            LogCategory.API_OPERATIONS,
+            "app.api.socketio.manager"
+        )
     
     async def broadcast(self, event: str, data: Dict[str, Any]) -> None:
         """
@@ -304,11 +366,15 @@ class SocketIOManager:
             return
         
         await self.sio.emit(event, data)
-        
-        logger.info(
+
+        _backend_logger.info(
             "Message broadcasted",
-            event=event,
-            connections=len(self.active_connections)
+            LogCategory.API_OPERATIONS,
+            "app.api.socketio.manager",
+            data={
+                "event": event,
+                "connections": len(self.active_connections)
+            }
         )
     
     async def send_to_connection(self, connection_id: str, event: str, data: Dict[str, Any]) -> None:
@@ -330,7 +396,12 @@ class SocketIOManager:
         if session_id:
             await self.sio.emit(event, data, room=session_id)
         else:
-            logger.warning("Connection not found", connection_id=connection_id)
+            _backend_logger.warn(
+                "Connection not found",
+                LogCategory.API_OPERATIONS,
+                "app.api.socketio.manager",
+                data={"connection_id": connection_id}
+            )
     
     def get_connection_count(self) -> int:
         """Get the number of active connections."""

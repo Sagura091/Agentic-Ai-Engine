@@ -22,12 +22,14 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
-import structlog
 import httpx
+
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
 
 from .global_config_manager import global_config_manager, ConfigurationSection
 
-logger = structlog.get_logger(__name__)
+_backend_logger = get_backend_logger()
 
 # Import notification handler (will be initialized later to avoid circular imports)
 _notification_handler = None
@@ -95,19 +97,35 @@ class AdminModelManager:
                             provider=model_data.get("provider", "ollama"),
                             capabilities=model_data.get("capabilities", [])
                         )
-                logger.info(f"✅ Loaded {len(self._model_registry)} models from registry")
+                _backend_logger.info(
+                    f"✅ Loaded {len(self._model_registry)} models from registry",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.admin_model_manager"
+                )
         except Exception as e:
-            logger.warning(f"⚠️ Failed to load model registry: {str(e)}")
-    
+            _backend_logger.warn(
+                f"⚠️ Failed to load model registry: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.admin_model_manager"
+            )
+
     def _save_registry(self) -> None:
         """Save model registry to disk."""
         try:
             registry_data = {name: model.to_dict() for name, model in self._model_registry.items()}
             with open(self.registry_file, 'w') as f:
                 json.dump(registry_data, f, indent=2)
-            logger.debug("✅ Model registry saved")
+            _backend_logger.debug(
+                "✅ Model registry saved",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.admin_model_manager"
+            )
         except Exception as e:
-            logger.error(f"❌ Failed to save model registry: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to save model registry: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.admin_model_manager"
+            )
     
     async def check_ollama_connection(self) -> Dict[str, Any]:
         """Check Ollama connection and get available models."""
@@ -160,7 +178,12 @@ class AdminModelManager:
     async def download_model(self, model_name: str, admin_user_id: str) -> Dict[str, Any]:
         """Download a model via Ollama."""
         try:
-            logger.info(f"🚀 Starting model download: {model_name}", admin_user=admin_user_id)
+            _backend_logger.info(
+                f"🚀 Starting model download: {model_name}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.admin_model_manager",
+                data={"admin_user": admin_user_id}
+            )
             
             # Check if already downloading
             if model_name in self._download_progress:
@@ -203,9 +226,13 @@ class AdminModelManager:
                     
                     # Clean up progress
                     del self._download_progress[model_name]
-                    
-                    logger.info(f"✅ Model downloaded successfully: {model_name}")
-                    
+
+                    _backend_logger.info(
+                        f"✅ Model downloaded successfully: {model_name}",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.core.admin_model_manager"
+                    )
+
                     return {
                         "success": True,
                         "message": f"Model {model_name} downloaded successfully",
@@ -215,15 +242,20 @@ class AdminModelManager:
                     error_text = response.text
                     self._download_progress[model_name]["status"] = "failed"
                     self._download_progress[model_name]["error"] = error_text
-                    
+
                     return {
                         "success": False,
                         "message": f"Failed to download model: HTTP {response.status_code}",
                         "error": error_text
                     }
-                    
+
         except Exception as e:
-            logger.error(f"❌ Model download failed: {str(e)}", model=model_name)
+            _backend_logger.error(
+                f"❌ Model download failed: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.admin_model_manager",
+                data={"model": model_name}
+            )
             
             if model_name in self._download_progress:
                 self._download_progress[model_name]["status"] = "failed"
@@ -274,10 +306,18 @@ class AdminModelManager:
                 user_id=admin_user_id
             )
             
-            logger.info(f"📢 Broadcasted model availability: {model_name} {action}")
-            
+            _backend_logger.info(
+                f"📢 Broadcasted model availability: {model_name} {action}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.admin_model_manager"
+            )
+
         except Exception as e:
-            logger.error(f"❌ Failed to broadcast model availability: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to broadcast model availability: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.admin_model_manager"
+            )
     
     def get_available_models(self) -> List[Dict[str, Any]]:
         """Get all available models from registry."""
@@ -316,7 +356,11 @@ class AdminModelManager:
                     }
                     
         except Exception as e:
-            logger.error(f"❌ Failed to remove model: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to remove model: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.admin_model_manager"
+            )
             return {
                 "success": False,
                 "message": f"Failed to remove model: {str(e)}"
@@ -330,7 +374,11 @@ class AdminModelManager:
                 registry[model_name] = model_info.to_dict()
             return registry
         except Exception as e:
-            logger.error(f"❌ Failed to get model registry: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to get model registry: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.admin_model_manager"
+            )
             return {}
 
 

@@ -11,7 +11,6 @@ import json
 from typing import Dict, Any, Optional, List, Union, Type
 from datetime import datetime
 
-import structlog
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
@@ -19,7 +18,12 @@ from ..core.collection_based_kb_manager import CollectionBasedKBManager
 from ..core.unified_rag_system import UnifiedRAGSystem, Document
 from ..ingestion.pipeline import RevolutionaryIngestionPipeline
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class KnowledgeSearchInput(BaseModel):
@@ -144,7 +148,13 @@ class KnowledgeSearchTool(BaseTool):
             return json.dumps(response, indent=2)
             
         except Exception as e:
-            logger.error(f"Knowledge search failed: {str(e)}")
+            logger.error(
+                f"Knowledge search failed: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.tools.knowledge_tools.KnowledgeSearchTool",
+                error=e,
+                data={"query": kwargs.get("query", "unknown")}
+            )
             return json.dumps({
                 "success": False,
                 "error": str(e),
@@ -226,7 +236,13 @@ class DocumentIngestTool(BaseTool):
             return json.dumps(response, indent=2)
             
         except Exception as e:
-            logger.error(f"Document ingestion failed: {str(e)}")
+            logger.error(
+                f"Document ingestion failed: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.tools.knowledge_tools.DocumentIngestTool",
+                error=e,
+                data={"title": kwargs.get("title", "unknown")}
+            )
             return json.dumps({
                 "success": False,
                 "error": str(e),
@@ -344,7 +360,13 @@ class FactCheckTool(BaseTool):
             return json.dumps(response, indent=2)
             
         except Exception as e:
-            logger.error(f"Fact checking failed: {str(e)}")
+            logger.error(
+                f"Fact checking failed: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.tools.knowledge_tools.FactCheckTool",
+                error=e,
+                data={"statement": kwargs.get("statement", "unknown")}
+            )
             return json.dumps({
                 "success": False,
                 "error": str(e),
@@ -459,7 +481,13 @@ class SynthesisTool(BaseTool):
             return json.dumps(response, indent=2)
             
         except Exception as e:
-            logger.error(f"Knowledge synthesis failed: {str(e)}")
+            logger.error(
+                f"Knowledge synthesis failed: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.tools.knowledge_tools.SynthesisTool",
+                error=e,
+                data={"topic": kwargs.get("topic", "unknown")}
+            )
             return json.dumps({
                 "success": False,
                 "error": str(e),
@@ -555,7 +583,13 @@ class KnowledgeManagementTool(BaseTool):
                 })
                 
         except Exception as e:
-            logger.error(f"Knowledge management operation failed: {str(e)}")
+            logger.error(
+                f"Knowledge management operation failed: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.tools.knowledge_tools.KnowledgeManagementTool",
+                error=e,
+                data={"operation": operation}
+            )
             return json.dumps({
                 "success": False,
                 "error": str(e),

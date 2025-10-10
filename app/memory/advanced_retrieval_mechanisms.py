@@ -22,9 +22,13 @@ from dataclasses import dataclass, field
 from collections import defaultdict, Counter
 from enum import Enum
 import numpy as np
-import structlog
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class RetrievalMethod(str, Enum):
@@ -203,8 +207,12 @@ class AdvancedRetrievalMechanisms:
             "fusion_strategy_usage": defaultdict(int),
             "avg_results_per_query": 0.0
         }
-        
-        logger.info(f"Advanced Retrieval Mechanisms initialized for agent {agent_id}")
+
+        logger.info(
+            f"Advanced Retrieval Mechanisms initialized for agent {agent_id}",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.advanced_retrieval_mechanisms.AdvancedRetrievalMechanisms"
+        )
     
     async def index_memories(self, memories: Dict[str, Dict[str, Any]]):
         """Index memories for advanced retrieval."""
@@ -220,15 +228,21 @@ class AdvancedRetrievalMechanisms:
             if documents:
                 self.bm25_retriever.index_documents(documents)
                 self.is_indexed = True
-                
+
                 logger.info(
                     "Memories indexed for advanced retrieval",
-                    agent_id=self.agent_id,
-                    total_memories=len(documents)
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.memory.advanced_retrieval_mechanisms.AdvancedRetrievalMechanisms",
+                    data={"agent_id": self.agent_id, "total_memories": len(documents)}
                 )
-            
+
         except Exception as e:
-            logger.error(f"Failed to index memories: {e}")
+            logger.error(
+                "Failed to index memories",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.advanced_retrieval_mechanisms.AdvancedRetrievalMechanisms",
+                error=e
+            )
     
     async def advanced_retrieve(
         self,
@@ -268,19 +282,28 @@ class AdvancedRetrievalMechanisms:
             # Update statistics
             query_time = (time.time() - start_time) * 1000
             self._update_stats(query, len(final_results), query_time)
-            
+
             logger.info(
                 "Advanced retrieval completed",
-                agent_id=self.agent_id,
-                query_methods=len(query.methods),
-                results_count=len(final_results),
-                query_time_ms=f"{query_time:.2f}"
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.advanced_retrieval_mechanisms.AdvancedRetrievalMechanisms",
+                data={
+                    "agent_id": self.agent_id,
+                    "query_methods": len(query.methods),
+                    "results_count": len(final_results),
+                    "query_time_ms": f"{query_time:.2f}"
+                }
             )
-            
+
             return final_results
-            
+
         except Exception as e:
-            logger.error(f"Advanced retrieval failed: {e}")
+            logger.error(
+                "Advanced retrieval failed",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.advanced_retrieval_mechanisms.AdvancedRetrievalMechanisms",
+                error=e
+            )
             return []
     
     async def _apply_all_methods(
@@ -329,9 +352,15 @@ class AdvancedRetrievalMechanisms:
                 return await self._graph_retrieve(query, memories)
             else:
                 return []
-                
+
         except Exception as e:
-            logger.error(f"Method {method} failed: {e}")
+            logger.error(
+                f"Method {method} failed",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.advanced_retrieval_mechanisms.AdvancedRetrievalMechanisms",
+                error=e,
+                data={"method": method}
+            )
             return []
     
     def _bm25_retrieve(
@@ -390,9 +419,14 @@ class AdvancedRetrievalMechanisms:
             # Sort by similarity
             results.sort(key=lambda x: x[1], reverse=True)
             return results[:query.top_k]
-            
+
         except Exception as e:
-            logger.error(f"Embedding retrieval failed: {e}")
+            logger.error(
+                "Embedding retrieval failed",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.advanced_retrieval_mechanisms.AdvancedRetrievalMechanisms",
+                error=e
+            )
             return []
     
     def _temporal_retrieve(

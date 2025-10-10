@@ -11,14 +11,16 @@ import uuid
 from datetime import datetime
 from typing import Dict, Any, List
 
-import structlog
 from fastapi import WebSocket, WebSocketDisconnect
+
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
 
 from app.api.websocket.manager import websocket_manager
 from app.core.unified_system_orchestrator import get_orchestrator_with_compatibility
 from app.core.seamless_integration import seamless_integration
 
-logger = structlog.get_logger(__name__)
+_backend_logger = get_backend_logger()
 
 
 async def handle_websocket_connection(websocket: WebSocket) -> None:
@@ -33,34 +35,59 @@ async def handle_websocket_connection(websocket: WebSocket) -> None:
     try:
         # Accept the connection
         await websocket_manager.connect(websocket, connection_id)
-        
-        logger.info("WebSocket connection established", connection_id=connection_id)
-        
+
+        _backend_logger.info(
+            "WebSocket connection established",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"connection_id": connection_id}
+        )
+
         # Send initial system status
         await send_system_status(connection_id)
-        
+
         # Handle incoming messages
         while True:
             try:
                 # Receive message from client
                 data = await websocket.receive_text()
                 message = json.loads(data)
-                
+
                 # Route message to appropriate handler
                 await route_message(connection_id, message)
-                
+
             except WebSocketDisconnect:
-                logger.info("WebSocket client disconnected", connection_id=connection_id)
+                _backend_logger.info(
+                    "WebSocket client disconnected",
+                    LogCategory.API_OPERATIONS,
+                    "app.api.websocket.handlers",
+                    data={"connection_id": connection_id}
+                )
                 break
             except json.JSONDecodeError as e:
-                logger.error("Invalid JSON received", connection_id=connection_id, error=str(e))
+                _backend_logger.error(
+                    "Invalid JSON received",
+                    LogCategory.API_OPERATIONS,
+                    "app.api.websocket.handlers",
+                    data={"connection_id": connection_id, "error": str(e)}
+                )
                 await send_error(connection_id, "Invalid JSON format")
             except Exception as e:
-                logger.error("Error handling WebSocket message", connection_id=connection_id, error=str(e))
+                _backend_logger.error(
+                    "Error handling WebSocket message",
+                    LogCategory.API_OPERATIONS,
+                    "app.api.websocket.handlers",
+                    data={"connection_id": connection_id, "error": str(e)}
+                )
                 await send_error(connection_id, f"Error processing message: {str(e)}")
-    
+
     except Exception as e:
-        logger.error("WebSocket connection error", connection_id=connection_id, error=str(e))
+        _backend_logger.error(
+            "WebSocket connection error",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"connection_id": connection_id, "error": str(e)}
+        )
     
     finally:
         # Clean up connection
@@ -143,7 +170,12 @@ async def handle_execute_agent(connection_id: str, message: Dict[str, Any]) -> N
         )
         
     except Exception as e:
-        logger.error("Error executing agent", connection_id=connection_id, error=str(e))
+        _backend_logger.error(
+            "Error executing agent",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"connection_id": connection_id, "error": str(e)}
+        )
         await send_error(connection_id, f"Agent execution failed: {str(e)}")
 
 
@@ -199,7 +231,12 @@ async def handle_create_agent(connection_id: str, message: Dict[str, Any]) -> No
         )
         
     except Exception as e:
-        logger.error("Error creating agent", connection_id=connection_id, error=str(e))
+        _backend_logger.error(
+            "Error creating agent",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"connection_id": connection_id, "error": str(e)}
+        )
         await send_error(connection_id, f"Agent creation failed: {str(e)}")
 
 
@@ -239,7 +276,12 @@ async def handle_create_tool(connection_id: str, message: Dict[str, Any]) -> Non
         )
         
     except Exception as e:
-        logger.error("Error creating tool", connection_id=connection_id, error=str(e))
+        _backend_logger.error(
+            "Error creating tool",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"connection_id": connection_id, "error": str(e)}
+        )
         await send_error(connection_id, f"Tool creation failed: {str(e)}")
 
 
@@ -293,7 +335,12 @@ async def handle_execute_workflow(connection_id: str, message: Dict[str, Any]) -
         )
         
     except Exception as e:
-        logger.error("Error executing workflow", connection_id=connection_id, error=str(e))
+        _backend_logger.error(
+            "Error executing workflow",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"connection_id": connection_id, "error": str(e)}
+        )
         await send_error(connection_id, f"Workflow execution failed: {str(e)}")
 
 
@@ -334,7 +381,12 @@ async def handle_execute_visual_workflow(connection_id: str, message: Dict[str, 
         )
 
     except Exception as e:
-        logger.error("Error starting visual workflow execution", connection_id=connection_id, error=str(e))
+        _backend_logger.error(
+            "Error starting visual workflow execution",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"connection_id": connection_id, "error": str(e)}
+        )
         await send_error(connection_id, f"Visual workflow execution failed: {str(e)}")
 
 
@@ -355,7 +407,12 @@ async def handle_get_agents(connection_id: str, message: Dict[str, Any]) -> None
         )
         
     except Exception as e:
-        logger.error("Error getting agents", connection_id=connection_id, error=str(e))
+        _backend_logger.error(
+            "Error getting agents",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"connection_id": connection_id, "error": str(e)}
+        )
         await send_error(connection_id, f"Failed to get agents: {str(e)}")
 
 
@@ -376,7 +433,12 @@ async def handle_get_tools(connection_id: str, message: Dict[str, Any]) -> None:
         )
         
     except Exception as e:
-        logger.error("Error getting tools", connection_id=connection_id, error=str(e))
+        _backend_logger.error(
+            "Error getting tools",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"connection_id": connection_id, "error": str(e)}
+        )
         await send_error(connection_id, f"Failed to get tools: {str(e)}")
 
 
@@ -406,7 +468,12 @@ async def send_system_status(connection_id: str) -> None:
         )
         
     except Exception as e:
-        logger.error("Error sending system status", connection_id=connection_id, error=str(e))
+        _backend_logger.error(
+            "Error sending system status",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"connection_id": connection_id, "error": str(e)}
+        )
 
 
 async def send_pong(connection_id: str) -> None:
@@ -473,11 +540,15 @@ async def handle_collaboration_connection(websocket: WebSocket, workspace_id: st
             "joined_at": asyncio.get_event_loop().time()
         }
 
-        logger.info(
+        _backend_logger.info(
             "Collaboration connection established",
-            workspace_id=workspace_id,
-            user_id=user_id,
-            total_users=len(workspace["users"])
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={
+                "workspace_id": workspace_id,
+                "user_id": user_id,
+                "total_users": len(workspace["users"])
+            }
         )
 
         # Send initial workspace state
@@ -502,14 +573,24 @@ async def handle_collaboration_connection(websocket: WebSocket, workspace_id: st
                     "message": "Invalid JSON format"
                 }))
             except Exception as e:
-                logger.error("Error handling collaboration message", error=str(e))
+                _backend_logger.error(
+                    "Error handling collaboration message",
+                    LogCategory.API_OPERATIONS,
+                    "app.api.websocket.handlers",
+                    data={"error": str(e)}
+                )
                 await websocket.send_text(json.dumps({
                     "type": "error",
                     "message": f"Message handling error: {str(e)}"
                 }))
 
     except Exception as e:
-        logger.error("Collaboration connection error", error=str(e))
+        _backend_logger.error(
+            "Collaboration connection error",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"error": str(e)}
+        )
     finally:
         # Clean up user from workspace
         if workspace_id in collaboration_workspaces:
@@ -524,7 +605,12 @@ async def handle_collaboration_connection(websocket: WebSocket, workspace_id: st
                 if not workspace["users"]:
                     del collaboration_workspaces[workspace_id]
 
-        logger.info("Collaboration connection closed", workspace_id=workspace_id, user_id=user_id)
+        _backend_logger.info(
+            "Collaboration connection closed",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"workspace_id": workspace_id, "user_id": user_id}
+        )
 
 
 async def handle_collaboration_message(workspace_id: str, user_id: str, message: Dict[str, Any]) -> None:
@@ -693,7 +779,11 @@ async def broadcast_to_workspace(workspace_id: str, message: Dict[str, Any], exc
         try:
             await user_data["websocket"].send_text(message_text)
         except Exception as e:
-            logger.warning(f"Failed to send message to user {user_id}: {str(e)}")
+            _backend_logger.warn(
+                f"Failed to send message to user {user_id}: {str(e)}",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.handlers"
+            )
             disconnected_users.append(user_id)
 
     # Clean up disconnected users
@@ -743,11 +833,15 @@ async def handle_collaboration_connection(websocket: WebSocket, workspace_id: st
             "joined_at": asyncio.get_event_loop().time()
         }
 
-        logger.info(
+        _backend_logger.info(
             "Collaboration connection established",
-            workspace_id=workspace_id,
-            user_id=user_id,
-            total_users=len(workspace["users"])
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={
+                "workspace_id": workspace_id,
+                "user_id": user_id,
+                "total_users": len(workspace["users"])
+            }
         )
 
         # Send initial workspace state
@@ -772,14 +866,24 @@ async def handle_collaboration_connection(websocket: WebSocket, workspace_id: st
                     "message": "Invalid JSON format"
                 }))
             except Exception as e:
-                logger.error("Error handling collaboration message", error=str(e))
+                _backend_logger.error(
+                    "Error handling collaboration message",
+                    LogCategory.API_OPERATIONS,
+                    "app.api.websocket.handlers",
+                    data={"error": str(e)}
+                )
                 await websocket.send_text(json.dumps({
                     "type": "error",
                     "message": f"Message handling error: {str(e)}"
                 }))
 
     except Exception as e:
-        logger.error("Collaboration connection error", error=str(e))
+        _backend_logger.error(
+            "Collaboration connection error",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"error": str(e)}
+        )
     finally:
         # Clean up user from workspace
         if workspace_id in collaboration_workspaces:
@@ -794,7 +898,12 @@ async def handle_collaboration_connection(websocket: WebSocket, workspace_id: st
                 if not workspace["users"]:
                     del collaboration_workspaces[workspace_id]
 
-        logger.info("Collaboration connection closed", workspace_id=workspace_id, user_id=user_id)
+        _backend_logger.info(
+            "Collaboration connection closed",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"workspace_id": workspace_id, "user_id": user_id}
+        )
 
 
 async def handle_collaboration_message(workspace_id: str, user_id: str, message: Dict[str, Any]) -> None:
@@ -963,7 +1072,11 @@ async def broadcast_to_workspace(workspace_id: str, message: Dict[str, Any], exc
         try:
             await user_data["websocket"].send_text(message_text)
         except Exception as e:
-            logger.warning(f"Failed to send message to user {user_id}: {str(e)}")
+            _backend_logger.warn(
+                f"Failed to send message to user {user_id}: {str(e)}",
+                LogCategory.API_OPERATIONS,
+                "app.api.websocket.handlers"
+            )
             disconnected_users.append(user_id)
 
     # Clean up disconnected users
@@ -1016,7 +1129,12 @@ async def handle_component_workflow_execution(connection_id: str, message: Dict[
         )
 
     except Exception as e:
-        logger.error("Error handling component workflow execution", connection_id=connection_id, error=str(e))
+        _backend_logger.error(
+            "Error handling component workflow execution",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"connection_id": connection_id, "error": str(e)}
+        )
         await send_error(connection_id, f"Component workflow execution failed: {str(e)}")
 
 
@@ -1042,7 +1160,12 @@ async def _execute_component_workflow_with_updates(
         await _monitor_workflow_progress(connection_id, workflow_id, orchestrator)
 
     except Exception as e:
-        logger.error("Error in component workflow execution", error=str(e))
+        _backend_logger.error(
+            "Error in component workflow execution",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"error": str(e)}
+        )
         await websocket_manager.send_personal_message(
             connection_id,
             {
@@ -1141,7 +1264,12 @@ async def _monitor_workflow_progress(connection_id: str, workflow_id: str, orche
             await asyncio.sleep(1.0)
 
     except Exception as e:
-        logger.error("Error monitoring workflow progress", error=str(e))
+        _backend_logger.error(
+            "Error monitoring workflow progress",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"error": str(e)}
+        )
 
 
 async def handle_component_agent_status(connection_id: str, message: Dict[str, Any]) -> None:
@@ -1173,7 +1301,12 @@ async def handle_component_agent_status(connection_id: str, message: Dict[str, A
             await send_error(connection_id, f"Component agent not found: {agent_id}")
 
     except Exception as e:
-        logger.error("Error getting component agent status", connection_id=connection_id, error=str(e))
+        _backend_logger.error(
+            "Error getting component agent status",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"connection_id": connection_id, "error": str(e)}
+        )
         await send_error(connection_id, f"Failed to get component agent status: {str(e)}")
 
 
@@ -1219,7 +1352,12 @@ async def handle_workflow_step_updates(connection_id: str, message: Dict[str, An
         )
 
     except Exception as e:
-        logger.error("Error handling workflow step updates", connection_id=connection_id, error=str(e))
+        _backend_logger.error(
+            "Error handling workflow step updates",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"connection_id": connection_id, "error": str(e)}
+        )
         await send_error(connection_id, f"Failed to get workflow step updates: {str(e)}")
 
 
@@ -1243,7 +1381,12 @@ async def handle_component_palette_request(connection_id: str, message: Dict[str
         )
 
     except Exception as e:
-        logger.error("Error getting component palette", connection_id=connection_id, error=str(e))
+        _backend_logger.error(
+            "Error getting component palette",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"connection_id": connection_id, "error": str(e)}
+        )
         await send_error(connection_id, f"Failed to get component palette: {str(e)}")
 
 
@@ -1449,7 +1592,12 @@ async def _execute_visual_workflow_with_updates(
         )
 
     except Exception as e:
-        logger.error("Error executing visual workflow", connection_id=connection_id, error=str(e))
+        _backend_logger.error(
+            "Error executing visual workflow",
+            LogCategory.API_OPERATIONS,
+            "app.api.websocket.handlers",
+            data={"connection_id": connection_id, "error": str(e)}
+        )
         await websocket_manager.send_personal_message(
             connection_id,
             {

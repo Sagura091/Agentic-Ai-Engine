@@ -11,7 +11,6 @@ from typing import Dict, List, Optional, Any, Union, Protocol
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-import structlog
 from pydantic import BaseModel, Field
 
 # Import configuration
@@ -21,7 +20,12 @@ from app.rag.core.vector_db_config import (
     get_vector_db_config_manager, get_active_vector_db_type
 )
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 class VectorItem(BaseModel):
     """Vector item for storage."""
@@ -126,7 +130,12 @@ class ChromaDBClient(VectorDBBase):
                 database=config.database if config else os.environ.get("CHROMA_DATABASE", chromadb.DEFAULT_DATABASE),
                 settings=chromadb.Settings(**settings_dict),
             )
-            logger.info("✅ ChromaDB HTTP client initialized", host=chroma_http_host, port=port)
+            logger.info(
+                "✅ ChromaDB HTTP client initialized",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.ChromaDBClient",
+                data={"host": chroma_http_host, "port": port}
+            )
         else:
             import chromadb
             persist_dir = (config.persist_directory if config else None) or str(self.chroma_data_path)
@@ -137,7 +146,12 @@ class ChromaDBClient(VectorDBBase):
                 tenant=config.tenant if config else os.environ.get("CHROMA_TENANT", chromadb.DEFAULT_TENANT),
                 database=config.database if config else os.environ.get("CHROMA_DATABASE", chromadb.DEFAULT_DATABASE),
             )
-            logger.info("✅ ChromaDB persistent client initialized", path=persist_dir)
+            logger.info(
+                "✅ ChromaDB persistent client initialized",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.ChromaDBClient",
+                data={"path": persist_dir}
+            )
     
     def has_collection(self, collection_name: str) -> bool:
         """Check if collection exists."""
@@ -146,16 +160,33 @@ class ChromaDBClient(VectorDBBase):
             collection_names = [col.name for col in collections]
             return collection_name in collection_names
         except Exception as e:
-            logger.error("Failed to check collection existence", collection=collection_name, error=str(e))
+            logger.error(
+                "Failed to check collection existence",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.ChromaDBClient",
+                error=e,
+                data={"collection": collection_name}
+            )
             return False
-    
+
     def delete_collection(self, collection_name: str):
         """Delete a collection."""
         try:
             self.client.delete_collection(name=collection_name)
-            logger.info("Collection deleted", collection=collection_name)
+            logger.info(
+                "Collection deleted",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.ChromaDBClient",
+                data={"collection": collection_name}
+            )
         except Exception as e:
-            logger.error("Failed to delete collection", collection=collection_name, error=str(e))
+            logger.error(
+                "Failed to delete collection",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.ChromaDBClient",
+                error=e,
+                data={"collection": collection_name}
+            )
             raise
     
     def search(
@@ -186,7 +217,13 @@ class ChromaDBClient(VectorDBBase):
                 )
             return None
         except Exception as e:
-            logger.error("Search failed", collection=collection_name, error=str(e))
+            logger.error(
+                "Search failed",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.ChromaDBClient",
+                error=e,
+                data={"collection": collection_name}
+            )
             return None
     
     def add(
@@ -223,12 +260,23 @@ class ChromaDBClient(VectorDBBase):
                 documents=documents,
                 metadatas=metadatas
             )
-            
-            logger.info("Items added to collection", collection=collection_name, count=len(items))
+
+            logger.info(
+                "Items added to collection",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.ChromaDBClient",
+                data={"collection": collection_name, "count": len(items)}
+            )
             return True
-            
+
         except Exception as e:
-            logger.error("Failed to add items", collection=collection_name, error=str(e))
+            logger.error(
+                "Failed to add items",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.ChromaDBClient",
+                error=e,
+                data={"collection": collection_name}
+            )
             return False
     
     def get(self, collection_name: str) -> Optional[GetResult]:
@@ -244,9 +292,15 @@ class ChromaDBClient(VectorDBBase):
                 )
             return None
         except Exception as e:
-            logger.error("Failed to get collection data", collection=collection_name, error=str(e))
+            logger.error(
+                "Failed to get collection data",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.ChromaDBClient",
+                error=e,
+                data={"collection": collection_name}
+            )
             return None
-    
+
     def delete(
         self,
         collection_name: str,
@@ -257,11 +311,22 @@ class ChromaDBClient(VectorDBBase):
             collection = self.client.get_collection(name=collection_name)
             if collection:
                 collection.delete(ids=ids)
-                logger.info("Items deleted from collection", collection=collection_name, count=len(ids))
+                logger.info(
+                    "Items deleted from collection",
+                    LogCategory.DATABASE_OPERATIONS,
+                    "app.rag.core.vector_db_factory.ChromaDBClient",
+                    data={"collection": collection_name, "count": len(ids)}
+                )
                 return True
             return False
         except Exception as e:
-            logger.error("Failed to delete items", collection=collection_name, error=str(e))
+            logger.error(
+                "Failed to delete items",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.ChromaDBClient",
+                error=e,
+                data={"collection": collection_name}
+            )
             return False
 
 class PgVectorClient(VectorDBBase):
@@ -294,9 +359,16 @@ class PgVectorClient(VectorDBBase):
         if not self.connection_string:
             raise ValueError("Database connection string is required for pgvector")
 
-        logger.info("✅ PgVector client initialized",
-                   table=self.table_name, dimension=self.dimension,
-                   host=config.host if config else "unknown")
+        logger.info(
+            "✅ PgVector client initialized",
+            LogCategory.DATABASE_OPERATIONS,
+            "app.rag.core.vector_db_factory.PgVectorClient",
+            data={
+                "table": self.table_name,
+                "dimension": self.dimension,
+                "host": config.host if config else "unknown"
+            }
+        )
 
     async def _get_connection(self):
         """Get database connection from pool."""
@@ -324,7 +396,12 @@ class PgVectorClient(VectorDBBase):
             except ImportError:
                 raise ImportError("asyncpg is required for pgvector support. Install with: pip install asyncpg")
             except Exception as e:
-                logger.error("Failed to initialize pgvector connection", error=str(e))
+                logger.error(
+                    "Failed to initialize pgvector connection",
+                    LogCategory.DATABASE_OPERATIONS,
+                    "app.rag.core.vector_db_factory.PgVectorClient",
+                    error=e
+                )
                 raise
 
         return self.pool.acquire()
@@ -335,7 +412,13 @@ class PgVectorClient(VectorDBBase):
             import asyncio
             return asyncio.run(self._has_collection_async(collection_name))
         except Exception as e:
-            logger.error("Failed to check collection existence", collection=collection_name, error=str(e))
+            logger.error(
+                "Failed to check collection existence",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.PgVectorClient",
+                error=e,
+                data={"collection": collection_name}
+            )
             return False
 
     async def _has_collection_async(self, collection_name: str) -> bool:
@@ -348,7 +431,13 @@ class PgVectorClient(VectorDBBase):
                 )
                 return bool(result)
         except Exception as e:
-            logger.error("Failed to check collection existence", collection=collection_name, error=str(e))
+            logger.error(
+                "Failed to check collection existence",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.PgVectorClient",
+                error=e,
+                data={"collection": collection_name}
+            )
             return False
 
     def delete_collection(self, collection_name: str):
@@ -356,9 +445,20 @@ class PgVectorClient(VectorDBBase):
         try:
             import asyncio
             asyncio.run(self._delete_collection_async(collection_name))
-            logger.info("Collection deleted", collection=collection_name)
+            logger.info(
+                "Collection deleted",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.PgVectorClient",
+                data={"collection": collection_name}
+            )
         except Exception as e:
-            logger.error("Failed to delete collection", collection=collection_name, error=str(e))
+            logger.error(
+                "Failed to delete collection",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.PgVectorClient",
+                error=e,
+                data={"collection": collection_name}
+            )
             raise
 
     async def _delete_collection_async(self, collection_name: str):
@@ -377,7 +477,13 @@ class PgVectorClient(VectorDBBase):
             import asyncio
             return asyncio.run(self._search_async(collection_name, vectors, limit))
         except Exception as e:
-            logger.error("Search failed", collection=collection_name, error=str(e))
+            logger.error(
+                "Search failed",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.PgVectorClient",
+                error=e,
+                data={"collection": collection_name}
+            )
             return None
 
     async def _search_async(
@@ -418,7 +524,13 @@ class PgVectorClient(VectorDBBase):
                 )
 
         except Exception as e:
-            logger.error("Search failed", collection=collection_name, error=str(e))
+            logger.error(
+                "Search failed",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.PgVectorClient",
+                error=e,
+                data={"collection": collection_name}
+            )
             return None
 
     def add(
@@ -431,7 +543,13 @@ class PgVectorClient(VectorDBBase):
             import asyncio
             return asyncio.run(self._add_async(collection_name, items))
         except Exception as e:
-            logger.error("Failed to add items", collection=collection_name, error=str(e))
+            logger.error(
+                "Failed to add items",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.PgVectorClient",
+                error=e,
+                data={"collection": collection_name}
+            )
             return False
 
     async def _add_async(
@@ -452,11 +570,22 @@ class PgVectorClient(VectorDBBase):
                             metadata = EXCLUDED.metadata
                     """, item.id, collection_name, item.vector, item.document, item.metadata)
 
-                logger.info("Items added to collection", collection=collection_name, count=len(items))
+                logger.info(
+                    "Items added to collection",
+                    LogCategory.DATABASE_OPERATIONS,
+                    "app.rag.core.vector_db_factory.PgVectorClient",
+                    data={"collection": collection_name, "count": len(items)}
+                )
                 return True
 
         except Exception as e:
-            logger.error("Failed to add items", collection=collection_name, error=str(e))
+            logger.error(
+                "Failed to add items",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.PgVectorClient",
+                error=e,
+                data={"collection": collection_name}
+            )
             return False
 
     def get(self, collection_name: str) -> Optional[GetResult]:
@@ -465,7 +594,13 @@ class PgVectorClient(VectorDBBase):
             import asyncio
             return asyncio.run(self._get_async(collection_name))
         except Exception as e:
-            logger.error("Failed to get collection data", collection=collection_name, error=str(e))
+            logger.error(
+                "Failed to get collection data",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.PgVectorClient",
+                error=e,
+                data={"collection": collection_name}
+            )
             return None
 
     async def _get_async(self, collection_name: str) -> Optional[GetResult]:
@@ -493,7 +628,13 @@ class PgVectorClient(VectorDBBase):
                 )
 
         except Exception as e:
-            logger.error("Failed to get collection data", collection=collection_name, error=str(e))
+            logger.error(
+                "Failed to get collection data",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.PgVectorClient",
+                error=e,
+                data={"collection": collection_name}
+            )
             return None
 
     def delete(
@@ -506,7 +647,13 @@ class PgVectorClient(VectorDBBase):
             import asyncio
             return asyncio.run(self._delete_async(collection_name, ids))
         except Exception as e:
-            logger.error("Failed to delete items", collection=collection_name, error=str(e))
+            logger.error(
+                "Failed to delete items",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.PgVectorClient",
+                error=e,
+                data={"collection": collection_name}
+            )
             return False
 
     async def _delete_async(
@@ -522,11 +669,22 @@ class PgVectorClient(VectorDBBase):
                     WHERE collection_name = $1 AND id = ANY($2)
                 """, collection_name, ids)
 
-                logger.info("Items deleted from collection", collection=collection_name, count=len(ids))
+                logger.info(
+                    "Items deleted from collection",
+                    LogCategory.DATABASE_OPERATIONS,
+                    "app.rag.core.vector_db_factory.PgVectorClient",
+                    data={"collection": collection_name, "count": len(ids)}
+                )
                 return True
 
         except Exception as e:
-            logger.error("Failed to delete items", collection=collection_name, error=str(e))
+            logger.error(
+                "Failed to delete items",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_factory.PgVectorClient",
+                error=e,
+                data={"collection": collection_name}
+            )
             return False
 
 class VectorDBFactory:
@@ -578,7 +736,12 @@ class VectorDBFactory:
                     raise ValueError(f"Unsupported vector database type: {db_type}")
 
             except ValueError as e:
-                logger.warning(f"Invalid database type {db_type}: {e}, falling back to active database")
+                logger.warn(
+                    f"Invalid database type {db_type}: {e}, falling back to active database",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.vector_db_factory.VectorDBFactory",
+                    data={"db_type": db_type, "error": str(e)}
+                )
                 # Fallback to active database type
                 active_type = config_manager.active_db_type.value
                 if active_type not in cls._clients:

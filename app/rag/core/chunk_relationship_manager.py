@@ -24,9 +24,12 @@ from datetime import datetime
 from enum import Enum
 from collections import defaultdict
 
-import structlog
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
 
-logger = structlog.get_logger(__name__)
+# Get backend logger instance
+logger = get_logger()
 
 
 class RelationType(str, Enum):
@@ -114,8 +117,12 @@ class ChunkRelationshipManager:
             'context_expansions': 0,
             'parent_retrievals': 0
         }
-        
-        logger.info("ChunkRelationshipManager initialized")
+
+        logger.info(
+            "ChunkRelationshipManager initialized",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.rag.core.chunk_relationship_manager.ChunkRelationshipManager"
+        )
     
     def add_chunk(
         self,
@@ -168,12 +175,23 @@ class ChunkRelationshipManager:
             self._documents[doc_id].chunk_nodes[chunk_id] = node
             
             self._metrics['total_chunks'] += 1
-            
-            logger.debug(f"Chunk added: {chunk_id} (doc: {doc_id}, index: {chunk_index})")
+
+            logger.debug(
+                f"Chunk added: {chunk_id} (doc: {doc_id}, index: {chunk_index})",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.chunk_relationship_manager.ChunkRelationshipManager",
+                data={"chunk_id": chunk_id, "doc_id": doc_id, "chunk_index": chunk_index}
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to add chunk {chunk_id}: {e}")
+            logger.error(
+                f"Failed to add chunk {chunk_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.chunk_relationship_manager.ChunkRelationshipManager",
+                error=e,
+                data={"chunk_id": chunk_id}
+            )
             return False
     
     def add_relationship(
@@ -213,18 +231,27 @@ class ChunkRelationshipManager:
             self._incoming_edges[target_id].append(relationship)
             
             self._metrics['total_relationships'] += 1
-            
+
             logger.debug(
-                f"Relationship added",
-                source=source_id,
-                target=target_id,
-                type=relation_type.value
+                "Relationship added",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.chunk_relationship_manager.ChunkRelationshipManager",
+                data={
+                    "source": source_id,
+                    "target": target_id,
+                    "type": relation_type.value
+                }
             )
-            
+
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to add relationship: {e}")
+            logger.error(
+                "Failed to add relationship",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.chunk_relationship_manager.ChunkRelationshipManager",
+                error=e
+            )
             return False
     
     def build_document_structure(self, doc_id: str) -> bool:
@@ -242,7 +269,12 @@ class ChunkRelationshipManager:
         """
         try:
             if doc_id not in self._documents:
-                logger.error(f"Document not found: {doc_id}")
+                logger.error(
+                    f"Document not found: {doc_id}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.chunk_relationship_manager.ChunkRelationshipManager",
+                    data={"doc_id": doc_id}
+                )
                 return False
             
             doc = self._documents[doc_id]
@@ -328,12 +360,23 @@ class ChunkRelationshipManager:
                     )
                 ]
                 doc.root_chunk_id = root_candidates[0] if root_candidates else chunk_ids[0]
-            
-            logger.info(f"Document structure built: {doc_id} ({len(chunk_ids)} chunks)")
+
+            logger.info(
+                f"Document structure built: {doc_id} ({len(chunk_ids)} chunks)",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.chunk_relationship_manager.ChunkRelationshipManager",
+                data={"doc_id": doc_id, "chunk_count": len(chunk_ids)}
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to build document structure for {doc_id}: {e}")
+            logger.error(
+                f"Failed to build document structure for {doc_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.chunk_relationship_manager.ChunkRelationshipManager",
+                error=e,
+                data={"doc_id": doc_id}
+            )
             return False
 
     def get_surrounding_chunks(
@@ -355,7 +398,12 @@ class ChunkRelationshipManager:
         """
         try:
             if chunk_id not in self._chunks:
-                logger.warning(f"Chunk not found: {chunk_id}")
+                logger.warn(
+                    f"Chunk not found: {chunk_id}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.chunk_relationship_manager.ChunkRelationshipManager",
+                    data={"chunk_id": chunk_id}
+                )
                 return [chunk_id]
 
             node = self._chunks[chunk_id]
@@ -395,16 +443,26 @@ class ChunkRelationshipManager:
             self._metrics['context_expansions'] += 1
 
             logger.debug(
-                f"Context expansion",
-                chunk_id=chunk_id,
-                context_size=context_size,
-                result_count=len(result)
+                "Context expansion",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.chunk_relationship_manager.ChunkRelationshipManager",
+                data={
+                    "chunk_id": chunk_id,
+                    "context_size": context_size,
+                    "result_count": len(result)
+                }
             )
 
             return result
 
         except Exception as e:
-            logger.error(f"Context expansion failed for {chunk_id}: {e}")
+            logger.error(
+                f"Context expansion failed for {chunk_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.chunk_relationship_manager.ChunkRelationshipManager",
+                error=e,
+                data={"chunk_id": chunk_id}
+            )
             return [chunk_id]
 
     def get_parent_document(self, chunk_id: str) -> Optional[str]:
@@ -613,11 +671,22 @@ class ChunkRelationshipManager:
 
             self._metrics['total_chunks'] -= 1
 
-            logger.debug(f"Chunk removed: {chunk_id}")
+            logger.debug(
+                f"Chunk removed: {chunk_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.chunk_relationship_manager.ChunkRelationshipManager",
+                data={"chunk_id": chunk_id}
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to remove chunk {chunk_id}: {e}")
+            logger.error(
+                f"Failed to remove chunk {chunk_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.chunk_relationship_manager.ChunkRelationshipManager",
+                error=e,
+                data={"chunk_id": chunk_id}
+            )
             return False
 
     def get_metrics(self) -> Dict[str, Any]:
@@ -692,6 +761,10 @@ async def get_chunk_relationship_manager() -> ChunkRelationshipManager:
     async with _manager_lock:
         if _chunk_relationship_manager is None:
             _chunk_relationship_manager = ChunkRelationshipManager()
-            logger.info("ChunkRelationshipManager singleton created")
+            logger.info(
+                "ChunkRelationshipManager singleton created",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.chunk_relationship_manager"
+            )
 
         return _chunk_relationship_manager

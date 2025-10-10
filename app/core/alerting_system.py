@@ -12,14 +12,16 @@ from typing import Dict, Any, Optional, List, Callable, Union
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from enum import Enum
-import structlog
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import aiohttp
 import redis
 from collections import defaultdict, deque
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
+_backend_logger = get_backend_logger()
 
 
 class AlertSeverity(Enum):
@@ -117,11 +119,19 @@ class EmailNotifier:
                     server.login(self.username, self.password)
                 server.send_message(msg)
             
-            logger.info(f"Email notification sent for alert {alert.id}")
+            _backend_logger.info(
+                f"Email notification sent for alert {alert.id}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.alerting_system"
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to send email notification: {e}")
+            _backend_logger.error(
+                f"Failed to send email notification: {e}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.alerting_system"
+            )
             return False
 
 
@@ -157,14 +167,26 @@ class WebhookNotifier:
                     timeout=aiohttp.ClientTimeout(total=self.timeout)
                 ) as response:
                     if response.status == 200:
-                        logger.info(f"Webhook notification sent for alert {alert.id}")
+                        _backend_logger.info(
+                            f"Webhook notification sent for alert {alert.id}",
+                            LogCategory.SYSTEM_OPERATIONS,
+                            "app.core.alerting_system"
+                        )
                         return True
                     else:
-                        logger.error(f"Webhook notification failed: {response.status}")
+                        _backend_logger.error(
+                            f"Webhook notification failed: {response.status}",
+                            LogCategory.SYSTEM_OPERATIONS,
+                            "app.core.alerting_system"
+                        )
                         return False
-                        
+
         except Exception as e:
-            logger.error(f"Failed to send webhook notification: {e}")
+            _backend_logger.error(
+                f"Failed to send webhook notification: {e}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.alerting_system"
+            )
             return False
 
 
@@ -219,14 +241,26 @@ class SlackNotifier:
                     timeout=aiohttp.ClientTimeout(total=self.timeout)
                 ) as response:
                     if response.status == 200:
-                        logger.info(f"Slack notification sent for alert {alert.id}")
+                        _backend_logger.info(
+                            f"Slack notification sent for alert {alert.id}",
+                            LogCategory.SYSTEM_OPERATIONS,
+                            "app.core.alerting_system"
+                        )
                         return True
                     else:
-                        logger.error(f"Slack notification failed: {response.status}")
+                        _backend_logger.error(
+                            f"Slack notification failed: {response.status}",
+                            LogCategory.SYSTEM_OPERATIONS,
+                            "app.core.alerting_system"
+                        )
                         return False
-                        
+
         except Exception as e:
-            logger.error(f"Failed to send Slack notification: {e}")
+            _backend_logger.error(
+                f"Failed to send Slack notification: {e}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.alerting_system"
+            )
             return False
 
 
@@ -259,9 +293,17 @@ class AlertingSystem:
         try:
             self.redis_client = redis.from_url(self.redis_url)
             self.redis_client.ping()
-            logger.info("Redis connection established for alerting system")
+            _backend_logger.info(
+                "Redis connection established for alerting system",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.alerting_system"
+            )
         except Exception as e:
-            logger.error(f"Failed to connect to Redis: {e}")
+            _backend_logger.error(
+                f"Failed to connect to Redis: {e}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.alerting_system"
+            )
             self.redis_client = None
     
     def _setup_default_channels(self):
@@ -342,20 +384,28 @@ class AlertingSystem:
     def add_alert_rule(self, rule: AlertRule):
         """Add an alert rule."""
         self.alert_rules[rule.name] = rule
-        logger.info(f"Added alert rule: {rule.name}")
-    
+        _backend_logger.info(
+            f"Added alert rule: {rule.name}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.alerting_system"
+        )
+
     def remove_alert_rule(self, rule_name: str) -> bool:
         """Remove an alert rule."""
         if rule_name in self.alert_rules:
             del self.alert_rules[rule_name]
-            logger.info(f"Removed alert rule: {rule_name}")
+            _backend_logger.info(
+                f"Removed alert rule: {rule_name}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.alerting_system"
+            )
             return True
         return False
-    
+
     def add_notification_channel(self, channel: NotificationChannel):
         """Add a notification channel."""
         self.notification_channels[channel.name] = channel
-        
+
         # Create notifier based on channel type
         if channel.channel_type == "email":
             self.notifiers[channel.name] = EmailNotifier(channel.config)
@@ -363,16 +413,24 @@ class AlertingSystem:
             self.notifiers[channel.name] = WebhookNotifier(channel.config)
         elif channel.channel_type == "slack":
             self.notifiers[channel.name] = SlackNotifier(channel.config)
-        
-        logger.info(f"Added notification channel: {channel.name}")
-    
+
+        _backend_logger.info(
+            f"Added notification channel: {channel.name}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.alerting_system"
+        )
+
     def remove_notification_channel(self, channel_name: str) -> bool:
         """Remove a notification channel."""
         if channel_name in self.notification_channels:
             del self.notification_channels[channel_name]
             if channel_name in self.notifiers:
                 del self.notifiers[channel_name]
-            logger.info(f"Removed notification channel: {channel_name}")
+            _backend_logger.info(
+                f"Removed notification channel: {channel_name}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.alerting_system"
+            )
             return True
         return False
     
@@ -403,7 +461,11 @@ class AlertingSystem:
                 if rule.condition(metrics):
                     await self._trigger_alert(rule, metrics)
             except Exception as e:
-                logger.error(f"Error checking alert rule {rule_name}: {e}")
+                _backend_logger.error(
+                    f"Error checking alert rule {rule_name}: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.alerting_system"
+                )
     
     async def _trigger_alert(self, rule: AlertRule, metrics: Dict[str, Any]):
         """Trigger an alert."""
@@ -431,37 +493,61 @@ class AlertingSystem:
         
         # Send notifications
         await self._send_notifications(alert, rule.notification_channels)
-        
-        logger.warning(f"Alert triggered: {rule.name} - {rule.description}")
-    
+
+        _backend_logger.warn(
+            f"Alert triggered: {rule.name} - {rule.description}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.alerting_system"
+        )
+
     async def _send_notifications(self, alert: Alert, channels: List[str]):
         """Send notifications through specified channels."""
         for channel_name in channels:
             if channel_name not in self.notifiers:
-                logger.warning(f"Notification channel not found: {channel_name}")
+                _backend_logger.warn(
+                    f"Notification channel not found: {channel_name}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.alerting_system"
+                )
                 continue
-            
+
             notifier = self.notifiers[channel_name]
             try:
                 success = await notifier.send_notification(alert)
                 if success:
-                    logger.info(f"Notification sent via {channel_name} for alert {alert.id}")
+                    _backend_logger.info(
+                        f"Notification sent via {channel_name} for alert {alert.id}",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.core.alerting_system"
+                    )
                 else:
-                    logger.error(f"Failed to send notification via {channel_name} for alert {alert.id}")
+                    _backend_logger.error(
+                        f"Failed to send notification via {channel_name} for alert {alert.id}",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.core.alerting_system"
+                    )
             except Exception as e:
-                logger.error(f"Error sending notification via {channel_name}: {e}")
-    
+                _backend_logger.error(
+                    f"Error sending notification via {channel_name}: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.alerting_system"
+                )
+
     async def acknowledge_alert(self, alert_id: str, user: str) -> bool:
         """Acknowledge an alert."""
         if alert_id not in self.active_alerts:
             return False
-        
+
         alert = self.active_alerts[alert_id]
         alert.status = AlertStatus.ACKNOWLEDGED
         alert.acknowledged_by = user
         alert.acknowledged_at = datetime.utcnow()
-        
-        logger.info(f"Alert {alert_id} acknowledged by {user}")
+
+        _backend_logger.info(
+            f"Alert {alert_id} acknowledged by {user}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.alerting_system"
+        )
         return True
     
     async def resolve_alert(self, alert_id: str, user: str) -> bool:
@@ -476,19 +562,27 @@ class AlertingSystem:
         
         # Remove from active alerts
         del self.active_alerts[alert_id]
-        
-        logger.info(f"Alert {alert_id} resolved by {user}")
+
+        _backend_logger.info(
+            f"Alert {alert_id} resolved by {user}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.alerting_system"
+        )
         return True
-    
+
     async def suppress_alert(self, alert_id: str, user: str) -> bool:
         """Suppress an alert."""
         if alert_id not in self.active_alerts:
             return False
-        
+
         alert = self.active_alerts[alert_id]
         alert.status = AlertStatus.SUPPRESSED
-        
-        logger.info(f"Alert {alert_id} suppressed by {user}")
+
+        _backend_logger.info(
+            f"Alert {alert_id} suppressed by {user}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.alerting_system"
+        )
         return True
     
     def get_active_alerts(self) -> List[Alert]:
@@ -520,27 +614,39 @@ class AlertingSystem:
     async def start(self):
         """Start the alerting system."""
         self.is_running = True
-        logger.info("Alerting system started")
-    
+        _backend_logger.info(
+            "Alerting system started",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.alerting_system"
+        )
+
     async def stop(self):
         """Stop the alerting system."""
         self.is_running = False
-        logger.info("Alerting system stopped")
-    
+        _backend_logger.info(
+            "Alerting system stopped",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.alerting_system"
+        )
+
     async def cleanup_old_alerts(self, days: int = 7):
         """Clean up old alerts."""
         cutoff_date = datetime.utcnow() - timedelta(days=days)
-        
+
         # Remove old alerts from history
         old_alerts = [alert for alert in self.alert_history if alert.created_at < cutoff_date]
         for alert in old_alerts:
             self.alert_history.remove(alert)
-        
+
         # Remove old alert counts
         for rule_name, timestamps in self.alert_counts.items():
             self.alert_counts[rule_name] = [t for t in timestamps if t > cutoff_date]
-        
-        logger.info(f"Cleaned up {len(old_alerts)} old alerts")
+
+        _backend_logger.info(
+            f"Cleaned up {len(old_alerts)} old alerts",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.alerting_system"
+        )
 
 
 # Global alerting system instance
@@ -562,15 +668,19 @@ async def check_system_alerts(metrics: Dict[str, Any]):
     await system.check_alerts(metrics)
 
 
-async def trigger_manual_alert(rule_name: str, message: str, severity: AlertSeverity, 
+async def trigger_manual_alert(rule_name: str, message: str, severity: AlertSeverity,
                              details: Dict[str, Any]):
     """Trigger a manual alert."""
     system = get_alerting_system()
-    
+
     if rule_name not in system.alert_rules:
-        logger.error(f"Alert rule not found: {rule_name}")
+        _backend_logger.error(
+            f"Alert rule not found: {rule_name}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.alerting_system"
+        )
         return False
-    
+
     rule = system.alert_rules[rule_name]
     await system._trigger_alert(rule, details)
     return True

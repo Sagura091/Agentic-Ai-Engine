@@ -11,14 +11,15 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional, AsyncGenerator, Union
 
-import structlog
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
 from app.config.settings import get_settings
 from app.orchestration.subgraphs import HierarchicalWorkflowOrchestrator
 
-logger = structlog.get_logger(__name__)
+_backend_logger = get_backend_logger()
 
 
 class OpenAIMessage(BaseModel):
@@ -70,9 +71,13 @@ class OpenWebUIPipeline:
         self.settings = get_settings()
         self.orchestrator: Optional[HierarchicalWorkflowOrchestrator] = None
         self.available_models: Dict[str, Dict[str, Any]] = {}
-        
-        logger.info("OpenWebUI pipeline initialized")
-    
+
+        _backend_logger.info(
+            "OpenWebUI pipeline initialized",
+            LogCategory.API_OPERATIONS,
+            "app.integrations.openwebui.pipeline"
+        )
+
     async def initialize(self) -> None:
         """Initialize the pipeline and orchestrator."""
         try:
@@ -82,14 +87,24 @@ class OpenWebUIPipeline:
 
             if not self.orchestrator.status.is_initialized:
                 await self.orchestrator.initialize()
-            
+
             # Register default agent models
             await self._register_default_models()
-            
-            logger.info("OpenWebUI pipeline ready", models_count=len(self.available_models))
-            
+
+            _backend_logger.info(
+                "OpenWebUI pipeline ready",
+                LogCategory.API_OPERATIONS,
+                "app.integrations.openwebui.pipeline",
+                data={"models_count": len(self.available_models)}
+            )
+
         except Exception as e:
-            logger.error("Failed to initialize OpenWebUI pipeline", error=str(e))
+            _backend_logger.error(
+                "Failed to initialize OpenWebUI pipeline",
+                LogCategory.API_OPERATIONS,
+                "app.integrations.openwebui.pipeline",
+                data={"error": str(e)}
+            )
             raise
     
     async def _register_default_models(self) -> None:
@@ -120,8 +135,13 @@ class OpenWebUIPipeline:
         
         for model in default_models:
             self.available_models[model["id"]] = model
-            
-        logger.info("Default agent models registered", count=len(default_models))
+
+        _backend_logger.info(
+            "Default agent models registered",
+            LogCategory.API_OPERATIONS,
+            "app.integrations.openwebui.pipeline",
+            data={"count": len(default_models)}
+        )
     
     async def get_models(self) -> Dict[str, Any]:
         """
@@ -185,9 +205,14 @@ class OpenWebUIPipeline:
                 return self._create_streaming_response(result, request)
             else:
                 return self._create_completion_response(result, request)
-                
+
         except Exception as e:
-            logger.error("Chat completion failed", error=str(e), model=request.model)
+            _backend_logger.error(
+                "Chat completion failed",
+                LogCategory.API_OPERATIONS,
+                "app.integrations.openwebui.pipeline",
+                data={"error": str(e), "model": request.model}
+            )
             raise HTTPException(status_code=500, detail=str(e))
     
     def _extract_task_from_messages(self, messages: List[OpenAIMessage]) -> str:
@@ -243,11 +268,16 @@ class OpenWebUIPipeline:
             )
             
             return result
-            
+
         except Exception as e:
-            logger.error("Agent execution failed", error=str(e))
+            _backend_logger.error(
+                "Agent execution failed",
+                LogCategory.API_OPERATIONS,
+                "app.integrations.openwebui.pipeline",
+                data={"error": str(e)}
+            )
             raise
-    
+
     async def _execute_workflow(
         self,
         task: str,
@@ -266,11 +296,16 @@ class OpenWebUIPipeline:
                     "model": request.model
                 }
             )
-            
+
             return result
-            
+
         except Exception as e:
-            logger.error("Workflow execution failed", error=str(e))
+            _backend_logger.error(
+                "Workflow execution failed",
+                LogCategory.API_OPERATIONS,
+                "app.integrations.openwebui.pipeline",
+                data={"error": str(e)}
+            )
             raise
     
     def _create_completion_response(

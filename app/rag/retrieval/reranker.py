@@ -32,7 +32,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 import hashlib
 
-import structlog
 from pydantic import BaseModel, Field
 import numpy as np
 
@@ -52,7 +51,12 @@ except ImportError:
     TORCH_AVAILABLE = False
     torch = None
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class RerankerModel(str, Enum):
@@ -146,9 +150,13 @@ class Reranker:
         
         logger.info(
             "Reranker initialized",
-            model=self.config.model_name.value,
-            device=self.device,
-            caching=self.config.enable_caching
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.reranker.Reranker",
+            data={
+                "model": self.config.model_name.value,
+                "device": self.device,
+                "caching": self.config.enable_caching
+            }
         )
     
     async def initialize(self) -> None:
@@ -161,7 +169,11 @@ class Reranker:
                 return
 
             if not CROSS_ENCODER_AVAILABLE:
-                logger.error("sentence-transformers not available for reranking")
+                logger.error(
+                    "sentence-transformers not available for reranking",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.retrieval.reranker.Reranker"
+                )
                 raise ImportError("sentence-transformers required for reranking")
 
             try:
@@ -173,10 +185,20 @@ class Reranker:
                 )
 
                 self._initialized = True
-                logger.info(f"Reranker model loaded: {self.config.model_name.value}")
+                logger.info(
+                    f"Reranker model loaded: {self.config.model_name.value}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.retrieval.reranker.Reranker",
+                    data={"model": self.config.model_name.value}
+                )
 
             except Exception as e:
-                logger.error(f"Failed to initialize reranker: {e}")
+                logger.error(
+                    f"Failed to initialize reranker: {e}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.retrieval.reranker.Reranker",
+                    error=e
+                )
                 raise
 
     def _load_model(self) -> Any:
@@ -201,7 +223,12 @@ class Reranker:
                 if model_info and model_info.is_downloaded:
                     logger.info(
                         f"Loading reranker from centralized storage: {model_spec.local_name}",
-                        path=model_info.local_path
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.retrieval.reranker.Reranker",
+                        data={
+                            "model": model_spec.local_name,
+                            "path": str(model_info.local_path)
+                        }
                     )
                     return CrossEncoder(
                         model_info.local_path,
@@ -210,8 +237,11 @@ class Reranker:
                     )
 
             # Fallback: Load from HuggingFace (will download if needed)
-            logger.warning(
-                f"Reranker model not in centralized storage, downloading from HuggingFace: {model_id}"
+            logger.warn(
+                f"Reranker model not in centralized storage, downloading from HuggingFace: {model_id}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.reranker.Reranker",
+                data={"model_id": model_id}
             )
             return CrossEncoder(
                 model_id,
@@ -221,7 +251,11 @@ class Reranker:
 
         except ImportError:
             # Model manager not available, use direct loading
-            logger.warning("Model manager not available, loading reranker directly from HuggingFace")
+            logger.warn(
+                "Model manager not available, loading reranker directly from HuggingFace",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.reranker.Reranker"
+            )
             return CrossEncoder(
                 self.config.model_name.value,
                 max_length=self.config.max_length,
@@ -251,7 +285,11 @@ class Reranker:
         start_time = time.time()
         
         if not results:
-            logger.warning("No results to rerank")
+            logger.warn(
+                "No results to rerank",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.reranker.Reranker"
+            )
             return []
         
         # Limit reranking to top K if configured
@@ -274,7 +312,11 @@ class Reranker:
                 metadata = result.get('metadata', {})
                 
                 if not doc_id or not content:
-                    logger.warning("Skipping result with missing doc_id or content")
+                    logger.warn(
+                        "Skipping result with missing doc_id or content",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.retrieval.reranker.Reranker"
+                    )
                     continue
                 
                 pairs.append([query, content])
@@ -285,7 +327,11 @@ class Reranker:
                 metadatas.append(metadata)
             
             if not pairs:
-                logger.warning("No valid pairs to rerank")
+                logger.warn(
+                    "No valid pairs to rerank",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.retrieval.reranker.Reranker"
+                )
                 return []
             
             # Check cache
@@ -296,7 +342,12 @@ class Reranker:
                     entry.access_count += 1
                     self._metrics['cache_hits'] += 1
                     rerank_scores = entry.scores
-                    logger.debug(f"Rerank cache hit for query: {query[:50]}")
+                    logger.debug(
+                        f"Rerank cache hit for query: {query[:50]}",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.retrieval.reranker.Reranker",
+                        data={"query_preview": query[:50]}
+                    )
                 else:
                     # Cache expired
                     del self._cache[cache_key]
@@ -352,16 +403,26 @@ class Reranker:
             
             logger.debug(
                 f"Reranking completed",
-                query=query[:50],
-                results_count=len(reranked_results),
-                rerank_time_ms=rerank_time_ms
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.reranker.Reranker",
+                data={
+                    "query_preview": query[:50],
+                    "results_count": len(reranked_results),
+                    "rerank_time_ms": rerank_time_ms
+                }
             )
-            
+
             return reranked_results
-            
+
         except Exception as e:
             self._metrics['errors'] += 1
-            logger.error(f"Reranking failed: {e}", query=query[:50])
+            logger.error(
+                f"Reranking failed: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.reranker.Reranker",
+                error=e,
+                data={"query_preview": query[:50]}
+            )
             
             # Fallback to original scores if configured
             if self.config.fallback_to_original:
@@ -406,7 +467,11 @@ class Reranker:
         Returns:
             List of RerankResult using original scores
         """
-        logger.warning("Falling back to original scores")
+        logger.warn(
+            "Falling back to original scores",
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.reranker.Reranker"
+        )
 
         reranked_results = []
         for idx, result in enumerate(results, 1):
@@ -464,14 +529,22 @@ class Reranker:
     def clear_cache(self) -> None:
         """Clear reranking cache."""
         self._cache.clear()
-        logger.info("Reranker cache cleared")
+        logger.info(
+            "Reranker cache cleared",
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.reranker.Reranker"
+        )
 
     async def cleanup(self) -> None:
         """Cleanup resources."""
         self._cache.clear()
         self._model = None
         self._initialized = False
-        logger.info("Reranker cleaned up")
+        logger.info(
+            "Reranker cleaned up",
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.reranker.Reranker"
+        )
 
 
 # Global reranker instance

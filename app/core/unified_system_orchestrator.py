@@ -30,7 +30,6 @@ from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 from dataclasses import dataclass, field
 
-import structlog
 from pydantic import BaseModel, Field
 
 # Import THE unified system components - ALL PHASES
@@ -41,7 +40,10 @@ from app.memory.unified_memory_system import UnifiedMemorySystem
 from app.tools.unified_tool_repository import UnifiedToolRepository
 from app.communication.agent_communication_system import AgentCommunicationSystem
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
+_backend_logger = get_backend_logger()
 
 
 class SystemConfig(BaseModel):
@@ -110,52 +112,96 @@ class UnifiedSystemOrchestrator:
         self._shutdown_event = asyncio.Event()
         self._setup_signal_handlers()
 
-        logger.info("THE Unified system orchestrator created")
-    
+        _backend_logger.info(
+            "THE Unified system orchestrator created",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.unified_system_orchestrator"
+        )
+
     async def initialize(self) -> None:
         """Initialize THE entire unified system - ALL PHASES."""
         try:
             if self.status.is_initialized:
-                logger.warning("System already initialized")
+                _backend_logger.warn(
+                    "System already initialized",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
                 return
 
-            logger.warning("🚀 Initializing THE Unified Multi-Agent System...")
+            _backend_logger.warn(
+                "🚀 Initializing THE Unified Multi-Agent System...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             self.status.start_time = datetime.utcnow()
 
             # PHASE 1: Foundation (Weeks 1-3)
-            logger.debug("🏗️ PHASE 1: Foundation - Unified RAG System core, Collection-based KB manager, Basic agent isolation")
+            _backend_logger.debug(
+                "🏗️ PHASE 1: Foundation - Unified RAG System core, Collection-based KB manager, Basic agent isolation",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             await self._initialize_phase_1_foundation()
 
             # PHASE 2: Memory & Tools (Weeks 4-6)
-            logger.debug("🧠 PHASE 2: Memory & Tools - Unified memory system, Tool repository consolidation, Agent-specific memory collections")
+            _backend_logger.debug(
+                "🧠 PHASE 2: Memory & Tools - Unified memory system, Tool repository consolidation, Agent-specific memory collections",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             await self._initialize_phase_2_memory_tools()
 
             # PHASE 3: Communication (Weeks 7-9)
             if self.config.enable_communication:
-                logger.debug("📡 PHASE 3: Communication - Agent communication layer, Knowledge sharing protocols, Collaboration mechanisms")
+                _backend_logger.debug(
+                    "📡 PHASE 3: Communication - Agent communication layer, Knowledge sharing protocols, Collaboration mechanisms",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
                 await self._initialize_phase_3_communication()
 
             # PHASE 4: Optimization (Weeks 10-11)
             if self.config.enable_optimization:
-                logger.debug("⚡ PHASE 4: Optimization - Performance tuning, Advanced access controls, Monitoring & analytics")
+                _backend_logger.debug(
+                    "⚡ PHASE 4: Optimization - Performance tuning, Advanced access controls, Monitoring & analytics",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
                 await self._initialize_phase_4_optimization()
 
             # REVOLUTIONARY: Component Workflow Execution System
-            logger.debug("🚀 REVOLUTIONARY: Initializing Component Workflow Execution System...")
+            _backend_logger.debug(
+                "🚀 REVOLUTIONARY: Initializing Component Workflow Execution System...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             await self._initialize_component_workflow_system()
 
             # Final system validation
-            logger.debug("✅ Final System Validation...")
+            _backend_logger.debug(
+                "✅ Final System Validation...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             await self._validate_system_integrity()
 
             self.status.is_initialized = True
             self.status.is_running = True
 
-            logger.warning("🎉 Unified Multi-Agent System initialized successfully!")
+            _backend_logger.warn(
+                "🎉 Unified Multi-Agent System initialized successfully!",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             await self._log_system_summary()
-            
+
         except Exception as e:
-            logger.error(f"❌ Failed to initialize unified system: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to initialize unified system: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             await self._cleanup_partial_initialization()
             raise
     
@@ -163,19 +209,35 @@ class UnifiedSystemOrchestrator:
         """Initialize PHASE 1: Foundation components."""
         try:
             # 1. Initialize THE UnifiedRAGSystem (THE single RAG system)
-            logger.debug("   🎯 Initializing THE UnifiedRAGSystem...")
+            _backend_logger.debug(
+                "   🎯 Initializing THE UnifiedRAGSystem...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             self.unified_rag = UnifiedRAGSystem(self.config.rag_config)
             await self.unified_rag.initialize()
             self.status.components_status["unified_rag"] = True
 
             # 🚀 Initialize Revolutionary Dynamic RAG Configuration Manager
-            logger.debug("   🔧 Initializing Revolutionary Dynamic RAG Configuration Manager...")
+            _backend_logger.debug(
+                "   🔧 Initializing Revolutionary Dynamic RAG Configuration Manager...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             from app.rag.core.dynamic_config_manager import initialize_rag_config_manager, rag_config_manager
             await initialize_rag_config_manager(self.unified_rag)
-            logger.debug("   ✅ RAG Configuration Manager initialized - Real-time updates enabled!")
+            _backend_logger.debug(
+                "   ✅ RAG Configuration Manager initialized - Real-time updates enabled!",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
 
             # 🚀 Initialize Revolutionary Global Configuration Manager
-            logger.info("   🌐 Initializing Revolutionary Global Configuration Manager...")
+            _backend_logger.info(
+                "   🌐 Initializing Revolutionary Global Configuration Manager...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             from app.core.global_config_manager import global_config_manager, initialize_global_config_manager
             from app.core.config_sections.rag_section_manager import RAGSectionManager
             from app.core.config_sections.llm_section_manager import LLMSectionManager
@@ -200,7 +262,11 @@ class UnifiedSystemOrchestrator:
             global_config_manager.register_observer(rag_observer)
 
             # 🚀 Register LLM Provider Section Manager
-            logger.info("   🤖 Registering LLM Provider Section Manager...")
+            _backend_logger.info(
+                "   🤖 Registering LLM Provider Section Manager...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             llm_section_manager = LLMSectionManager()
             # LLM service and manager will be set when they're initialized
             global_config_manager.register_section_manager(llm_section_manager)
@@ -211,7 +277,11 @@ class UnifiedSystemOrchestrator:
             global_config_manager.register_observer(llm_observer)
 
             # 🚀 Register Memory System Section Manager
-            logger.info("   🧠 Registering Memory System Section Manager...")
+            _backend_logger.info(
+                "   🧠 Registering Memory System Section Manager...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             memory_section_manager = MemorySectionManager()
             memory_section_manager.set_unified_rag_system(self.unified_rag)
             # Unified memory system will be set when it's initialized
@@ -224,7 +294,11 @@ class UnifiedSystemOrchestrator:
             global_config_manager.register_observer(memory_observer)
 
             # 🚀 Register Database Storage Section Manager
-            logger.info("   🗄️ Registering Database Storage Section Manager...")
+            _backend_logger.info(
+                "   🗄️ Registering Database Storage Section Manager...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             database_section_manager = DatabaseSectionManager()
             global_config_manager.register_section_manager(database_section_manager)
 
@@ -232,55 +306,103 @@ class UnifiedSystemOrchestrator:
             await database_observer.initialize()
             global_config_manager.register_observer(database_observer)
 
-            logger.info("   ✅ Global Configuration Manager initialized - Revolutionary real-time configuration management enabled!")
-            logger.info("   ✅ LLM Provider Configuration Manager registered - Real-time provider switching enabled!")
-            logger.info("   ✅ Memory System Configuration Manager registered - Real-time memory management enabled!")
+            _backend_logger.info(
+                "   ✅ Global Configuration Manager initialized - Revolutionary real-time configuration management enabled!",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
+            _backend_logger.info(
+                "   ✅ LLM Provider Configuration Manager registered - Real-time provider switching enabled!",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
+            _backend_logger.info(
+                "   ✅ Memory System Configuration Manager registered - Real-time memory management enabled!",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
 
             # 2. Initialize THE CollectionBasedKBManager (THE knowledge base system)
-            logger.info("   📚 Initializing THE CollectionBasedKBManager...")
+            _backend_logger.info(
+                "   📚 Initializing THE CollectionBasedKBManager...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             self.kb_manager = CollectionBasedKBManager(self.unified_rag)
             await self.kb_manager.initialize()
             self.status.components_status["kb_manager"] = True
 
             # 3. Initialize THE AgentIsolationManager (THE agent isolation system)
-            logger.info("   🔒 Initializing THE AgentIsolationManager...")
+            _backend_logger.info(
+                "   🔒 Initializing THE AgentIsolationManager...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             self.isolation_manager = AgentIsolationManager(self.unified_rag)
             await self.isolation_manager.initialize()
             self.status.components_status["isolation_manager"] = True
 
-            logger.info("✅ PHASE 1 Foundation: COMPLETE")
+            _backend_logger.info(
+                "✅ PHASE 1 Foundation: COMPLETE",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to initialize PHASE 1 Foundation: {str(e)}")
+            _backend_logger.error(
+                f"Failed to initialize PHASE 1 Foundation: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             raise
 
     async def _initialize_phase_2_memory_tools(self) -> None:
         """Initialize PHASE 2: Memory & Tools components."""
         try:
             # 1. Initialize THE UnifiedMemorySystem (THE memory system)
-            logger.info("   🧠 Initializing THE UnifiedMemorySystem...")
+            _backend_logger.info(
+                "   🧠 Initializing THE UnifiedMemorySystem...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             self.memory_system = UnifiedMemorySystem(self.unified_rag)
             await self.memory_system.initialize()
             self.status.components_status["memory_system"] = True
 
             # 🚀 Register memory system with configuration managers
-            logger.info("   🔧 Registering memory system with configuration managers...")
+            _backend_logger.info(
+                "   🔧 Registering memory system with configuration managers...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             from app.core.global_config_manager import global_config_manager
 
             # Find and update memory section manager
             for section_manager in global_config_manager._section_managers.values():
                 if hasattr(section_manager, 'set_unified_memory_system'):
                     section_manager.set_unified_memory_system(self.memory_system)
-                    logger.info("   ✅ Memory system registered with memory section manager")
+                    _backend_logger.info(
+                        "   ✅ Memory system registered with memory section manager",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.core.unified_system_orchestrator"
+                    )
 
             # Find and update memory observer
             for observer in global_config_manager._observers.get("memory_system", []):
                 if hasattr(observer, 'set_unified_memory_system'):
                     observer.set_unified_memory_system(self.memory_system)
-                    logger.info("   ✅ Memory system registered with memory observer")
+                    _backend_logger.info(
+                        "   ✅ Memory system registered with memory observer",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.core.unified_system_orchestrator"
+                    )
 
             # 2. Initialize THE UnifiedToolRepository (THE tool system)
-            logger.info("   🔧 Initializing THE UnifiedToolRepository...")
+            _backend_logger.info(
+                "   🔧 Initializing THE UnifiedToolRepository...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             self.tool_repository = UnifiedToolRepository(self.unified_rag, self.isolation_manager)
             await self.tool_repository.initialize()
 
@@ -289,19 +411,35 @@ class UnifiedSystemOrchestrator:
             self.status.components_status["tool_repository"] = True
 
             # 3. Initialize THE Hybrid RAG Integration (THE complete RAG system)
-            logger.info("   🚀 Initializing THE Hybrid RAG Integration...")
+            _backend_logger.info(
+                "   🚀 Initializing THE Hybrid RAG Integration...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             await self._initialize_hybrid_rag_integration()
             self.status.components_status["hybrid_rag_integration"] = True
 
             # CRITICAL FIX: Initialize automatic memory consolidation service
-            logger.info("   🔄 Initializing Memory Consolidation Service...")
+            _backend_logger.info(
+                "   🔄 Initializing Memory Consolidation Service...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             await self._initialize_memory_consolidation_service()
             self.status.components_status["memory_consolidation_service"] = True
 
-            logger.info("✅ PHASE 2 Memory & Tools: COMPLETE")
+            _backend_logger.info(
+                "✅ PHASE 2 Memory & Tools: COMPLETE",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to initialize core systems: {str(e)}")
+            _backend_logger.error(
+                f"Failed to initialize core systems: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             raise
 
     async def _initialize_memory_consolidation_service(self) -> None:
@@ -328,21 +466,34 @@ class UnifiedSystemOrchestrator:
             # Start the service
             await self.memory_consolidation_service.start()
 
-            logger.info(
+            _backend_logger.info(
                 "Memory consolidation service initialized and started",
-                interval_hours=6,
-                consolidation_threshold=100
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator",
+                data={"interval_hours": 6, "consolidation_threshold": 100}
             )
 
         except Exception as e:
-            logger.error(f"Failed to initialize memory consolidation service: {e}", exc_info=True)
+            _backend_logger.error(
+                f"Failed to initialize memory consolidation service: {e}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             # Don't raise - consolidation is important but not critical for startup
-            logger.warning("System will continue without automatic memory consolidation")
+            _backend_logger.warn(
+                "System will continue without automatic memory consolidation",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
 
     async def _register_builtin_tools(self):
         """Register all built-in tools with the tool repository."""
         try:
-            logger.info("🔧 Registering built-in tools...")
+            _backend_logger.info(
+                "🔧 Registering built-in tools...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
 
             # Import and register calculator tool
             try:
@@ -359,9 +510,17 @@ class UnifiedSystemOrchestrator:
                     use_cases=["calculation", "math", "arithmetic", "computation"]
                 )
                 await self.tool_repository.register_tool(calculator_tool, metadata)
-                logger.debug("✅ Registered calculator tool")
+                _backend_logger.debug(
+                    "✅ Registered calculator tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register calculator tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register calculator tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             # Import and register revolutionary web research tool
             try:
@@ -381,9 +540,17 @@ class UnifiedSystemOrchestrator:
                     ]
                 )
                 await self.tool_repository.register_tool(web_research_tool, metadata)
-                logger.info("✅ Registered revolutionary web research tool")
+                _backend_logger.info(
+                    "✅ Registered revolutionary web research tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register revolutionary web research tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register revolutionary web research tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             # Import and register production tools
             try:
@@ -402,9 +569,17 @@ class UnifiedSystemOrchestrator:
                     ]
                 )
                 await self.tool_repository.register_tool(file_system_tool, metadata)
-                logger.info("✅ Registered file system tool")
+                _backend_logger.info(
+                    "✅ Registered file system tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register file system tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register file system tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             try:
                 from app.tools.production.api_integration_tool import api_integration_tool
@@ -422,9 +597,17 @@ class UnifiedSystemOrchestrator:
                     ]
                 )
                 await self.tool_repository.register_tool(api_integration_tool, metadata)
-                logger.info("✅ Registered API integration tool")
+                _backend_logger.info(
+                    "✅ Registered API integration tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register API integration tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register API integration tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             # Register remaining Week 1 production tools
             try:
@@ -443,9 +626,17 @@ class UnifiedSystemOrchestrator:
                     ]
                 )
                 await self.tool_repository.register_tool(database_operations_tool, metadata)
-                logger.info("✅ Registered database operations tool")
+                _backend_logger.info(
+                    "✅ Registered database operations tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register database operations tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register database operations tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             try:
                 from app.tools.production.text_processing_nlp_tool import text_processing_nlp_tool
@@ -463,9 +654,17 @@ class UnifiedSystemOrchestrator:
                     ]
                 )
                 await self.tool_repository.register_tool(text_processing_nlp_tool, metadata)
-                logger.info("✅ Registered text processing & NLP tool")
+                _backend_logger.info(
+                    "✅ Registered text processing & NLP tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register text processing & NLP tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register text processing & NLP tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             try:
                 from app.tools.production.password_security_tool import password_security_tool
@@ -483,9 +682,17 @@ class UnifiedSystemOrchestrator:
                     ]
                 )
                 await self.tool_repository.register_tool(password_security_tool, metadata)
-                logger.info("✅ Registered password & security tool")
+                _backend_logger.info(
+                    "✅ Registered password & security tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register password & security tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register password & security tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             try:
                 from app.tools.production.notification_alert_tool import notification_alert_tool
@@ -503,9 +710,17 @@ class UnifiedSystemOrchestrator:
                     ]
                 )
                 await self.tool_repository.register_tool(notification_alert_tool, metadata)
-                logger.info("✅ Registered notification & alert tool")
+                _backend_logger.info(
+                    "✅ Registered notification & alert tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register notification & alert tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register notification & alert tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             try:
                 from app.tools.production.qr_barcode_tool import qr_barcode_tool
@@ -523,9 +738,17 @@ class UnifiedSystemOrchestrator:
                     ]
                 )
                 await self.tool_repository.register_tool(qr_barcode_tool, metadata)
-                logger.info("✅ Registered QR code & barcode tool")
+                _backend_logger.info(
+                    "✅ Registered QR code & barcode tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register QR code & barcode tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register QR code & barcode tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             try:
                 from app.tools.production.weather_environmental_tool import weather_environmental_tool
@@ -543,9 +766,17 @@ class UnifiedSystemOrchestrator:
                     ]
                 )
                 await self.tool_repository.register_tool(weather_environmental_tool, metadata)
-                logger.info("✅ Registered weather & environmental tool")
+                _backend_logger.info(
+                    "✅ Registered weather & environmental tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register weather & environmental tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register weather & environmental tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             # 🚀 REVOLUTIONARY AUTOMATION TOOLS - NEW CATEGORY
             try:
@@ -565,9 +796,17 @@ class UnifiedSystemOrchestrator:
                     ]
                 )
                 await self.tool_repository.register_tool(screenshot_analysis_tool, metadata)
-                logger.info("🚀 Registered REVOLUTIONARY Screenshot Analysis Tool")
+                _backend_logger.info(
+                    "🚀 Registered REVOLUTIONARY Screenshot Analysis Tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register screenshot analysis tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register screenshot analysis tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             try:
                 from app.tools.production.browser_automation_tool import browser_automation_tool
@@ -586,9 +825,17 @@ class UnifiedSystemOrchestrator:
                     ]
                 )
                 await self.tool_repository.register_tool(browser_automation_tool, metadata)
-                logger.info("🚀 Registered REVOLUTIONARY Browser Automation Tool")
+                _backend_logger.info(
+                    "🚀 Registered REVOLUTIONARY Browser Automation Tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register browser automation tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register browser automation tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             try:
                 from app.tools.production.computer_use_agent_tool import computer_use_agent_tool
@@ -607,9 +854,17 @@ class UnifiedSystemOrchestrator:
                     ]
                 )
                 await self.tool_repository.register_tool(computer_use_agent_tool, metadata)
-                logger.info("🚀 Registered REVOLUTIONARY Computer Use Agent Tool")
+                _backend_logger.info(
+                    "🚀 Registered REVOLUTIONARY Computer Use Agent Tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register computer use agent tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register computer use agent tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             try:
                 from app.tools.production.revolutionary_document_intelligence_tool import RevolutionaryDocumentIntelligenceTool
@@ -632,9 +887,17 @@ class UnifiedSystemOrchestrator:
                     ]
                 )
                 await self.tool_repository.register_tool(document_intelligence_tool, metadata)
-                logger.info("🔥 Registered REVOLUTIONARY Document Intelligence Tool")
+                _backend_logger.info(
+                    "🔥 Registered REVOLUTIONARY Document Intelligence Tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register revolutionary document intelligence tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register revolutionary document intelligence tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             # Import and register REVOLUTIONARY WEB SCRAPER TOOL
             try:
@@ -660,9 +923,17 @@ class UnifiedSystemOrchestrator:
                     ]
                 )
                 await self.tool_repository.register_tool(revolutionary_web_scraper_tool, metadata)
-                logger.info("🌐 Registered REVOLUTIONARY WEB SCRAPER TOOL - THE ULTIMATE INTERNET DOMINATION SYSTEM!")
+                _backend_logger.info(
+                    "🌐 Registered REVOLUTIONARY WEB SCRAPER TOOL - THE ULTIMATE INTERNET DOMINATION SYSTEM!",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register revolutionary web scraper tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register revolutionary web scraper tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             # Import and register general business intelligence tool
             try:
@@ -679,9 +950,17 @@ class UnifiedSystemOrchestrator:
                     use_cases=["business_analysis", "financial_analysis", "data_generation", "business_planning", "strategic_analysis"]
                 )
                 await self.tool_repository.register_tool(general_bi_tool, metadata)
-                logger.info("✅ Registered general business intelligence tool")
+                _backend_logger.info(
+                    "✅ Registered general business intelligence tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register general business intelligence tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register general business intelligence tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             # Import and register stock business intelligence tool (for stock analysis)
             try:
@@ -698,9 +977,17 @@ class UnifiedSystemOrchestrator:
                     use_cases=["stock_analysis", "market_research", "financial_reporting"]
                 )
                 await self.tool_repository.register_tool(stock_bi_tool, metadata)
-                logger.info("✅ Registered stock business intelligence tool")
+                _backend_logger.info(
+                    "✅ Registered stock business intelligence tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register stock business intelligence tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register stock business intelligence tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             # Import and register RAG knowledge tools
             try:
@@ -724,7 +1011,11 @@ class UnifiedSystemOrchestrator:
                     use_cases=["knowledge_search", "rag", "information_retrieval"]
                 )
                 await self.tool_repository.register_tool(knowledge_tool, metadata)
-                logger.info("✅ Registered knowledge search tool")
+                _backend_logger.info(
+                    "✅ Registered knowledge search tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
                 # Document ingest tool
                 ingest_tool = AgentDocumentIngestTool(
@@ -740,10 +1031,18 @@ class UnifiedSystemOrchestrator:
                     use_cases=["document_ingest", "knowledge_management"]
                 )
                 await self.tool_repository.register_tool(ingest_tool, metadata)
-                logger.info("✅ Registered document ingest tool")
+                _backend_logger.info(
+                    "✅ Registered document ingest tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             except Exception as e:
-                logger.warning(f"Failed to register RAG tools: {e}")
+                _backend_logger.warn(
+                    f"Failed to register RAG tools: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             # Import and register meme tools
             try:
@@ -754,20 +1053,36 @@ class UnifiedSystemOrchestrator:
                 # Register meme collection tool
                 collection_tool = get_meme_collection_tool()
                 await self.tool_repository.register_tool(collection_tool, MEME_COLLECTION_TOOL_METADATA)
-                logger.info("✅ Registered meme collection tool")
+                _backend_logger.info(
+                    "✅ Registered meme collection tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
                 # Register meme analysis tool
                 analysis_tool = get_meme_analysis_tool()
                 await self.tool_repository.register_tool(analysis_tool, MEME_ANALYSIS_TOOL_METADATA)
-                logger.info("✅ Registered meme analysis tool")
+                _backend_logger.info(
+                    "✅ Registered meme analysis tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
                 # Register meme generation tool
                 generation_tool = get_meme_generation_tool()
                 await self.tool_repository.register_tool(generation_tool, MEME_GENERATION_TOOL_METADATA)
-                logger.info("✅ Registered meme generation tool")
+                _backend_logger.info(
+                    "✅ Registered meme generation tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             except Exception as e:
-                logger.warning(f"Failed to register meme tools: {e}")
+                _backend_logger.warn(
+                    f"Failed to register meme tools: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             # Import and register screen capture tool
             try:
@@ -784,9 +1099,17 @@ class UnifiedSystemOrchestrator:
                     use_cases=["screen_capture", "visual_analysis", "ocr", "automation", "testing", "documentation"]
                 )
                 await self.tool_repository.register_tool(screen_capture_tool, metadata)
-                logger.info("🖥️ Registered Revolutionary Screen Capture Tool")
+                _backend_logger.info(
+                    "🖥️ Registered Revolutionary Screen Capture Tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register screen capture tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register screen capture tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             # Import and register social media orchestrator tool
             try:
@@ -803,9 +1126,17 @@ class UnifiedSystemOrchestrator:
                     use_cases=["social_media", "content_creation", "marketing", "engagement", "analytics", "automation"]
                 )
                 await self.tool_repository.register_tool(social_media_tool, metadata)
-                logger.info("📱 Registered Revolutionary Social Media Orchestrator Tool")
+                _backend_logger.info(
+                    "📱 Registered Revolutionary Social Media Orchestrator Tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register social media orchestrator tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register social media orchestrator tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             # Import and register viral content generator tool
             try:
@@ -822,9 +1153,17 @@ class UnifiedSystemOrchestrator:
                     use_cases=["viral_content", "content_creation", "social_media", "marketing", "engagement", "trends"]
                 )
                 await self.tool_repository.register_tool(viral_content_tool, metadata)
-                logger.info("🚀 Registered Revolutionary Viral Content Generator Tool")
+                _backend_logger.info(
+                    "🚀 Registered Revolutionary Viral Content Generator Tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register viral content generator tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register viral content generator tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             # Import and register AI music composition tool
             try:
@@ -841,9 +1180,17 @@ class UnifiedSystemOrchestrator:
                     use_cases=["music_composition", "audio_generation", "creative_content", "entertainment", "media_production"]
                 )
                 await self.tool_repository.register_tool(music_tool, metadata)
-                logger.info("🎵 Registered Revolutionary AI Music Composition Tool")
+                _backend_logger.info(
+                    "🎵 Registered Revolutionary AI Music Composition Tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register AI music composition tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register AI music composition tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             # Import and register AI lyric vocal synthesis tool
             try:
@@ -860,16 +1207,32 @@ class UnifiedSystemOrchestrator:
                     use_cases=["lyric_generation", "vocal_synthesis", "music_production", "creative_content", "entertainment"]
                 )
                 await self.tool_repository.register_tool(vocal_tool, metadata)
-                logger.info("🎤 Registered Revolutionary AI Lyric & Vocal Synthesis Tool")
+                _backend_logger.info(
+                    "🎤 Registered Revolutionary AI Lyric & Vocal Synthesis Tool",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             except Exception as e:
-                logger.warning(f"Failed to register AI lyric vocal synthesis tool: {e}")
+                _backend_logger.warn(
+                    f"Failed to register AI lyric vocal synthesis tool: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             # Log tool registration summary
             stats = self.tool_repository.stats
-            logger.info(f"🎯 Tool registration complete: {stats['total_tools']} tools registered")
+            _backend_logger.info(
+                f"🎯 Tool registration complete: {stats['total_tools']} tools registered",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to register built-in tools: {e}")
+            _backend_logger.error(
+                f"Failed to register built-in tools: {e}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             # Don't raise - tool registration failure shouldn't stop system initialization
 
     async def _initialize_hybrid_rag_integration(self) -> None:
@@ -879,19 +1242,35 @@ class UnifiedSystemOrchestrator:
 
             success = await initialize_hybrid_rag_system()
             if success:
-                logger.info("✅ Hybrid RAG Integration initialized successfully")
+                _backend_logger.info(
+                    "✅ Hybrid RAG Integration initialized successfully",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
             else:
-                logger.warning("⚠️ Hybrid RAG Integration initialization failed")
+                _backend_logger.warn(
+                    "⚠️ Hybrid RAG Integration initialization failed",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
         except Exception as e:
-            logger.error(f"Failed to initialize hybrid RAG integration: {e}")
+            _backend_logger.error(
+                f"Failed to initialize hybrid RAG integration: {e}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             # Don't raise - RAG integration failure shouldn't stop system initialization
 
     async def _initialize_phase_3_communication(self) -> None:
         """Initialize PHASE 3: Communication components."""
         try:
             # 1. Initialize THE AgentCommunicationSystem (THE communication hub)
-            logger.info("   📡 Initializing THE AgentCommunicationSystem...")
+            _backend_logger.info(
+                "   📡 Initializing THE AgentCommunicationSystem...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             self.communication_system = AgentCommunicationSystem(
                 self.unified_rag,
                 self.memory_system,
@@ -900,10 +1279,18 @@ class UnifiedSystemOrchestrator:
             await self.communication_system.initialize()
             self.status.components_status["communication_system"] = True
 
-            logger.info("✅ PHASE 3 Communication: COMPLETE")
+            _backend_logger.info(
+                "✅ PHASE 3 Communication: COMPLETE",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to initialize PHASE 3 Communication: {str(e)}")
+            _backend_logger.error(
+                f"Failed to initialize PHASE 3 Communication: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             raise
 
     async def _initialize_phase_4_optimization(self) -> None:
@@ -911,23 +1298,39 @@ class UnifiedSystemOrchestrator:
         try:
             # PHASE 4: Optimization components (monitoring, access controls)
             # Note: Performance optimizer was removed as it was never integrated
-            logger.info("✅ PHASE 4 Optimization: COMPLETE")
+            _backend_logger.info(
+                "✅ PHASE 4 Optimization: COMPLETE",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to initialize PHASE 4 Optimization: {str(e)}")
+            _backend_logger.error(
+                f"Failed to initialize PHASE 4 Optimization: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             raise
-    
+
     async def _initialize_tool_communication_systems(self) -> None:
         """Initialize tool and communication systems."""
         try:
             # 1. Unified Tool Repository
-            logger.info("Initializing Unified Tool Repository...")
+            _backend_logger.info(
+                "Initializing Unified Tool Repository...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             self.tool_repository = UnifiedToolRepository(self.isolation_manager)
             await self.tool_repository.initialize()
             self.status.components_status["tool_repository"] = True
-            
+
             # 2. Agent Communication System
-            logger.info("Initializing Agent Communication System...")
+            _backend_logger.info(
+                "Initializing Agent Communication System...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             self.communication_system = AgentCommunicationSystem(
                 self.isolation_manager,
                 self.config.communication_config
@@ -935,24 +1338,40 @@ class UnifiedSystemOrchestrator:
             await self.communication_system.initialize()
             self.status.components_status["communication_system"] = True
 
-            logger.info("✅ Tool and communication systems initialized successfully")
-            
+            _backend_logger.info(
+                "✅ Tool and communication systems initialized successfully",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
+
         except Exception as e:
-            logger.error(f"Failed to initialize tool and communication systems: {str(e)}")
+            _backend_logger.error(
+                f"Failed to initialize tool and communication systems: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             raise
-    
+
     async def _initialize_optimization_monitoring(self) -> None:
         """Initialize optimization and monitoring systems."""
         try:
             # 1. Advanced Access Controller
             if self.config.enable_security:
-                logger.info("Initializing Advanced Access Controller...")
+                _backend_logger.info(
+                    "Initializing Advanced Access Controller...",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
                 self.access_controller = AdvancedAccessController(self.isolation_manager)
                 self.status.components_status["access_controller"] = True
-            
+
             # 2. Monitoring System
             if self.config.enable_monitoring:
-                logger.info("Initializing Monitoring System...")
+                _backend_logger.info(
+                    "Initializing Monitoring System...",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
                 self.monitoring_system = MonitoringSystem(
                     self.access_controller,
                     self.unified_rag,
@@ -962,29 +1381,53 @@ class UnifiedSystemOrchestrator:
                 )
                 await self.monitoring_system.initialize()
                 self.status.components_status["monitoring_system"] = True
-            
-            logger.info("✅ Optimization and monitoring systems initialized successfully")
+
+            _backend_logger.info(
+                "✅ Optimization and monitoring systems initialized successfully",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to initialize optimization and monitoring systems: {str(e)}")
+            _backend_logger.error(
+                f"Failed to initialize optimization and monitoring systems: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             raise
 
     async def _initialize_component_workflow_system(self) -> None:
         """Initialize the revolutionary component workflow execution system."""
         try:
-            logger.info("   🎯 Initializing Component Workflow Executor...")
+            _backend_logger.info(
+                "   🎯 Initializing Component Workflow Executor...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             self.component_workflow_executor = ComponentWorkflowExecutor(self)
             await self.component_workflow_executor.start_workers(num_workers=3)
             self.status.components_status["component_workflow_executor"] = True
 
-            logger.info("   🎯 Initializing Workflow Step Manager...")
+            _backend_logger.info(
+                "   🎯 Initializing Workflow Step Manager...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             self.workflow_step_manager = WorkflowStepManager(self)
             self.status.components_status["workflow_step_manager"] = True
 
-            logger.info("✅ Component Workflow Execution System initialized successfully")
+            _backend_logger.info(
+                "✅ Component Workflow Execution System initialized successfully",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to initialize component workflow system: {str(e)}")
+            _backend_logger.error(
+                f"Failed to initialize component workflow system: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             raise
 
     async def execute_component_workflow(
@@ -1008,8 +1451,12 @@ class UnifiedSystemOrchestrator:
     async def _validate_system_integrity(self) -> None:
         """Validate system integrity and component connectivity."""
         try:
-            logger.info("Validating system integrity...")
-            
+            _backend_logger.info(
+                "Validating system integrity...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
+
             # Check all required components are initialized
             required_components = [
                 "unified_rag", "isolation_manager", "memory_system",
@@ -1020,50 +1467,66 @@ class UnifiedSystemOrchestrator:
             optional_components = [
                 "communication_system", "performance_optimizer"
             ]
-            
+
             for component in required_components:
                 if not self.status.components_status.get(component, False):
                     raise RuntimeError(f"Required component {component} not initialized")
-            
+
             # Test component connectivity
             await self._test_component_connectivity()
-            
+
             # Calculate initial health score
             self.status.health_score = await self._calculate_health_score()
             self.status.last_health_check = datetime.utcnow()
-            
-            logger.info("✅ System integrity validation passed")
-            
+
+            _backend_logger.info(
+                "✅ System integrity validation passed",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
+
         except Exception as e:
-            logger.error(f"System integrity validation failed: {str(e)}")
+            _backend_logger.error(
+                f"System integrity validation failed: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             raise
-    
+
     async def _test_component_connectivity(self) -> None:
         """Test connectivity between components."""
         try:
             # Test agent creation flow
             test_agent_id = "test_agent_system_validation"
-            
+
             # Create agent isolation profile
             await self.isolation_manager.create_agent_isolation(test_agent_id)
-            
+
             # Create agent memory
             await self.memory_system.create_agent_memory(test_agent_id)
-            
+
             # Create agent tool profile
             await self.tool_repository.create_agent_profile(test_agent_id)
-            
+
             # Register agent for communication (if enabled)
             if self.communication_system:
                 await self.communication_system.register_agent(test_agent_id)
-            
+
             # Cleanup test agent
             # Note: In a real implementation, we'd have cleanup methods
-            
-            logger.info("Component connectivity test passed")
-            
+
+            _backend_logger.info(
+                "Component connectivity test passed",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
+
         except Exception as e:
-            logger.error(f"Component connectivity test failed: {str(e)}")
+            _backend_logger.error(
+                f"Component connectivity test failed: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             raise
     
     async def _calculate_health_score(self) -> float:
@@ -1091,11 +1554,15 @@ class UnifiedSystemOrchestrator:
                     pass  # Use base score if performance metrics unavailable
             
             return min(100.0, max(0.0, base_score))
-            
+
         except Exception as e:
-            logger.error(f"Failed to calculate health score: {str(e)}")
+            _backend_logger.error(
+                f"Failed to calculate health score: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             return 0.0
-    
+
     async def _log_system_summary(self) -> None:
         """Log comprehensive system summary."""
         try:
@@ -1113,18 +1580,34 @@ class UnifiedSystemOrchestrator:
                 "🔒 Security": "✅ Advanced access controls" if self.config.enable_security else "❌ Disabled",
                 "📈 Monitoring": "✅ Comprehensive analytics" if self.config.enable_monitoring else "❌ Disabled"
             }
-            
-            logger.info("🎯 UNIFIED SYSTEM SUMMARY:")
+
+            _backend_logger.info(
+                "🎯 UNIFIED SYSTEM SUMMARY:",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             for key, value in summary.items():
-                logger.info(f"   {key}: {value}")
-            
+                _backend_logger.info(
+                    f"   {key}: {value}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
+
         except Exception as e:
-            logger.error(f"Failed to log system summary: {str(e)}")
-    
+            _backend_logger.error(
+                f"Failed to log system summary: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
+
     async def shutdown(self) -> None:
         """Gracefully shutdown the entire system."""
         try:
-            logger.info("🛑 Initiating graceful system shutdown...")
+            _backend_logger.info(
+                "🛑 Initiating graceful system shutdown...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             
             self.status.is_running = False
             
@@ -1143,38 +1626,70 @@ class UnifiedSystemOrchestrator:
             for component_name, component in components_to_shutdown:
                 if component and hasattr(component, 'shutdown'):
                     try:
-                        logger.info(f"Shutting down {component_name}...")
+                        _backend_logger.info(
+                            f"Shutting down {component_name}...",
+                            LogCategory.SYSTEM_OPERATIONS,
+                            "app.core.unified_system_orchestrator"
+                        )
                         await component.shutdown()
                         self.status.components_status[component_name] = False
                     except Exception as e:
-                        logger.error(f"Error shutting down {component_name}: {str(e)}")
-            
-            logger.info("✅ System shutdown completed")
-            
+                        _backend_logger.error(
+                            f"Error shutting down {component_name}: {str(e)}",
+                            LogCategory.SYSTEM_OPERATIONS,
+                            "app.core.unified_system_orchestrator"
+                        )
+
+            _backend_logger.info(
+                "✅ System shutdown completed",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
+
         except Exception as e:
-            logger.error(f"Error during system shutdown: {str(e)}")
-    
+            _backend_logger.error(
+                f"Error during system shutdown: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
+
     def _setup_signal_handlers(self) -> None:
         """Setup signal handlers for graceful shutdown."""
         try:
             def signal_handler(signum, frame):
-                logger.info(f"Received signal {signum}, initiating shutdown...")
+                _backend_logger.info(
+                    f"Received signal {signum}, initiating shutdown...",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
                 asyncio.create_task(self.shutdown())
-            
+
             signal.signal(signal.SIGINT, signal_handler)
             signal.signal(signal.SIGTERM, signal_handler)
-            
+
         except Exception as e:
-            logger.error(f"Failed to setup signal handlers: {str(e)}")
-    
+            _backend_logger.error(
+                f"Failed to setup signal handlers: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
+
     async def _cleanup_partial_initialization(self) -> None:
         """Cleanup after partial initialization failure."""
         try:
-            logger.info("Cleaning up partial initialization...")
+            _backend_logger.info(
+                "Cleaning up partial initialization...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             await self.shutdown()
-            
+
         except Exception as e:
-            logger.error(f"Error during cleanup: {str(e)}")
+            _backend_logger.error(
+                f"Error during cleanup: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
     
     def get_system_status(self) -> Dict[str, Any]:
         """Get comprehensive system status."""
@@ -1236,7 +1751,11 @@ class AgentBuilderSystemIntegration:
     async def initialize_agent_builder_integration(self) -> bool:
         """Initialize Agent Builder platform integration."""
         try:
-            logger.info("🤖 Initializing Agent Builder Platform integration...")
+            _backend_logger.info(
+                "🤖 Initializing Agent Builder Platform integration...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
 
             # Import Agent Builder components
             from app.agents.factory import AgentBuilderFactory
@@ -1249,7 +1768,11 @@ class AgentBuilderSystemIntegration:
                 await self.llm_manager.initialize()
 
             # 🚀 Register LLM manager with configuration managers
-            logger.info("   🔧 Registering LLM manager with configuration managers...")
+            _backend_logger.info(
+                "   🔧 Registering LLM manager with configuration managers...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             from app.core.global_config_manager import global_config_manager
             from app.services.llm_service import get_llm_service, initialize_llm_service
 
@@ -1260,19 +1783,35 @@ class AgentBuilderSystemIntegration:
             for section_manager in global_config_manager._section_managers.values():
                 if hasattr(section_manager, 'set_llm_manager'):
                     section_manager.set_llm_manager(self.llm_manager)
-                    logger.info("   ✅ LLM manager registered with LLM section manager")
+                    _backend_logger.info(
+                        "   ✅ LLM manager registered with LLM section manager",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.core.unified_system_orchestrator"
+                    )
                 if hasattr(section_manager, 'set_llm_service'):
                     section_manager.set_llm_service(llm_service)
-                    logger.info("   ✅ LLM service registered with LLM section manager")
+                    _backend_logger.info(
+                        "   ✅ LLM service registered with LLM section manager",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.core.unified_system_orchestrator"
+                    )
 
             # Find and update LLM observer
             for observer in global_config_manager._observers.get("llm_providers", []):
                 if hasattr(observer, 'set_llm_manager'):
                     observer.set_llm_manager(self.llm_manager)
-                    logger.info("   ✅ LLM manager registered with LLM observer")
+                    _backend_logger.info(
+                        "   ✅ LLM manager registered with LLM observer",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.core.unified_system_orchestrator"
+                    )
                 if hasattr(observer, 'set_llm_service'):
                     observer.set_llm_service(llm_service)
-                    logger.info("   ✅ LLM service registered with LLM observer")
+                    _backend_logger.info(
+                        "   ✅ LLM service registered with LLM observer",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.core.unified_system_orchestrator"
+                    )
 
             # Initialize agent factory
             self.agent_factory = AgentBuilderFactory(self.llm_manager)
@@ -1284,11 +1823,19 @@ class AgentBuilderSystemIntegration:
             )
 
             self._integration_status = "initialized"
-            logger.info("✅ Agent Builder Platform integration initialized successfully")
+            _backend_logger.info(
+                "✅ Agent Builder Platform integration initialized successfully",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             return True
 
         except Exception as e:
-            logger.error(f"❌ Failed to initialize Agent Builder integration: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to initialize Agent Builder integration: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             self._integration_status = "failed"
             return False
 
@@ -1298,7 +1845,11 @@ class AgentBuilderSystemIntegration:
             if not self.agent_registry:
                 await self.initialize_agent_builder_integration()
 
-            logger.info("🏗️ Creating essential system agents...")
+            _backend_logger.info(
+                "🏗️ Creating essential system agents...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
 
             system_agents = {}
 
@@ -1430,11 +1981,19 @@ class AgentBuilderSystemIntegration:
                     agent_ids=list(system_agents.values())
                 )
 
-            logger.info(f"✅ Created {len(system_agents)} essential system agents")
+            _backend_logger.info(
+                f"✅ Created {len(system_agents)} essential system agents",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             return system_agents
 
         except Exception as e:
-            logger.error(f"❌ Failed to create system agents: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to create system agents: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             return {}
 
     def get_integration_status(self) -> Dict[str, Any]:
@@ -1450,7 +2009,11 @@ class AgentBuilderSystemIntegration:
     async def shutdown_agent_builder_integration(self):
         """Shutdown Agent Builder platform integration."""
         try:
-            logger.info("🔄 Shutting down Agent Builder Platform integration...")
+            _backend_logger.info(
+                "🔄 Shutting down Agent Builder Platform integration...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
 
             if self.agent_registry:
                 # Stop all agents
@@ -1465,10 +2028,18 @@ class AgentBuilderSystemIntegration:
             self.llm_manager = None
             self._integration_status = "shutdown"
 
-            logger.info("✅ Agent Builder Platform integration shutdown complete")
+            _backend_logger.info(
+                "✅ Agent Builder Platform integration shutdown complete",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
 
         except Exception as e:
-            logger.error(f"❌ Failed to shutdown Agent Builder integration: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to shutdown Agent Builder integration: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
 
 
 # Enhanced Unified System Orchestrator with Agent Builder Integration
@@ -1509,12 +2080,20 @@ class EnhancedUnifiedSystemOrchestrator(UnifiedSystemOrchestrator):
             if integration_success:
                 # Create essential system agents
                 system_agents = await self.agent_builder_integration.create_system_agents()
-                logger.info(f"🎯 Enhanced Unified System initialized with {len(system_agents)} system agents")
+                _backend_logger.info(
+                    f"🎯 Enhanced Unified System initialized with {len(system_agents)} system agents",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             return integration_success
 
         except Exception as e:
-            logger.error(f"❌ Failed to initialize enhanced system: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to initialize enhanced system: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             return False
 
     async def shutdown(self):
@@ -1528,7 +2107,11 @@ class EnhancedUnifiedSystemOrchestrator(UnifiedSystemOrchestrator):
             await super().shutdown()
 
         except Exception as e:
-            logger.error(f"❌ Failed to shutdown enhanced system: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to shutdown enhanced system: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
 
     def get_system_status(self) -> Dict[str, Any]:
         """Get comprehensive system status including Agent Builder integration."""
@@ -1552,7 +2135,7 @@ class ComponentWorkflowExecutor:
         self.active_workflows: Dict[str, Dict[str, Any]] = {}
         self.execution_queue = asyncio.Queue()
         self.workers_running = False
-        self.logger = structlog.get_logger(__name__)
+        self._backend_logger = get_backend_logger()
 
     async def start_workers(self, num_workers: int = 3) -> None:
         """Start async workflow execution workers."""
@@ -1566,7 +2149,12 @@ class ComponentWorkflowExecutor:
             task = asyncio.create_task(self._workflow_worker(f"worker-{i}"))
             self.worker_tasks.append(task)
 
-        self.logger.info("Component workflow workers started", num_workers=num_workers)
+        self._backend_logger.info(
+            "Component workflow workers started",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.unified_system_orchestrator",
+            data={"num_workers": num_workers}
+        )
 
     async def stop_workers(self) -> None:
         """Stop workflow execution workers."""
@@ -1577,7 +2165,11 @@ class ComponentWorkflowExecutor:
                 task.cancel()
             await asyncio.gather(*self.worker_tasks, return_exceptions=True)
 
-        self.logger.info("Component workflow workers stopped")
+        self._backend_logger.info(
+            "Component workflow workers stopped",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.unified_system_orchestrator"
+        )
 
     async def execute_component_workflow(
         self,
@@ -1605,11 +2197,15 @@ class ComponentWorkflowExecutor:
             # Queue workflow for execution
             await self.execution_queue.put(workflow_context)
 
-            self.logger.info(
+            self._backend_logger.info(
                 "Component workflow queued for execution",
-                workflow_id=workflow_id,
-                num_components=len(components),
-                execution_mode=execution_mode
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator",
+                data={
+                    "workflow_id": workflow_id,
+                    "num_components": len(components),
+                    "execution_mode": execution_mode
+                }
             )
 
             return {
@@ -1620,12 +2216,22 @@ class ComponentWorkflowExecutor:
             }
 
         except Exception as e:
-            self.logger.error("Failed to execute component workflow", error=str(e))
+            self._backend_logger.error(
+                "Failed to execute component workflow",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator",
+                data={"error": str(e)}
+            )
             raise
 
     async def _workflow_worker(self, worker_id: str) -> None:
         """Async worker for processing component workflows."""
-        self.logger.info("Workflow worker started", worker_id=worker_id)
+        self._backend_logger.info(
+            "Workflow worker started",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.unified_system_orchestrator",
+            data={"worker_id": worker_id}
+        )
 
         while self.workers_running:
             try:
@@ -1639,7 +2245,12 @@ class ComponentWorkflowExecutor:
             except asyncio.TimeoutError:
                 continue
             except Exception as e:
-                self.logger.error("Workflow worker error", worker_id=worker_id, error=str(e))
+                self._backend_logger.error(
+                    "Workflow worker error",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator",
+                    data={"worker_id": worker_id, "error": str(e)}
+                )
 
     async def _execute_workflow_steps(
         self,
@@ -1664,11 +2275,15 @@ class ComponentWorkflowExecutor:
             workflow_context["status"] = "completed"
             workflow_context["end_time"] = datetime.utcnow()
 
-            self.logger.info(
+            self._backend_logger.info(
                 "Component workflow completed",
-                workflow_id=workflow_id,
-                worker_id=worker_id,
-                execution_time=(workflow_context["end_time"] - workflow_context["start_time"]).total_seconds()
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator",
+                data={
+                    "workflow_id": workflow_id,
+                    "worker_id": worker_id,
+                    "execution_time": (workflow_context["end_time"] - workflow_context["start_time"]).total_seconds()
+                }
             )
 
         except Exception as e:
@@ -1676,11 +2291,15 @@ class ComponentWorkflowExecutor:
             workflow_context["error"] = str(e)
             workflow_context["end_time"] = datetime.utcnow()
 
-            self.logger.error(
+            self._backend_logger.error(
                 "Component workflow failed",
-                workflow_id=workflow_id,
-                worker_id=worker_id,
-                error=str(e)
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator",
+                data={
+                    "workflow_id": workflow_id,
+                    "worker_id": worker_id,
+                    "error": str(e)
+                }
             )
 
     async def _execute_sequential(self, workflow_context: Dict[str, Any], worker_id: str) -> None:
@@ -1782,7 +2401,7 @@ class WorkflowStepManager:
         self.orchestrator = orchestrator
         self.step_states: Dict[str, Dict[str, Any]] = {}
         self.step_results: Dict[str, Dict[str, Any]] = {}
-        self.logger = structlog.get_logger(__name__)
+        self._backend_logger = get_backend_logger()
 
     async def execute_step(
         self,
@@ -1840,11 +2459,15 @@ class WorkflowStepManager:
 
             self.step_results[step_id] = step_result
 
-            self.logger.info(
+            self._backend_logger.info(
                 "Workflow step completed",
-                step_id=step_id,
-                component_type=component_type,
-                execution_time=execution_time
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator",
+                data={
+                    "step_id": step_id,
+                    "component_type": component_type,
+                    "execution_time": execution_time
+                }
             )
 
             return step_result
@@ -1871,11 +2494,15 @@ class WorkflowStepManager:
 
             self.step_results[step_id] = error_result
 
-            self.logger.error(
+            self._backend_logger.error(
                 "Workflow step failed",
-                step_id=step_id,
-                error=str(e),
-                execution_time=execution_time
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator",
+                data={
+                    "step_id": step_id,
+                    "error": str(e),
+                    "execution_time": execution_time
+                }
             )
 
             return error_result
@@ -2164,11 +2791,19 @@ class OrchestrationCompatibilityLayer:
             factory = AgentBuilderFactory()
             agent = await factory.create_agent(config)
 
-            logger.info(f"✅ Created agent {agent_id} of type {agent_type}")
+            _backend_logger.info(
+                f"✅ Created agent {agent_id} of type {agent_type}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             return agent
 
         except Exception as e:
-            logger.error(f"❌ Failed to create agent {agent_id}: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to create agent {agent_id}: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             raise
 
     async def create_agent_knowledge_base(
@@ -2196,14 +2831,26 @@ class OrchestrationCompatibilityLayer:
             # Ingest documents if provided
             if documents:
                 await self.unified_rag.add_documents(agent_id, documents)
-                logger.info(f"✅ Ingested {len(documents)} documents for agent {agent_id}")
+                _backend_logger.info(
+                    f"✅ Ingested {len(documents)} documents for agent {agent_id}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.unified_system_orchestrator"
+                )
 
             kb_id = f"kb_agent_{agent_id}"
-            logger.info(f"✅ Created knowledge base {kb_id} for agent {agent_id}")
+            _backend_logger.info(
+                f"✅ Created knowledge base {kb_id} for agent {agent_id}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             return kb_id
 
         except Exception as e:
-            logger.error(f"❌ Failed to create knowledge base for agent {agent_id}: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to create knowledge base for agent {agent_id}: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.unified_system_orchestrator"
+            )
             raise
 
 

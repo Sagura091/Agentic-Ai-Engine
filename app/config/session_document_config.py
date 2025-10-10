@@ -19,9 +19,10 @@ from typing import Dict, Any, Optional
 from dataclasses import dataclass, field
 from datetime import timedelta
 
-import structlog
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
 
-logger = structlog.get_logger(__name__)
+_backend_logger = get_backend_logger()
 
 
 @dataclass
@@ -53,7 +54,11 @@ class SessionDocumentStorageConfig:
         """Ensure directories exist."""
         for directory in [self.base_storage_dir, self.temp_dir, self.download_dir]:
             directory.mkdir(parents=True, exist_ok=True)
-            logger.info(f"📁 Storage directory ensured: {directory}")
+            _backend_logger.info(
+                f"📁 Storage directory ensured: {directory}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.session_document_config"
+            )
 
 
 @dataclass
@@ -162,7 +167,11 @@ class SessionDocumentVectorConfig:
     def __post_init__(self):
         """Ensure vector storage directory exists."""
         self.vector_storage_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"🔍 Vector storage directory ensured: {self.vector_storage_dir}")
+        _backend_logger.info(
+            f"🔍 Vector storage directory ensured: {self.vector_storage_dir}",
+            LogCategory.AGENT_OPERATIONS,
+            "app.config.session_document_config"
+        )
 
 
 @dataclass
@@ -238,8 +247,12 @@ class SessionDocumentConfig:
         
         # Apply environment overrides
         self._apply_environment_overrides()
-        
-        logger.info("🔥 Revolutionary Session Document Configuration initialized")
+
+        _backend_logger.info(
+            "🔥 Revolutionary Session Document Configuration initialized",
+            LogCategory.AGENT_OPERATIONS,
+            "app.config.session_document_config"
+        )
     
     def _apply_environment_overrides(self):
         """Apply configuration overrides from environment variables."""
@@ -282,36 +295,52 @@ class SessionDocumentConfig:
         
         if content_scan := os.getenv("SESSION_DOCS_CONTENT_SCAN"):
             self.security.enable_content_scanning = content_scan.lower() == "true"
-        
-        logger.info("🔧 Environment configuration overrides applied")
+
+        _backend_logger.info(
+            "🔧 Environment configuration overrides applied",
+            LogCategory.AGENT_OPERATIONS,
+            "app.config.session_document_config"
+        )
     
     def validate_configuration(self) -> bool:
         """Validate configuration settings."""
         try:
             # Validate storage paths
             if not self.storage.base_storage_dir.exists():
-                logger.warning(f"Base storage directory does not exist: {self.storage.base_storage_dir}")
-            
+                _backend_logger.warn(
+                    f"Base storage directory does not exist: {self.storage.base_storage_dir}",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.config.session_document_config"
+                )
+
             # Validate limits
             if self.limits.max_document_size <= 0:
                 raise ValueError("Max document size must be positive")
-            
+
             if self.limits.max_documents_per_session <= 0:
                 raise ValueError("Max documents per session must be positive")
-            
+
             # Validate expiration settings
             if self.expiration.default_document_expiration.total_seconds() <= 0:
                 raise ValueError("Document expiration must be positive")
-            
+
             # Validate vector settings
             if self.vector.enable_vector_search and self.vector.embedding_dimension <= 0:
                 raise ValueError("Embedding dimension must be positive")
-            
-            logger.info("✅ Configuration validation passed")
+
+            _backend_logger.info(
+                "✅ Configuration validation passed",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.session_document_config"
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"❌ Configuration validation failed: {e}")
+            _backend_logger.error(
+                f"❌ Configuration validation failed: {e}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.session_document_config"
+            )
             return False
     
     def get_storage_path(self, session_id: str, document_id: str) -> Path:
@@ -396,6 +425,14 @@ session_document_config = SessionDocumentConfig()
 
 # Validate configuration on import
 if not session_document_config.validate_configuration():
-    logger.warning("⚠️ Configuration validation failed - some features may not work correctly")
+    _backend_logger.warn(
+        "⚠️ Configuration validation failed - some features may not work correctly",
+        LogCategory.AGENT_OPERATIONS,
+        "app.config.session_document_config"
+    )
 
-logger.info("🔥 Revolutionary Session Document Configuration ready")
+_backend_logger.info(
+    "🔥 Revolutionary Session Document Configuration ready",
+    LogCategory.AGENT_OPERATIONS,
+    "app.config.session_document_config"
+)

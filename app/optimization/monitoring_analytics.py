@@ -17,8 +17,6 @@ from datetime import datetime
 from dataclasses import dataclass
 from enum import Enum
 
-import structlog
-
 from .performance_optimizer import PerformanceOptimizer, PerformanceMetrics
 from .advanced_access_controls import AdvancedAccessController
 from app.rag.core.unified_rag_system import UnifiedRAGSystem
@@ -26,7 +24,12 @@ from app.memory.unified_memory_system import UnifiedMemorySystem
 from app.tools.unified_tool_repository import UnifiedToolRepository
 from app.communication.agent_communication_system import AgentCommunicationSystem
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class AlertSeverity(str, Enum):
@@ -136,7 +139,11 @@ class MonitoringSystem:
 
         self.start_time = datetime.now()
 
-        logger.info("Monitoring system created")
+        logger.info(
+            "Monitoring system created",
+            LogCategory.PERFORMANCE_MONITORING,
+            "app.optimization.monitoring_analytics.MonitoringSystem"
+        )
     async def initialize(self) -> None:
         """Initialize the monitoring system."""
         try:
@@ -144,10 +151,19 @@ class MonitoringSystem:
                 return
 
             self.is_initialized = True
-            logger.info("Monitoring system initialized successfully")
+            logger.info(
+                "Monitoring system initialized successfully",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.optimization.monitoring_analytics.MonitoringSystem"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to initialize monitoring system: {str(e)}")
+            logger.error(
+                "Failed to initialize monitoring system",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.optimization.monitoring_analytics.MonitoringSystem",
+                error=e
+            )
             raise
     async def collect_system_metrics(self) -> PerformanceMetrics:
         """Collect basic system metrics."""
@@ -186,7 +202,12 @@ class MonitoringSystem:
             return metrics
 
         except Exception as e:
-            logger.error(f"Failed to collect system metrics: {str(e)}")
+            logger.error(
+                "Failed to collect system metrics",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.optimization.monitoring_analytics.MonitoringSystem",
+                error=e
+            )
             return PerformanceMetrics.create(0.0, 0.0, 0.0)
     async def generate_performance_report(self) -> PerformanceReport:
         """Generate a simple performance report."""
@@ -215,11 +236,21 @@ class MonitoringSystem:
             if len(self.performance_reports) > 50:
                 self.performance_reports = self.performance_reports[-50:]
 
-            logger.info(f"Generated performance report with health score: {health_score:.1f}")
+            logger.info(
+                f"Generated performance report with health score: {health_score:.1f}",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.optimization.monitoring_analytics.MonitoringSystem",
+                data={"health_score": health_score, "total_operations": self.stats["total_metrics_collected"]}
+            )
             return report
 
         except Exception as e:
-            logger.error(f"Failed to generate performance report: {str(e)}")
+            logger.error(
+                "Failed to generate performance report",
+                LogCategory.PERFORMANCE_MONITORING,
+                "app.optimization.monitoring_analytics.MonitoringSystem",
+                error=e
+            )
             raise
     def get_alerts(self) -> List[Alert]:
         """Get all alerts."""

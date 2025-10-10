@@ -6,15 +6,17 @@ throughout the agent system with configuration-driven values.
 """
 
 from typing import Dict, Any, Optional, List
-import structlog
 from pathlib import Path
+
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
 
 from app.config.agent_config_manager import get_agent_config_manager, AgentConfigurationManager
 from app.agents.base.agent import AgentConfig, AgentCapability
 from app.agents.factory import AgentBuilderConfig, AgentType, MemoryType
 from app.llm.models import LLMConfig, ProviderType
 
-logger = structlog.get_logger(__name__)
+_backend_logger = get_backend_logger()
 
 
 class ConfigIntegration:
@@ -33,7 +35,11 @@ class ConfigIntegration:
             config_manager: Configuration manager instance
         """
         self.config_manager = config_manager or get_agent_config_manager()
-        logger.info("Configuration integration initialized")
+        _backend_logger.info(
+            "Configuration integration initialized",
+            LogCategory.AGENT_OPERATIONS,
+            "app.config.agent_config_integration"
+        )
     
     def create_agent_config(
         self,
@@ -105,10 +111,18 @@ class ConfigIntegration:
             custom_config=overrides.get("custom_config", {})
         )
         
-        logger.info("Created agent config from configuration system",
-                   name=name, agent_type=agent_type, 
-                   model=config.model_name, provider=config.model_provider)
-        
+        _backend_logger.info(
+            "Created agent config from configuration system",
+            LogCategory.AGENT_OPERATIONS,
+            "app.config.agent_config_integration",
+            data={
+                "name": name,
+                "agent_type": agent_type,
+                "model": config.model_name,
+                "provider": config.model_provider
+            }
+        )
+
         return config
 
     def create_builder_config_from_yaml(
@@ -148,7 +162,11 @@ class ConfigIntegration:
             try:
                 agent_type = AgentType(agent_type_str.lower())
             except ValueError:
-                logger.warning(f"Unknown agent type '{agent_type_str}', defaulting to REACT")
+                _backend_logger.warn(
+                    f"Unknown agent type '{agent_type_str}', defaulting to REACT",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.config.agent_config_integration"
+                )
                 agent_type = AgentType.REACT
 
             # Extract LLM configuration
@@ -194,11 +212,19 @@ class ConfigIntegration:
                 custom_config=autonomy_config
             )
 
-            logger.info(f"Created AgentBuilderConfig from YAML for agent: {agent_id}")
+            _backend_logger.info(
+                f"Created AgentBuilderConfig from YAML for agent: {agent_id}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.agent_config_integration"
+            )
             return builder_config
 
         except Exception as e:
-            logger.error(f"Failed to create builder config from YAML for agent {agent_id}: {str(e)}")
+            _backend_logger.error(
+                f"Failed to create builder config from YAML for agent {agent_id}: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.agent_config_integration"
+            )
             raise
 
     def _create_llm_config_from_yaml(self, llm_config_data: Dict[str, Any]) -> LLMConfig:
@@ -207,7 +233,11 @@ class ConfigIntegration:
             provider_str = llm_config_data.get("provider", "ollama")
             provider = ProviderType(provider_str.upper())
         except ValueError:
-            logger.warning(f"Unknown provider '{provider_str}', defaulting to OLLAMA")
+            _backend_logger.warn(
+                f"Unknown provider '{provider_str}', defaulting to OLLAMA",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.agent_config_integration"
+            )
             provider = ProviderType.OLLAMA
 
         return LLMConfig(
@@ -258,13 +288,21 @@ class ConfigIntegration:
         # First check for direct tools specification (preferred method)
         direct_tools = agent_config.get("tools", [])
         if direct_tools:
-            logger.info(f"Found direct tools specification: {direct_tools}")
+            _backend_logger.info(
+                f"Found direct tools specification: {direct_tools}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.agent_config_integration"
+            )
             return direct_tools
 
         # Fall back to use_cases mapping for backward compatibility
         use_cases = agent_config.get("use_cases", [])
         if not use_cases:
-            logger.warning("No tools or use_cases found in agent configuration")
+            _backend_logger.warn(
+                "No tools or use_cases found in agent configuration",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.agent_config_integration"
+            )
             return []
 
         # Map use cases to tools (this would be enhanced with actual tool repository integration)
@@ -288,7 +326,11 @@ class ConfigIntegration:
             if use_case in tool_mapping:
                 tools.update(tool_mapping[use_case])
 
-        logger.info(f"Extracted tools from use_cases {use_cases}: {list(tools)}")
+        _backend_logger.info(
+            f"Extracted tools from use_cases {use_cases}: {list(tools)}",
+            LogCategory.AGENT_OPERATIONS,
+            "app.config.agent_config_integration"
+        )
         return list(tools)
 
     def _extract_memory_type(self, memory_config: Dict[str, Any]) -> MemoryType:
@@ -298,7 +340,11 @@ class ConfigIntegration:
         try:
             return MemoryType(memory_type_str.upper())
         except ValueError:
-            logger.warning(f"Unknown memory type '{memory_type_str}', defaulting to SIMPLE")
+            _backend_logger.warn(
+                f"Unknown memory type '{memory_type_str}', defaulting to SIMPLE",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.agent_config_integration"
+            )
             return MemoryType.SIMPLE
 
     def _build_system_prompt(self, agent_config: Dict[str, Any]) -> str:
@@ -387,7 +433,11 @@ class ConfigIntegration:
             from app.agents.factory import AgentType
             agent_type = AgentType(agent_type_str)
         except ValueError:
-            logger.warning(f"Unknown agent type '{agent_type_str}', defaulting to AUTONOMOUS")
+            _backend_logger.warn(
+                f"Unknown agent type '{agent_type_str}', defaulting to AUTONOMOUS",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.agent_config_integration"
+            )
             agent_type = AgentType.AUTONOMOUS
 
         # Extract LLM configuration
@@ -448,9 +498,18 @@ class ConfigIntegration:
             }
         )
 
-        logger.info("Created builder config from individual agent YAML",
-                   agent_id=agent_id, name=name, agent_type=agent_type.value,
-                   provider=provider_name, model=llm_config_obj.model_id)
+        _backend_logger.info(
+            "Created builder config from individual agent YAML",
+            LogCategory.AGENT_OPERATIONS,
+            "app.config.agent_config_integration",
+            data={
+                "agent_id": agent_id,
+                "name": name,
+                "agent_type": agent_type.value,
+                "provider": provider_name,
+                "model": llm_config_obj.model_id
+            }
+        )
 
         return config
 
@@ -518,10 +577,18 @@ class ConfigIntegration:
             custom_config=overrides.get("custom_config", {})
         )
         
-        logger.info("Created builder config from configuration system",
-                   name=name, agent_type=agent_type.value,
-                   provider=provider_name, model=llm_config_obj.model_id)
-        
+        _backend_logger.info(
+            "Created builder config from configuration system",
+            LogCategory.AGENT_OPERATIONS,
+            "app.config.agent_config_integration",
+            data={
+                "name": name,
+                "agent_type": agent_type.value,
+                "provider": provider_name,
+                "model": llm_config_obj.model_id
+            }
+        )
+
         return config
     
     def _get_system_prompt(self, agent_type: str, tools: List[str]) -> str:

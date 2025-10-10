@@ -11,9 +11,11 @@ from typing import Any, Dict, List, Optional, Union
 from enum import Enum
 
 from pydantic import BaseModel, Field
-import structlog
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
+_backend_logger = get_backend_logger()
 
 
 class ErrorCategory(str, Enum):
@@ -114,7 +116,12 @@ class APIResponseWrapper:
                 performance=performance
             )
         except Exception as e:
-            logger.error("Failed to create success response", error=str(e))
+            _backend_logger.error(
+                "Failed to create success response",
+                LogCategory.API_OPERATIONS,
+                "app.api.v1.responses",
+                data={"error": str(e)}
+            )
             # Fallback to basic response
             return StandardAPIResponse(
                 success=True,
@@ -155,7 +162,12 @@ class APIResponseWrapper:
                 trace_id=trace_id
             )
         except Exception as e:
-            logger.error("Failed to create error response", error=str(e))
+            _backend_logger.error(
+                "Failed to create error response",
+                LogCategory.API_OPERATIONS,
+                "app.api.v1.responses",
+                data={"error": str(e)}
+            )
             # Fallback to basic error response
             return StandardErrorResponse(
                 error=ErrorDetails(
@@ -202,7 +214,12 @@ class APIResponseWrapper:
                 details={"exception_type": type(exception).__name__}
             )
         except Exception as e:
-            logger.error("Failed to create exception response", error=str(e))
+            _backend_logger.error(
+                "Failed to create exception response",
+                LogCategory.API_OPERATIONS,
+                "app.api.v1.responses",
+                data={"error": str(e)}
+            )
             # Ultimate fallback
             return StandardErrorResponse(
                 error=ErrorDetails(

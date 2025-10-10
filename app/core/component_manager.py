@@ -9,14 +9,15 @@ from typing import Dict, List, Optional, Any, Set
 from dataclasses import dataclass
 from datetime import datetime
 import asyncio
-import structlog
 
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
 from app.core.system_components import (
     SystemComponent, ComponentStatus, RAGComponent, MemoryComponent,
     ToolsComponent, CommunicationComponent, MonitoringComponent, SecurityComponent
 )
 
-logger = structlog.get_logger(__name__)
+_backend_logger = get_backend_logger()
 
 
 @dataclass
@@ -108,94 +109,174 @@ class ComponentManager:
                 visit(component_name)
         
         self.component_order = order
-        logger.info(f"Component initialization order: {self.component_order}")
-    
+        _backend_logger.info(
+            f"Component initialization order: {self.component_order}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.component_manager"
+        )
+
     async def initialize_all(self) -> bool:
         """Initialize all components in dependency order."""
         if self.is_initialized:
             return True
-        
-        logger.info("Initializing all system components")
-        
+
+        _backend_logger.info(
+            "Initializing all system components",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.component_manager"
+        )
+
         try:
             # Initialize components in dependency order
             for component_name in self.component_order:
                 component = self.components[component_name]
-                logger.info(f"Initializing component: {component_name}")
-                
+                _backend_logger.info(
+                    f"Initializing component: {component_name}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.component_manager"
+                )
+
                 success = await component.initialize()
                 if not success:
-                    logger.error(f"Failed to initialize component: {component_name}")
+                    _backend_logger.error(
+                        f"Failed to initialize component: {component_name}",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.core.component_manager"
+                    )
                     return False
-                
-                logger.info(f"Component {component_name} initialized successfully")
-            
+
+                _backend_logger.info(
+                    f"Component {component_name} initialized successfully",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.component_manager"
+                )
+
             self.is_initialized = True
-            logger.info("All components initialized successfully")
+            _backend_logger.info(
+                "All components initialized successfully",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.component_manager"
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to initialize components: {e}")
+            _backend_logger.error(
+                f"Failed to initialize components: {e}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.component_manager"
+            )
             return False
-    
+
     async def start_all(self) -> bool:
         """Start all components."""
         if not self.is_initialized:
-            logger.error("Components not initialized")
+            _backend_logger.error(
+                "Components not initialized",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.component_manager"
+            )
             return False
         
         if self.is_running:
             return True
-        
-        logger.info("Starting all system components")
-        
+
+        _backend_logger.info(
+            "Starting all system components",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.component_manager"
+        )
+
         try:
             # Start components in dependency order
             for component_name in self.component_order:
                 component = self.components[component_name]
-                logger.info(f"Starting component: {component_name}")
-                
+                _backend_logger.info(
+                    f"Starting component: {component_name}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.component_manager"
+                )
+
                 success = await component.start()
                 if not success:
-                    logger.error(f"Failed to start component: {component_name}")
+                    _backend_logger.error(
+                        f"Failed to start component: {component_name}",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.core.component_manager"
+                    )
                     return False
-                
-                logger.info(f"Component {component_name} started successfully")
-            
+
+                _backend_logger.info(
+                    f"Component {component_name} started successfully",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.component_manager"
+                )
+
             self.is_running = True
             self.start_time = datetime.utcnow()
-            logger.info("All components started successfully")
+            _backend_logger.info(
+                "All components started successfully",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.component_manager"
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to start components: {e}")
+            _backend_logger.error(
+                f"Failed to start components: {e}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.component_manager"
+            )
             return False
     
     async def stop_all(self) -> bool:
         """Stop all components in reverse order."""
         if not self.is_running:
             return True
-        
-        logger.info("Stopping all system components")
-        
+
+        _backend_logger.info(
+            "Stopping all system components",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.component_manager"
+        )
+
         try:
             # Stop components in reverse dependency order
             for component_name in reversed(self.component_order):
                 component = self.components[component_name]
-                logger.info(f"Stopping component: {component_name}")
-                
+                _backend_logger.info(
+                    f"Stopping component: {component_name}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.component_manager"
+                )
+
                 success = await component.stop()
                 if not success:
-                    logger.warning(f"Failed to stop component: {component_name}")
-                
-                logger.info(f"Component {component_name} stopped")
-            
+                    _backend_logger.warn(
+                        f"Failed to stop component: {component_name}",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.core.component_manager"
+                    )
+
+                _backend_logger.info(
+                    f"Component {component_name} stopped",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.component_manager"
+                )
+
             self.is_running = False
-            logger.info("All components stopped")
+            _backend_logger.info(
+                "All components stopped",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.component_manager"
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to stop components: {e}")
+            _backend_logger.error(
+                f"Failed to stop components: {e}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.component_manager"
+            )
             return False
     
     async def health_check_all(self) -> SystemHealth:
@@ -211,7 +292,11 @@ class ComponentManager:
                 else:
                     unhealthy_components.append(component_name)
             except Exception as e:
-                logger.error(f"Health check failed for {component_name}: {e}")
+                _backend_logger.error(
+                    f"Health check failed for {component_name}: {e}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.component_manager"
+                )
                 unhealthy_components.append(component_name)
         
         total_components = len(self.components)
@@ -229,26 +314,50 @@ class ComponentManager:
     
     async def dispose_all(self):
         """Dispose all components."""
-        logger.info("Disposing all system components")
-        
+        _backend_logger.info(
+            "Disposing all system components",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.component_manager"
+        )
+
         try:
             # Dispose components in reverse dependency order
             for component_name in reversed(self.component_order):
                 component = self.components[component_name]
-                logger.info(f"Disposing component: {component_name}")
-                
+                _backend_logger.info(
+                    f"Disposing component: {component_name}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.component_manager"
+                )
+
                 try:
                     await component.dispose()
-                    logger.info(f"Component {component_name} disposed")
+                    _backend_logger.info(
+                        f"Component {component_name} disposed",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.core.component_manager"
+                    )
                 except Exception as e:
-                    logger.error(f"Failed to dispose component {component_name}: {e}")
-            
+                    _backend_logger.error(
+                        f"Failed to dispose component {component_name}: {e}",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.core.component_manager"
+                    )
+
             self.is_initialized = False
             self.is_running = False
-            logger.info("All components disposed")
-            
+            _backend_logger.info(
+                "All components disposed",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.component_manager"
+            )
+
         except Exception as e:
-            logger.error(f"Failed to dispose components: {e}")
+            _backend_logger.error(
+                f"Failed to dispose components: {e}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.component_manager"
+            )
     
     def get_component(self, name: str) -> Optional[SystemComponent]:
         """Get a specific component."""
@@ -289,33 +398,57 @@ class ComponentManager:
         """Restart a specific component."""
         component = self.get_component(name)
         if not component:
-            logger.error(f"Component {name} not found")
+            _backend_logger.error(
+                f"Component {name} not found",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.component_manager"
+            )
             return False
-        
-        logger.info(f"Restarting component: {name}")
-        
+
+        _backend_logger.info(
+            f"Restarting component: {name}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.component_manager"
+        )
+
         try:
             # Stop component
             await component.stop()
-            
+
             # Start component
             success = await component.start()
             if success:
-                logger.info(f"Component {name} restarted successfully")
+                _backend_logger.info(
+                    f"Component {name} restarted successfully",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.component_manager"
+                )
             else:
-                logger.error(f"Failed to restart component {name}")
-            
+                _backend_logger.error(
+                    f"Failed to restart component {name}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.component_manager"
+                )
+
             return success
-            
+
         except Exception as e:
-            logger.error(f"Failed to restart component {name}: {e}")
+            _backend_logger.error(
+                f"Failed to restart component {name}: {e}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.component_manager"
+            )
             return False
-    
+
     async def enable_component(self, name: str) -> bool:
         """Enable a component (if it was disabled)."""
         component = self.get_component(name)
         if not component:
-            logger.error(f"Component {name} not found")
+            _backend_logger.error(
+                f"Component {name} not found",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.component_manager"
+            )
             return False
         
         if not component.status.is_initialized:
@@ -327,26 +460,46 @@ class ComponentManager:
             success = await component.start()
             if not success:
                 return False
-        
-        logger.info(f"Component {name} enabled")
+
+        _backend_logger.info(
+            f"Component {name} enabled",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.component_manager"
+        )
         return True
-    
+
     async def disable_component(self, name: str) -> bool:
         """Disable a component."""
         component = self.get_component(name)
         if not component:
-            logger.error(f"Component {name} not found")
+            _backend_logger.error(
+                f"Component {name} not found",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.component_manager"
+            )
             return False
-        
-        logger.info(f"Disabling component: {name}")
-        
+
+        _backend_logger.info(
+            f"Disabling component: {name}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.component_manager"
+        )
+
         try:
             await component.stop()
             await component.dispose()
-            logger.info(f"Component {name} disabled")
+            _backend_logger.info(
+                f"Component {name} disabled",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.component_manager"
+            )
             return True
         except Exception as e:
-            logger.error(f"Failed to disable component {name}: {e}")
+            _backend_logger.error(
+                f"Failed to disable component {name}: {e}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.component_manager"
+            )
             return False
 
 

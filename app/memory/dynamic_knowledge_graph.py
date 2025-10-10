@@ -22,9 +22,13 @@ from dataclasses import dataclass, field
 from collections import defaultdict
 from enum import Enum
 import numpy as np
-import structlog
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class RelationshipType(str, Enum):
@@ -182,8 +186,12 @@ class DynamicKnowledgeGraph:
             "enable_spatial_reasoning": True,
             "enable_temporal_reasoning": True
         }
-        
-        logger.info(f"Dynamic Knowledge Graph initialized for agent {agent_id}")
+
+        logger.info(
+            f"Dynamic Knowledge Graph initialized for agent {agent_id}",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.memory.dynamic_knowledge_graph.DynamicKnowledgeGraph"
+        )
     
     async def add_entity_from_memory(
         self,
@@ -211,18 +219,27 @@ class DynamicKnowledgeGraph:
             
             # Update graph statistics
             self._update_graph_stats()
-            
+
             logger.debug(
                 "Entities added from memory",
-                agent_id=self.agent_id,
-                memory_id=memory_id,
-                entities_count=len(entity_ids)
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.dynamic_knowledge_graph.DynamicKnowledgeGraph",
+                data={
+                    "agent_id": self.agent_id,
+                    "memory_id": memory_id,
+                    "entities_count": len(entity_ids)
+                }
             )
-            
+
             return entity_ids
-            
+
         except Exception as e:
-            logger.error(f"Failed to add entities from memory: {e}")
+            logger.error(
+                "Failed to add entities from memory",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.dynamic_knowledge_graph.DynamicKnowledgeGraph",
+                error=e
+            )
             return []
     
     async def _extract_entities(
@@ -529,7 +546,12 @@ class DynamicKnowledgeGraph:
             }
 
         except Exception as e:
-            logger.error(f"Failed to get related entities: {e}")
+            logger.error(
+                "Failed to get related entities",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.dynamic_knowledge_graph.DynamicKnowledgeGraph",
+                error=e
+            )
             return {"entities": [], "relationships": [], "total_found": 0}
 
     async def find_spatial_neighbors(
@@ -573,7 +595,12 @@ class DynamicKnowledgeGraph:
             return neighbors[:50]  # Limit results
 
         except Exception as e:
-            logger.error(f"Failed to find spatial neighbors: {e}")
+            logger.error(
+                "Failed to find spatial neighbors",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.dynamic_knowledge_graph.DynamicKnowledgeGraph",
+                error=e
+            )
             return []
 
     async def consolidate_graph(self) -> Dict[str, Any]:
@@ -619,14 +646,20 @@ class DynamicKnowledgeGraph:
 
             logger.info(
                 "Graph consolidation completed",
-                agent_id=self.agent_id,
-                stats=consolidation_stats
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.dynamic_knowledge_graph.DynamicKnowledgeGraph",
+                data={"agent_id": self.agent_id, "stats": consolidation_stats}
             )
 
             return consolidation_stats
 
         except Exception as e:
-            logger.error(f"Graph consolidation failed: {e}")
+            logger.error(
+                "Graph consolidation failed",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.memory.dynamic_knowledge_graph.DynamicKnowledgeGraph",
+                error=e
+            )
             return {"error": str(e)}
 
     async def _find_similar_entities(self) -> List[List[str]]:

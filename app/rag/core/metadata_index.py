@@ -25,9 +25,12 @@ from enum import Enum
 from collections import defaultdict
 import bisect
 
-import structlog
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
 
-logger = structlog.get_logger(__name__)
+# Get backend logger instance
+logger = get_logger()
 
 
 class IndexType(str, Enum):
@@ -346,7 +349,11 @@ class MetadataIndexManager:
             'avg_query_time_ms': 0.0
         }
 
-        logger.info("MetadataIndexManager initialized")
+        logger.info(
+            "MetadataIndexManager initialized",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.rag.core.metadata_index.MetadataIndexManager"
+        )
 
     def create_index(self, field_name: str, index_type: IndexType) -> bool:
         """
@@ -365,17 +372,33 @@ class MetadataIndexManager:
             elif index_type == IndexType.RANGE:
                 self._range_indexes[field_name] = RangeIndex(field_name)
             else:
-                logger.error(f"Unsupported index type: {index_type}")
+                logger.error(
+                    f"Unsupported index type: {index_type}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.metadata_index.MetadataIndexManager",
+                    data={"index_type": str(index_type)}
+                )
                 return False
 
             self._field_types[field_name] = index_type
             self._metrics['total_indexes'] += 1
 
-            logger.info(f"Index created: {field_name} ({index_type.value})")
+            logger.info(
+                f"Index created: {field_name} ({index_type.value})",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.metadata_index.MetadataIndexManager",
+                data={"field_name": field_name, "index_type": index_type.value}
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to create index for {field_name}: {e}")
+            logger.error(
+                f"Failed to create index for {field_name}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.metadata_index.MetadataIndexManager",
+                error=e,
+                data={"field_name": field_name}
+            )
             return False
 
     def add_document(self, chunk_id: str, metadata: Dict[str, Any]) -> bool:
@@ -410,7 +433,13 @@ class MetadataIndexManager:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to add document {chunk_id}: {e}")
+            logger.error(
+                f"Failed to add document {chunk_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.metadata_index.MetadataIndexManager",
+                error=e,
+                data={"chunk_id": chunk_id}
+            )
             return False
 
     def remove_document(self, chunk_id: str) -> bool:
@@ -436,7 +465,13 @@ class MetadataIndexManager:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to remove document {chunk_id}: {e}")
+            logger.error(
+                f"Failed to remove document {chunk_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.metadata_index.MetadataIndexManager",
+                error=e,
+                data={"chunk_id": chunk_id}
+            )
             return False
 
     def query(
@@ -464,7 +499,12 @@ class MetadataIndexManager:
             if term_filters:
                 for term_filter in term_filters:
                     if term_filter.field not in self._inverted_indexes:
-                        logger.warning(f"No index for field: {term_filter.field}")
+                        logger.warn(
+                            f"No index for field: {term_filter.field}",
+                            LogCategory.MEMORY_OPERATIONS,
+                            "app.rag.core.metadata_index.MetadataIndexManager",
+                            data={"field": term_filter.field}
+                        )
                         continue
 
                     index = self._inverted_indexes[term_filter.field]
@@ -501,7 +541,12 @@ class MetadataIndexManager:
             if range_filters:
                 for range_filter in range_filters:
                     if range_filter.field not in self._range_indexes:
-                        logger.warning(f"No range index for field: {range_filter.field}")
+                        logger.warn(
+                            f"No range index for field: {range_filter.field}",
+                            LogCategory.MEMORY_OPERATIONS,
+                            "app.rag.core.metadata_index.MetadataIndexManager",
+                            data={"field": range_filter.field}
+                        )
                         continue
 
                     index = self._range_indexes[range_filter.field]
@@ -533,16 +578,25 @@ class MetadataIndexManager:
 
             logger.debug(
                 f"Query executed",
-                term_filters=len(term_filters) if term_filters else 0,
-                range_filters=len(range_filters) if range_filters else 0,
-                results=len(result),
-                time_ms=query_time
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.metadata_index.MetadataIndexManager",
+                data={
+                    "term_filters": len(term_filters) if term_filters else 0,
+                    "range_filters": len(range_filters) if range_filters else 0,
+                    "results": len(result),
+                    "time_ms": query_time
+                }
             )
 
             return result
 
         except Exception as e:
-            logger.error(f"Query failed: {e}")
+            logger.error(
+                "Query failed",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.metadata_index.MetadataIndexManager",
+                error=e
+            )
             return set()
 
     def get_facets(
@@ -574,7 +628,12 @@ class MetadataIndexManager:
 
             for field in fields:
                 if field not in self._inverted_indexes:
-                    logger.warning(f"No index for field: {field}")
+                    logger.warn(
+                        f"No index for field: {field}",
+                        LogCategory.MEMORY_OPERATIONS,
+                        "app.rag.core.metadata_index.MetadataIndexManager",
+                        data={"field": field}
+                    )
                     continue
 
                 index = self._inverted_indexes[field]
@@ -608,11 +667,21 @@ class MetadataIndexManager:
 
             self._metrics['total_facet_queries'] += 1
 
-            logger.debug(f"Facets generated for {len(fields)} fields")
+            logger.debug(
+                f"Facets generated for {len(fields)} fields",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.metadata_index.MetadataIndexManager",
+                data={"field_count": len(fields)}
+            )
             return facets
 
         except Exception as e:
-            logger.error(f"Facet generation failed: {e}")
+            logger.error(
+                "Facet generation failed",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.metadata_index.MetadataIndexManager",
+                error=e
+            )
             return []
 
     def aggregate(
@@ -704,7 +773,13 @@ class MetadataIndexManager:
                 return {'error': f'No index for field: {field}'}
 
         except Exception as e:
-            logger.error(f"Aggregation failed: {e}")
+            logger.error(
+                "Aggregation failed",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.metadata_index.MetadataIndexManager",
+                error=e,
+                data={"field": field, "aggregation_type": str(aggregation_type)}
+            )
             return {'error': str(e)}
 
     def create_query_plan(
@@ -808,11 +883,20 @@ class MetadataIndexManager:
             for index in self._range_indexes.values():
                 index._ensure_sorted()
 
-            logger.info("Indexes optimized")
+            logger.info(
+                "Indexes optimized",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.metadata_index.MetadataIndexManager"
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Index optimization failed: {e}")
+            logger.error(
+                "Index optimization failed",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.metadata_index.MetadataIndexManager",
+                error=e
+            )
             return False
 
 
@@ -842,6 +926,10 @@ async def get_metadata_index_manager() -> MetadataIndexManager:
             _metadata_index_manager.create_index('chunk_index', IndexType.RANGE)
             _metadata_index_manager.create_index('confidence', IndexType.RANGE)
 
-            logger.info("Default metadata indexes created")
+            logger.info(
+                "Default metadata indexes created",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.metadata_index"
+            )
 
         return _metadata_index_manager

@@ -23,10 +23,14 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from enum import Enum
 
-import structlog
 from pydantic import BaseModel, Field
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class IsolationLevel(str, Enum):
@@ -103,7 +107,11 @@ class AgentIsolationManager:
             "total_permissions": 0
         }
 
-        logger.info("THE Agent isolation manager initialized")
+        logger.info(
+            "THE Agent isolation manager initialized",
+            LogCategory.SECURITY_OPERATIONS,
+            "app.rag.core.agent_isolation_manager.AgentIsolationManager"
+        )
 
     async def initialize(self) -> None:
         """Initialize THE isolation manager."""
@@ -116,10 +124,19 @@ class AgentIsolationManager:
                 await self.unified_rag.initialize()
 
             self.is_initialized = True
-            logger.info("THE Isolation manager initialization completed")
+            logger.info(
+                "THE Isolation manager initialization completed",
+                LogCategory.SECURITY_OPERATIONS,
+                "app.rag.core.agent_isolation_manager.AgentIsolationManager"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to initialize THE isolation manager: {str(e)}")
+            logger.error(
+                "Failed to initialize THE isolation manager",
+                LogCategory.SECURITY_OPERATIONS,
+                "app.rag.core.agent_isolation_manager.AgentIsolationManager",
+                error=e
+            )
             raise
 
     async def create_agent_isolation(
@@ -146,7 +163,12 @@ class AgentIsolationManager:
                 await self.initialize()
 
             if agent_id in self.isolation_profiles:
-                logger.warning(f"Isolation profile already exists for agent {agent_id}")
+                logger.warn(
+                    f"Isolation profile already exists for agent {agent_id}",
+                    LogCategory.SECURITY_OPERATIONS,
+                    "app.rag.core.agent_isolation_manager.AgentIsolationManager",
+                    data={"agent_id": agent_id}
+                )
                 return self.isolation_profiles[agent_id]
 
             # Create default resource quota if not provided
@@ -175,11 +197,22 @@ class AgentIsolationManager:
             # Update stats
             self.stats["total_agents"] += 1
 
-            logger.info(f"Created isolation profile for agent {agent_id}")
+            logger.info(
+                f"Created isolation profile for agent {agent_id}",
+                LogCategory.SECURITY_OPERATIONS,
+                "app.rag.core.agent_isolation_manager.AgentIsolationManager",
+                data={"agent_id": agent_id, "isolation_level": isolation_level}
+            )
             return profile
 
         except Exception as e:
-            logger.error(f"Failed to create isolation for agent {agent_id}: {str(e)}")
+            logger.error(
+                f"Failed to create isolation for agent {agent_id}",
+                LogCategory.SECURITY_OPERATIONS,
+                "app.rag.core.agent_isolation_manager.AgentIsolationManager",
+                error=e,
+                data={"agent_id": agent_id}
+            )
             raise
     
     async def validate_access(
@@ -215,7 +248,12 @@ class AgentIsolationManager:
             return target_agent_id in profile.allowed_agents
 
         except Exception as e:
-            logger.error(f"Error validating access: {str(e)}")
+            logger.error(
+                "Error validating access",
+                LogCategory.SECURITY_OPERATIONS,
+                "app.rag.core.agent_isolation_manager.AgentIsolationManager",
+                error=e
+            )
             return False
 
     def get_agent_profile(self, agent_id: str) -> Optional[AgentIsolationProfile]:
@@ -253,11 +291,21 @@ class AgentIsolationManager:
                 self.agent_permissions[granting_agent_id] = set()
             self.agent_permissions[granting_agent_id].add(requesting_agent_id)
 
-            logger.info(f"Granted access from {granting_agent_id} to {requesting_agent_id}")
+            logger.info(
+                f"Granted access from {granting_agent_id} to {requesting_agent_id}",
+                LogCategory.SECURITY_OPERATIONS,
+                "app.rag.core.agent_isolation_manager.AgentIsolationManager",
+                data={"granting_agent_id": granting_agent_id, "requesting_agent_id": requesting_agent_id}
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to grant access: {str(e)}")
+            logger.error(
+                "Failed to grant access",
+                LogCategory.SECURITY_OPERATIONS,
+                "app.rag.core.agent_isolation_manager.AgentIsolationManager",
+                error=e
+            )
             return False
 
     def get_stats(self) -> Dict[str, Any]:

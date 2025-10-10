@@ -12,11 +12,13 @@ import json
 import yaml
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
-import structlog
+
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
 
 from app.config.agent_config_manager import get_agent_config_manager, AgentConfigurationManager
 
-logger = structlog.get_logger(__name__)
+_backend_logger = get_backend_logger()
 
 
 class ConfigMigration:
@@ -34,10 +36,16 @@ class ConfigMigration:
         self.config_manager = config_manager or get_agent_config_manager()
         self.data_dir = self.config_manager.data_dir
         self.config_dir = self.config_manager.config_dir
-        
-        logger.info("Configuration migration initialized", 
-                   data_dir=str(self.data_dir),
-                   config_dir=str(self.config_dir))
+
+        _backend_logger.info(
+            "Configuration migration initialized",
+            LogCategory.AGENT_OPERATIONS,
+            "app.config.config_migration",
+            data={
+                "data_dir": str(self.data_dir),
+                "config_dir": str(self.config_dir)
+            }
+        )
     
     def validate_current_config(self) -> Tuple[bool, List[str]]:
         """
@@ -51,14 +59,28 @@ class ConfigMigration:
             is_valid = len(errors) == 0
             
             if is_valid:
-                logger.info("Configuration validation passed")
+                _backend_logger.info(
+                    "Configuration validation passed",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.config.config_migration"
+                )
             else:
-                logger.error("Configuration validation failed", errors=errors)
-            
+                _backend_logger.error(
+                    "Configuration validation failed",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.config.config_migration",
+                    data={"errors": errors}
+                )
+
             return is_valid, errors
-            
+
         except Exception as e:
-            logger.error("Configuration validation error", error=str(e))
+            _backend_logger.error(
+                "Configuration validation error",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.config_migration",
+                data={"error": str(e)}
+            )
             return False, [f"Validation error: {str(e)}"]
     
     def generate_user_config_from_env(self) -> Dict[str, Any]:
@@ -139,11 +161,21 @@ class ConfigMigration:
             with open(output_file, 'w', encoding='utf-8') as f:
                 yaml.dump(config, f, default_flow_style=False, indent=2, sort_keys=True)
             
-            logger.info("User configuration saved", file=str(output_file))
+            _backend_logger.info(
+                "User configuration saved",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.config_migration",
+                data={"file": str(output_file)}
+            )
             return True
-            
+
         except Exception as e:
-            logger.error("Failed to save user configuration", error=str(e))
+            _backend_logger.error(
+                "Failed to save user configuration",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.config_migration",
+                data={"error": str(e)}
+            )
             return False
     
     def migrate_from_hardcoded_values(self) -> Dict[str, Any]:
@@ -357,11 +389,20 @@ class ConfigMigration:
             with open(report_file, 'w', encoding='utf-8') as f:
                 f.write(report)
             
-            logger.info("Migration files created successfully")
+            _backend_logger.info(
+                "Migration files created successfully",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.config_migration"
+            )
             return True
-            
+
         except Exception as e:
-            logger.error("Failed to create migration files", error=str(e))
+            _backend_logger.error(
+                "Failed to create migration files",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.config_migration",
+                data={"error": str(e)}
+            )
             return False
 
 

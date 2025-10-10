@@ -23,10 +23,14 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 
-import structlog
 from pydantic import BaseModel, Field
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class ContentType(str, Enum):
@@ -179,10 +183,12 @@ class StructuredKBInterface:
             'dedup_misses': 0,
             'index_updates': 0
         }
-        
+
         logger.info(
             "StructuredKBInterface initialized",
-            collection=collection_name
+            LogCategory.MEMORY_OPERATIONS,
+            "app.rag.core.structured_kb_interface.StructuredKBInterface",
+            data={"collection": collection_name}
         )
     
     async def begin_transaction(self) -> str:
@@ -203,8 +209,13 @@ class StructuredKBInterface:
             
             self._transactions[transaction_id] = transaction
             self._metrics['total_transactions'] += 1
-            
-            logger.debug(f"Transaction started: {transaction_id}")
+
+            logger.debug(
+                f"Transaction started: {transaction_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.structured_kb_interface.StructuredKBInterface",
+                data={"transaction_id": transaction_id}
+            )
             return transaction_id
     
     async def commit_transaction(self, transaction_id: str) -> bool:
@@ -219,29 +230,50 @@ class StructuredKBInterface:
         """
         async with self._transaction_lock:
             if transaction_id not in self._transactions:
-                logger.error(f"Transaction not found: {transaction_id}")
+                logger.error(
+                    f"Transaction not found: {transaction_id}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.structured_kb_interface.StructuredKBInterface",
+                    data={"transaction_id": transaction_id}
+                )
                 return False
-            
+
             transaction = self._transactions[transaction_id]
-            
+
             if transaction.state != TransactionState.PENDING:
-                logger.error(f"Transaction not in pending state: {transaction_id}")
+                logger.error(
+                    f"Transaction not in pending state: {transaction_id}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.structured_kb_interface.StructuredKBInterface",
+                    data={"transaction_id": transaction_id, "state": transaction.state.value}
+                )
                 return False
-            
+
             try:
                 # Execute all operations
                 for operation in transaction.operations:
                     await self._execute_operation(operation)
-                
+
                 # Mark as committed
                 transaction.state = TransactionState.COMMITTED
                 transaction.committed_at = datetime.utcnow()
-                
-                logger.info(f"Transaction committed: {transaction_id}")
+
+                logger.info(
+                    f"Transaction committed: {transaction_id}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.structured_kb_interface.StructuredKBInterface",
+                    data={"transaction_id": transaction_id}
+                )
                 return True
-                
+
             except Exception as e:
-                logger.error(f"Transaction commit failed: {transaction_id}: {e}")
+                logger.error(
+                    f"Transaction commit failed: {transaction_id}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.structured_kb_interface.StructuredKBInterface",
+                    error=e,
+                    data={"transaction_id": transaction_id}
+                )
                 transaction.state = TransactionState.FAILED
                 return False
     
@@ -257,13 +289,23 @@ class StructuredKBInterface:
         """
         async with self._transaction_lock:
             if transaction_id not in self._transactions:
-                logger.error(f"Transaction not found: {transaction_id}")
+                logger.error(
+                    f"Transaction not found: {transaction_id}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.structured_kb_interface.StructuredKBInterface",
+                    data={"transaction_id": transaction_id}
+                )
                 return False
-            
+
             transaction = self._transactions[transaction_id]
             transaction.state = TransactionState.ROLLED_BACK
-            
-            logger.info(f"Transaction rolled back: {transaction_id}")
+
+            logger.info(
+                f"Transaction rolled back: {transaction_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.structured_kb_interface.StructuredKBInterface",
+                data={"transaction_id": transaction_id}
+            )
             return True
     
     async def upsert_chunk(
@@ -301,7 +343,12 @@ class StructuredKBInterface:
                 self._transactions[transaction_id].operations.append(operation)
                 return True
             else:
-                logger.error(f"Transaction not found: {transaction_id}")
+                logger.error(
+                    f"Transaction not found: {transaction_id}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.structured_kb_interface.StructuredKBInterface",
+                    data={"transaction_id": transaction_id}
+                )
                 return False
         else:
             # Execute immediately
@@ -441,9 +488,13 @@ class StructuredKBInterface:
 
         logger.debug(
             f"Relationship added",
-            source=source_chunk_id,
-            target=target_chunk_id,
-            type=relation_type.value
+            LogCategory.MEMORY_OPERATIONS,
+            "app.rag.core.structured_kb_interface.StructuredKBInterface",
+            data={
+                "source": source_chunk_id,
+                "target": target_chunk_id,
+                "type": relation_type.value
+            }
         )
 
         return True
@@ -491,7 +542,12 @@ class StructuredKBInterface:
         self._document_structures[doc_id] = structure
         self._metrics['total_documents'] = len(self._document_structures)
 
-        logger.debug(f"Document structure set: {doc_id}")
+        logger.debug(
+            f"Document structure set: {doc_id}",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.rag.core.structured_kb_interface.StructuredKBInterface",
+            data={"doc_id": doc_id}
+        )
         return True
 
     async def get_document_structure(self, doc_id: str) -> Optional[DocumentStructure]:
@@ -578,7 +634,11 @@ class StructuredKBInterface:
         matching_chunks = set()
 
         # For now, return empty set as this requires integration with vector DB
-        logger.warning("Metadata filtering not fully implemented - requires vector DB integration")
+        logger.warn(
+            "Metadata filtering not fully implemented - requires vector DB integration",
+            LogCategory.MEMORY_OPERATIONS,
+            "app.rag.core.structured_kb_interface.StructuredKBInterface"
+        )
 
         return matching_chunks
 
@@ -619,11 +679,22 @@ class StructuredKBInterface:
             elif op_type == 'delete_chunk':
                 return await self._execute_delete(operation)
             else:
-                logger.error(f"Unknown operation type: {op_type}")
+                logger.error(
+                    f"Unknown operation type: {op_type}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.structured_kb_interface.StructuredKBInterface",
+                    data={"op_type": op_type}
+                )
                 return False
 
         except Exception as e:
-            logger.error(f"Operation execution failed: {e}", operation=operation)
+            logger.error(
+                "Operation execution failed",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.structured_kb_interface.StructuredKBInterface",
+                error=e,
+                data={"operation": operation}
+            )
             return False
 
     async def _execute_upsert(self, operation: Dict[str, Any]) -> bool:
@@ -646,7 +717,12 @@ class StructuredKBInterface:
             existing_chunk = await self.exists_by_content_sha(metadata.content_sha)
             if existing_chunk and existing_chunk != chunk_id:
                 self._metrics['dedup_hits'] += 1
-                logger.debug(f"Duplicate chunk detected: {chunk_id} (existing: {existing_chunk})")
+                logger.debug(
+                    f"Duplicate chunk detected: {chunk_id} (existing: {existing_chunk})",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.rag.core.structured_kb_interface.StructuredKBInterface",
+                    data={"chunk_id": chunk_id, "existing_chunk": existing_chunk}
+                )
                 return True  # Skip duplicate
             else:
                 self._metrics['dedup_misses'] += 1
@@ -698,11 +774,22 @@ class StructuredKBInterface:
             self._metrics['total_chunks'] += 1
             self._metrics['index_updates'] += 1
 
-            logger.debug(f"Chunk upserted: {chunk_id}")
+            logger.debug(
+                f"Chunk upserted: {chunk_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.structured_kb_interface.StructuredKBInterface",
+                data={"chunk_id": chunk_id}
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Upsert failed for chunk {chunk_id}: {e}")
+            logger.error(
+                f"Upsert failed for chunk {chunk_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.structured_kb_interface.StructuredKBInterface",
+                error=e,
+                data={"chunk_id": chunk_id}
+            )
             return False
 
     async def _execute_delete(self, operation: Dict[str, Any]) -> bool:
@@ -750,11 +837,22 @@ class StructuredKBInterface:
 
             self._metrics['total_chunks'] -= 1
 
-            logger.debug(f"Chunk deleted: {chunk_id}")
+            logger.debug(
+                f"Chunk deleted: {chunk_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.structured_kb_interface.StructuredKBInterface",
+                data={"chunk_id": chunk_id}
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Delete failed for chunk {chunk_id}: {e}")
+            logger.error(
+                f"Delete failed for chunk {chunk_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.rag.core.structured_kb_interface.StructuredKBInterface",
+                error=e,
+                data={"chunk_id": chunk_id}
+            )
             return False
 
 

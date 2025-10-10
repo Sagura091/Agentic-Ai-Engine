@@ -17,17 +17,27 @@ from typing import Dict, Any, Optional, Union, List
 from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime
-import structlog
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
+_backend_logger = get_backend_logger()
 
 # Integration with Global Config Manager
 try:
     from app.core.global_config_manager import global_config_manager, ConfigurationSection
     GLOBAL_CONFIG_AVAILABLE = True
-    logger.info("Global Config Manager integration enabled")
+    _backend_logger.info(
+        "Global Config Manager integration enabled",
+        LogCategory.AGENT_OPERATIONS,
+        "app.config.agent_config_manager"
+    )
 except ImportError:
-    logger.warning("Global Config Manager not available - using standalone mode")
+    _backend_logger.warn(
+        "Global Config Manager not available - using standalone mode",
+        LogCategory.AGENT_OPERATIONS,
+        "app.config.agent_config_manager"
+    )
     GLOBAL_CONFIG_AVAILABLE = False
     global_config_manager = None
     ConfigurationSection = None
@@ -89,10 +99,16 @@ class AgentConfigurationManager:
         # Load configuration layers
         self._load_configuration()
         self._setup_validation_rules()
-        
-        logger.info("Agent configuration manager initialized", 
-                   config_dir=str(self.config_dir),
-                   data_dir=str(self.data_dir))
+
+        _backend_logger.info(
+            "Agent configuration manager initialized",
+            LogCategory.AGENT_OPERATIONS,
+            "app.config.agent_config_manager",
+            data={
+                "config_dir": str(self.config_dir),
+                "data_dir": str(self.data_dir)
+            }
+        )
     
     def _load_configuration(self):
         """Load configuration from all layers."""
@@ -103,29 +119,49 @@ class AgentConfigurationManager:
                 with open(defaults_file, 'r', encoding='utf-8') as f:
                     defaults = yaml.safe_load(f)
                 self._config_cache = defaults.copy()
-                logger.info("Loaded default configuration", file=str(defaults_file))
+                _backend_logger.info(
+                    "Loaded default configuration",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.config.agent_config_manager",
+                    data={"file": str(defaults_file)}
+                )
             else:
-                logger.warning("Default configuration file not found", file=str(defaults_file))
+                _backend_logger.warn(
+                    "Default configuration file not found",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.config.agent_config_manager",
+                    data={"file": str(defaults_file)}
+                )
                 self._config_cache = self._get_fallback_config()
-            
+
             # Layer 2: Load environment overrides
             self._apply_environment_overrides()
-            
+
             # Layer 3: Load user overrides from data/config/user_config.yaml
             user_config_file = self.config_dir / "user_config.yaml"
             if user_config_file.exists():
                 with open(user_config_file, 'r', encoding='utf-8') as f:
                     user_config = yaml.safe_load(f)
                 self._merge_config(self._config_cache, user_config)
-                logger.info("Loaded user configuration", file=str(user_config_file))
-            
+                _backend_logger.info(
+                    "Loaded user configuration",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.config.agent_config_manager",
+                    data={"file": str(user_config_file)}
+                )
+
             # Layer 4: Load global config (legacy support) from data/config/global_config.json
             global_config_file = self.config_dir / "global_config.json"
             if global_config_file.exists():
                 with open(global_config_file, 'r', encoding='utf-8') as f:
                     global_config = json.load(f)
                 self._merge_config(self._config_cache, global_config)
-                logger.info("Loaded global configuration", file=str(global_config_file))
+                _backend_logger.info(
+                    "Loaded global configuration",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.config.agent_config_manager",
+                    data={"file": str(global_config_file)}
+                )
 
             # Layer 5: Integrate with Global Config Manager (runtime settings)
             self._integrate_with_global_config()
@@ -134,7 +170,12 @@ class AgentConfigurationManager:
             self._config_cache["generated_at"] = datetime.now().isoformat()
 
         except Exception as e:
-            logger.error("Failed to load configuration", error=str(e))
+            _backend_logger.error(
+                "Failed to load configuration",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.agent_config_manager",
+                data={"error": str(e)}
+            )
             raise ConfigurationError(f"Configuration loading failed: {e}")
     
     def _get_fallback_config(self) -> Dict[str, Any]:
@@ -218,8 +259,16 @@ class AgentConfigurationManager:
                 # Convert string values to appropriate types
                 converted_value = self._convert_env_value(env_value)
                 self._set_nested_value(self._config_cache, config_path, converted_value)
-                logger.debug("Applied environment override", 
-                           env_var=env_var, config_path=config_path, value=converted_value)
+                _backend_logger.debug(
+                    "Applied environment override",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.config.agent_config_manager",
+                    data={
+                        "env_var": env_var,
+                        "config_path": config_path,
+                        "value": converted_value
+                    }
+                )
     
     def _convert_env_value(self, value: str) -> Union[str, int, float, bool]:
         """Convert environment variable string to appropriate type."""
@@ -397,10 +446,18 @@ class AgentConfigurationManager:
                         target_path = f"performance.{key}" if key.startswith("max_") else f"infrastructure.{key}"
                         self._set_nested_value(self._config_cache, target_path, value)
 
-            logger.info("Successfully integrated with Global Config Manager")
+            _backend_logger.info(
+                "Successfully integrated with Global Config Manager",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.agent_config_manager"
+            )
 
         except Exception as e:
-            logger.warning(f"Failed to integrate with Global Config Manager: {str(e)}")
+            _backend_logger.warn(
+                f"Failed to integrate with Global Config Manager: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.agent_config_manager"
+            )
 
     def get(self, path: str, default: Any = None) -> Any:
         """
@@ -427,7 +484,12 @@ class AgentConfigurationManager:
         """
         base_config = self.get(f"agent_types.{agent_type}", {})
         if not base_config:
-            logger.warning("No configuration found for agent type", agent_type=agent_type)
+            _backend_logger.warn(
+                "No configuration found for agent type",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.agent_config_manager",
+                data={"agent_type": agent_type}
+            )
             # Return basic defaults
             base_config = {
                 "framework": "basic",
@@ -455,17 +517,29 @@ class AgentConfigurationManager:
             agent_config_file = self.config_dir / "agents" / f"{agent_id}.yaml"
 
             if not agent_config_file.exists():
-                logger.debug(f"Individual agent config not found: {agent_config_file}")
+                _backend_logger.debug(
+                    f"Individual agent config not found: {agent_config_file}",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.config.agent_config_manager"
+                )
                 return None
 
             with open(agent_config_file, 'r', encoding='utf-8') as f:
                 agent_config = yaml.safe_load(f)
 
-            logger.info(f"Loaded individual agent configuration: {agent_id}")
+            _backend_logger.info(
+                f"Loaded individual agent configuration: {agent_id}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.agent_config_manager"
+            )
             return agent_config
 
         except Exception as e:
-            logger.error(f"Failed to load individual agent config for {agent_id}: {str(e)}")
+            _backend_logger.error(
+                f"Failed to load individual agent config for {agent_id}: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.agent_config_manager"
+            )
             return None
 
     def get_individual_agent_config(self, agent_id: str) -> Dict[str, Any]:
@@ -484,7 +558,11 @@ class AgentConfigurationManager:
         if individual_config is None:
             # Fallback to type-based config if no individual config found
             agent_type = "autonomous"  # Default fallback
-            logger.warning(f"No individual config found for {agent_id}, using default {agent_type} config")
+            _backend_logger.warn(
+                f"No individual config found for {agent_id}, using default {agent_type} config",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.agent_config_manager"
+            )
             return self.get_agent_config(agent_type)
 
         # Get agent type from individual config
@@ -496,7 +574,11 @@ class AgentConfigurationManager:
         # Merge individual config over defaults
         merged_config = self._deep_merge_configs(base_config, individual_config)
 
-        logger.info(f"Merged individual agent configuration for {agent_id}")
+        _backend_logger.info(
+            f"Merged individual agent configuration for {agent_id}",
+            LogCategory.AGENT_OPERATIONS,
+            "app.config.agent_config_manager"
+        )
         return merged_config
 
     def _deep_merge_configs(self, base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
@@ -553,7 +635,12 @@ class AgentConfigurationManager:
         try:
             return template.format(**kwargs)
         except KeyError as e:
-            logger.warning("Missing template variable", template=template_name, missing_var=str(e))
+            _backend_logger.warn(
+                "Missing template variable",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.agent_config_manager",
+                data={"template": template_name, "missing_var": str(e)}
+            )
             return template
 
     def get_performance_limits(self) -> Dict[str, Any]:
@@ -577,14 +664,23 @@ class AgentConfigurationManager:
 
     def reload_configuration(self):
         """Reload configuration from files."""
-        logger.info("Reloading configuration")
+        _backend_logger.info(
+            "Reloading configuration",
+            LogCategory.AGENT_OPERATIONS,
+            "app.config.agent_config_manager"
+        )
         self._config_cache.clear()
         self._load_configuration()
 
         # Validate after reload
         errors = self.validate_configuration()
         if errors:
-            logger.error("Configuration validation failed after reload", errors=errors)
+            _backend_logger.error(
+                "Configuration validation failed after reload",
+                LogCategory.AGENT_OPERATIONS,
+                "app.config.agent_config_manager",
+                data={"errors": errors}
+            )
             raise ConfigurationError(f"Configuration validation failed: {errors}")
 
     def get_all_config(self) -> Dict[str, Any]:

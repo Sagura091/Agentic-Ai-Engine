@@ -28,7 +28,6 @@ from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 
-import structlog
 from pydantic import BaseModel, Field
 import numpy as np
 
@@ -48,7 +47,12 @@ except ImportError:
     NLTK_AVAILABLE = False
     sent_tokenize = None
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class CompressionStrategy(str, Enum):
@@ -122,8 +126,12 @@ class ContextualCompressor:
         
         logger.info(
             "ContextualCompressor initialized",
-            strategy=self.config.strategy.value,
-            target_ratio=self.config.target_ratio
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.contextual_compression.ContextualCompressor",
+            data={
+                "strategy": self.config.strategy.value,
+                "target_ratio": self.config.target_ratio
+            }
         )
     
     def compress(
@@ -146,7 +154,11 @@ class ContextualCompressor:
         start_time = time.time()
         
         if not results:
-            logger.warning("No results to compress")
+            logger.warn(
+                "No results to compress",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.contextual_compression.ContextualCompressor"
+            )
             return []
         
         compressed_results = []
@@ -158,7 +170,11 @@ class ContextualCompressor:
             metadata = result.get('metadata', {})
             
             if not doc_id or not content:
-                logger.warning("Skipping result with missing doc_id or content")
+                logger.warn(
+                    "Skipping result with missing doc_id or content",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.retrieval.contextual_compression.ContextualCompressor"
+                )
                 continue
             
             try:
@@ -194,7 +210,13 @@ class ContextualCompressor:
                 )
                 
             except Exception as e:
-                logger.error(f"Failed to compress document {doc_id}: {e}")
+                logger.error(
+                    f"Failed to compress document {doc_id}: {e}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.retrieval.contextual_compression.ContextualCompressor",
+                    error=e,
+                    data={"doc_id": doc_id}
+                )
                 # Return original content on error
                 compressed_results.append(CompressedResult(
                     doc_id=doc_id,
@@ -221,9 +243,13 @@ class ContextualCompressor:
         
         logger.debug(
             f"Compression completed",
-            documents_count=len(compressed_results),
-            avg_ratio=self._metrics['avg_compression_ratio'],
-            compression_time_ms=compression_time_ms
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.contextual_compression.ContextualCompressor",
+            data={
+                "documents_count": len(compressed_results),
+                "avg_ratio": self._metrics['avg_compression_ratio'],
+                "compression_time_ms": compression_time_ms
+            }
         )
         
         return compressed_results

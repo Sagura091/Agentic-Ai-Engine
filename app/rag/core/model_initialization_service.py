@@ -25,8 +25,11 @@ from datetime import datetime
 import hashlib
 import json
 
-import structlog
 from pydantic import BaseModel, Field
+
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
 
 # Import model specifications
 from app.rag.config.required_models import (
@@ -37,7 +40,8 @@ from app.rag.config.required_models import (
     ModelPriority
 )
 
-logger = structlog.get_logger(__name__)
+# Get backend logger instance
+logger = get_logger()
 
 
 @dataclass
@@ -113,12 +117,16 @@ class ModelInitializationService:
             'total_download_mb': 0.0,
             'total_time_seconds': 0.0
         }
-        
+
         logger.info(
             "Model Initialization Service created",
-            models_dir=str(self.config.models_dir),
-            check_cache=self.config.check_huggingface_cache,
-            reuse_cached=self.config.reuse_cached_models
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.core.model_initialization_service.ModelInitializationService",
+            data={
+                "models_dir": str(self.config.models_dir),
+                "check_cache": self.config.check_huggingface_cache,
+                "reuse_cached": self.config.reuse_cached_models
+            }
         )
     
     async def ensure_models_available(
@@ -150,7 +158,11 @@ class ModelInitializationService:
                     from app.rag.config.required_models import get_default_models
                     required_models = get_default_models()
                     if not self.config.silent_mode:
-                        logger.info("Using default models (embedding, reranking, vision)")
+                        logger.info(
+                            "Using default models (embedding, reranking, vision)",
+                            LogCategory.SYSTEM_OPERATIONS,
+                            "app.rag.core.model_initialization_service.ModelInitializationService"
+                        )
                 else:
                     # Use models based on enabled features
                     required_models = get_required_models(self.config.enabled_features)
@@ -158,24 +170,40 @@ class ModelInitializationService:
             if not self.config.silent_mode:
                 logger.info(
                     "Ensuring models are available",
-                    required_count=len(required_models),
-                    enabled_features=self.config.enabled_features
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.model_initialization_service.ModelInitializationService",
+                    data={
+                        "required_count": len(required_models),
+                        "enabled_features": self.config.enabled_features
+                    }
                 )
             
             # Phase 1: Detect existing models
             if not self.config.silent_mode:
-                logger.info("Phase 1: Detecting existing models...")
+                logger.info(
+                    "Phase 1: Detecting existing models...",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.model_initialization_service.ModelInitializationService"
+                )
             await self._detect_existing_models(required_models)
 
             # Phase 2: Download missing models
             if not self.config.silent_mode:
-                logger.info("Phase 2: Downloading missing models...")
+                logger.info(
+                    "Phase 2: Downloading missing models...",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.model_initialization_service.ModelInitializationService"
+                )
             await self._download_missing_models(required_models)
 
             # Phase 3: Validate all models
             if self.config.validate_models:
                 if not self.config.silent_mode:
-                    logger.info("Phase 3: Validating models...")
+                    logger.info(
+                        "Phase 3: Validating models...",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.rag.core.model_initialization_service.ModelInitializationService"
+                    )
                 await self._validate_all_models(required_models)
             
             # Calculate statistics
@@ -189,15 +217,24 @@ class ModelInitializationService:
                 # Just log a simple success message
                 logger.info(
                     "Models ready",
-                    found=self._stats['models_found'],
-                    downloaded=self._stats['models_downloaded'],
-                    reused=self._stats['models_reused']
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.model_initialization_service.ModelInitializationService",
+                    data={
+                        "found": self._stats['models_found'],
+                        "downloaded": self._stats['models_downloaded'],
+                        "reused": self._stats['models_reused']
+                    }
                 )
 
             return self._model_locations
-            
+
         except Exception as e:
-            logger.error(f"Failed to ensure models available: {e}")
+            logger.error(
+                "Failed to ensure models available",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.model_initialization_service.ModelInitializationService",
+                error=e
+            )
             raise
     
     async def _detect_existing_models(self, required_models: List[ModelSpec]) -> None:
@@ -214,7 +251,12 @@ class ModelInitializationService:
         """
         for model_spec in required_models:
             if not self.config.silent_mode:
-                logger.info(f"Checking for model: {model_spec.model_id}")
+                logger.info(
+                    f"Checking for model: {model_spec.model_id}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.model_initialization_service.ModelInitializationService",
+                    data={"model_id": model_spec.model_id}
+                )
 
             # ================================================================
             # PRIORITY 1: Check centralized storage (data/models/)
@@ -228,10 +270,17 @@ class ModelInitializationService:
                 if not self.config.silent_mode:
                     logger.info(
                         f"✅ Found in data/models/: {model_spec.model_id}",
-                        path=str(location.path)
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.rag.core.model_initialization_service.ModelInitializationService",
+                        data={"model_id": model_spec.model_id, "path": str(location.path)}
                     )
                 else:
-                    logger.debug(f"Found: {model_spec.model_id} at {location.path}")
+                    logger.debug(
+                        f"Found: {model_spec.model_id} at {location.path}",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.rag.core.model_initialization_service.ModelInitializationService",
+                        data={"model_id": model_spec.model_id, "path": str(location.path)}
+                    )
 
                 continue  # Skip to next model - NO DOWNLOAD NEEDED
 
@@ -249,14 +298,19 @@ class ModelInitializationService:
                     if self.config.copy_to_centralized:
                         if not self.config.silent_mode:
                             logger.info(
-                                f"📦 Found in HuggingFace cache, copying to data/models/: {model_spec.model_id}"
+                                f"📦 Found in HuggingFace cache, copying to data/models/: {model_spec.model_id}",
+                                LogCategory.SYSTEM_OPERATIONS,
+                                "app.rag.core.model_initialization_service.ModelInitializationService",
+                                data={"model_id": model_spec.model_id}
                             )
                         await self._copy_to_centralized(model_spec, location)
                     else:
                         if not self.config.silent_mode:
                             logger.info(
                                 f"✅ Found in HuggingFace cache (reusing): {model_spec.model_id}",
-                                path=str(location.path)
+                                LogCategory.SYSTEM_OPERATIONS,
+                                "app.rag.core.model_initialization_service.ModelInitializationService",
+                                data={"model_id": model_spec.model_id, "path": str(location.path)}
                             )
 
                     continue  # Skip to next model - NO DOWNLOAD NEEDED
@@ -265,7 +319,12 @@ class ModelInitializationService:
             # Model not found anywhere - MARK FOR DOWNLOAD
             # ================================================================
             if not self.config.silent_mode:
-                logger.warning(f"❌ Model not found, will download: {model_spec.model_id}")
+                logger.warn(
+                    f"❌ Model not found, will download: {model_spec.model_id}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.model_initialization_service.ModelInitializationService",
+                    data={"model_id": model_spec.model_id}
+                )
 
             self._model_locations[model_spec.model_id] = ModelLocation(
                 model_id=model_spec.model_id,
@@ -429,7 +488,12 @@ class ModelInitializationService:
 
         if not has_tokenizer:
             # Not an error, but log it
-            logger.debug(f"No tokenizer files found in {model_path}")
+            logger.debug(
+                f"No tokenizer files found in {model_path}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.model_initialization_service.ModelInitializationService",
+                data={"model_path": str(model_path)}
+            )
 
         return len(errors) == 0, errors
 
@@ -442,7 +506,13 @@ class ModelInitializationService:
                 if item.is_file():
                     total_size += item.stat().st_size
         except Exception as e:
-            logger.warning(f"Failed to calculate directory size: {e}")
+            logger.warn(
+                f"Failed to calculate directory size",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.model_initialization_service.ModelInitializationService",
+                error=e,
+                data={"directory": str(directory)}
+            )
             return 0.0
 
         return total_size / (1024 * 1024)  # Convert to MB
@@ -456,7 +526,12 @@ class ModelInitializationService:
             source_location: Location of source model
         """
         if not source_location.path or not source_location.path.exists():
-            logger.error(f"Cannot copy model, source path invalid: {source_location.path}")
+            logger.error(
+                f"Cannot copy model, source path invalid: {source_location.path}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.model_initialization_service.ModelInitializationService",
+                data={"source_path": str(source_location.path)}
+            )
             return
 
         # Determine destination
@@ -466,11 +541,21 @@ class ModelInitializationService:
         dest_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            logger.info(f"Copying model from {source_location.path} to {dest_path}")
+            logger.info(
+                f"Copying model from {source_location.path} to {dest_path}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.model_initialization_service.ModelInitializationService",
+                data={"source": str(source_location.path), "dest": str(dest_path)}
+            )
 
             # Copy directory
             if dest_path.exists():
-                logger.warning(f"Destination already exists, removing: {dest_path}")
+                logger.warn(
+                    f"Destination already exists, removing: {dest_path}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.model_initialization_service.ModelInitializationService",
+                    data={"dest_path": str(dest_path)}
+                )
                 shutil.rmtree(dest_path)
 
             # Use shutil.copytree for directory copy
@@ -481,7 +566,11 @@ class ModelInitializationService:
                 dest_path
             )
 
-            logger.info(f"✅ Successfully copied model to centralized storage")
+            logger.info(
+                f"✅ Successfully copied model to centralized storage",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.model_initialization_service.ModelInitializationService"
+            )
 
             # Update location
             self._model_locations[model_spec.model_id] = ModelLocation(
@@ -495,7 +584,12 @@ class ModelInitializationService:
             self._stats['models_reused'] += 1
 
         except Exception as e:
-            logger.error(f"Failed to copy model to centralized storage: {e}")
+            logger.error(
+                f"Failed to copy model to centralized storage",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.model_initialization_service.ModelInitializationService",
+                error=e
+            )
 
     async def _download_missing_models(self, required_models: List[ModelSpec]) -> None:
         """
@@ -517,16 +611,34 @@ class ModelInitializationService:
         if not to_download:
             # All models already exist - NO DOWNLOAD NEEDED
             if not self.config.silent_mode:
-                logger.info("✅ All required models already exist in data/models/")
+                logger.info(
+                    "✅ All required models already exist in data/models/",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.model_initialization_service.ModelInitializationService"
+                )
             else:
-                logger.debug("All models found, no downloads needed")
+                logger.debug(
+                    "All models found, no downloads needed",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.model_initialization_service.ModelInitializationService"
+                )
             return
 
         # Some models need downloading
         if not self.config.silent_mode:
-            logger.info(f"Downloading {len(to_download)} missing models...")
+            logger.info(
+                f"Downloading {len(to_download)} missing models...",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.model_initialization_service.ModelInitializationService",
+                data={"count": len(to_download)}
+            )
             for model_spec in to_download:
-                logger.info(f"  • {model_spec.model_id} ({format_size(model_spec.size_mb)})")
+                logger.info(
+                    f"  • {model_spec.model_id} ({format_size(model_spec.size_mb)})",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.model_initialization_service.ModelInitializationService",
+                    data={"model_id": model_spec.model_id, "size_mb": model_spec.size_mb}
+                )
 
         # Download models (with parallelization)
         semaphore = asyncio.Semaphore(self.config.parallel_downloads)
@@ -544,7 +656,13 @@ class ModelInitializationService:
         # Check for errors
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                logger.error(f"Failed to download {to_download[i].model_id}: {result}")
+                logger.error(
+                    f"Failed to download {to_download[i].model_id}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.model_initialization_service.ModelInitializationService",
+                    error=result,
+                    data={"model_id": to_download[i].model_id}
+                )
                 self._stats['models_failed'] += 1
 
     async def _download_model(self, model_spec: ModelSpec) -> None:
@@ -554,7 +672,12 @@ class ModelInitializationService:
         Args:
             model_spec: Model specification
         """
-        logger.info(f"Downloading model: {model_spec.model_id} ({format_size(model_spec.size_mb)})")
+        logger.info(
+            f"Downloading model: {model_spec.model_id} ({format_size(model_spec.size_mb)})",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.core.model_initialization_service.ModelInitializationService",
+            data={"model_id": model_spec.model_id, "size_mb": model_spec.size_mb}
+        )
 
         # Initialize progress tracking
         progress = DownloadProgress(
@@ -608,10 +731,21 @@ class ModelInitializationService:
             self._stats['models_downloaded'] += 1
             self._stats['total_download_mb'] += model_spec.size_mb
 
-            logger.info(f"✅ Successfully downloaded: {model_spec.model_id}")
+            logger.info(
+                f"✅ Successfully downloaded: {model_spec.model_id}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.model_initialization_service.ModelInitializationService",
+                data={"model_id": model_spec.model_id}
+            )
 
         except Exception as e:
-            logger.error(f"Failed to download {model_spec.model_id}: {e}")
+            logger.error(
+                f"Failed to download {model_spec.model_id}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.model_initialization_service.ModelInitializationService",
+                error=e,
+                data={"model_id": model_spec.model_id}
+            )
             progress.status = 'failed'
             progress.error_message = str(e)
             progress.end_time = datetime.utcnow()
@@ -624,55 +758,116 @@ class ModelInitializationService:
         Args:
             required_models: List of required models
         """
-        logger.info("Validating all models...")
+        logger.info(
+            "Validating all models...",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.core.model_initialization_service.ModelInitializationService"
+        )
 
         all_valid = True
         for model_spec in required_models:
             location = self._model_locations.get(model_spec.model_id)
 
             if not location:
-                logger.error(f"❌ Model not found: {model_spec.model_id}")
+                logger.error(
+                    f"❌ Model not found: {model_spec.model_id}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.model_initialization_service.ModelInitializationService",
+                    data={"model_id": model_spec.model_id}
+                )
                 all_valid = False
                 continue
 
             if not location.is_valid:
                 logger.error(
                     f"❌ Model invalid: {model_spec.model_id}",
-                    errors=location.validation_errors
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.model_initialization_service.ModelInitializationService",
+                    data={"model_id": model_spec.model_id, "errors": location.validation_errors}
                 )
                 all_valid = False
                 continue
 
-            logger.info(f"✅ Model valid: {model_spec.model_id} at {location.path}")
+            logger.info(
+                f"✅ Model valid: {model_spec.model_id} at {location.path}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.core.model_initialization_service.ModelInitializationService",
+                data={"model_id": model_spec.model_id, "path": str(location.path)}
+            )
 
         if not all_valid:
             raise Exception("Some required models are missing or invalid")
 
-        logger.info("✅ All models validated successfully")
+        logger.info(
+            "✅ All models validated successfully",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.core.model_initialization_service.ModelInitializationService"
+        )
 
     def _log_summary(self) -> None:
         """Log summary of model initialization."""
-        logger.info("=" * 80)
-        logger.info("MODEL INITIALIZATION SUMMARY")
-        logger.info("=" * 80)
-        logger.info(f"Models Already in data/models/: {self._stats['models_found']}")
-        logger.info(f"Models Copied from Cache: {self._stats['models_reused']}")
-        logger.info(f"Models Downloaded: {self._stats['models_downloaded']}")
-        logger.info(f"Models Failed: {self._stats['models_failed']}")
+        component = "app.rag.core.model_initialization_service.ModelInitializationService"
+
+        logger.info("=" * 80, LogCategory.SYSTEM_OPERATIONS, component)
+        logger.info("MODEL INITIALIZATION SUMMARY", LogCategory.SYSTEM_OPERATIONS, component)
+        logger.info("=" * 80, LogCategory.SYSTEM_OPERATIONS, component)
+        logger.info(
+            f"Models Already in data/models/: {self._stats['models_found']}",
+            LogCategory.SYSTEM_OPERATIONS,
+            component,
+            data={"models_found": self._stats['models_found']}
+        )
+        logger.info(
+            f"Models Copied from Cache: {self._stats['models_reused']}",
+            LogCategory.SYSTEM_OPERATIONS,
+            component,
+            data={"models_reused": self._stats['models_reused']}
+        )
+        logger.info(
+            f"Models Downloaded: {self._stats['models_downloaded']}",
+            LogCategory.SYSTEM_OPERATIONS,
+            component,
+            data={"models_downloaded": self._stats['models_downloaded']}
+        )
+        logger.info(
+            f"Models Failed: {self._stats['models_failed']}",
+            LogCategory.SYSTEM_OPERATIONS,
+            component,
+            data={"models_failed": self._stats['models_failed']}
+        )
 
         if self._stats['models_downloaded'] > 0:
-            logger.info(f"Total Downloaded: {format_size(self._stats['total_download_mb'])}")
+            logger.info(
+                f"Total Downloaded: {format_size(self._stats['total_download_mb'])}",
+                LogCategory.SYSTEM_OPERATIONS,
+                component,
+                data={"total_download_mb": self._stats['total_download_mb']}
+            )
 
-        logger.info(f"Total Time: {self._stats['total_time_seconds']:.1f}s")
-        logger.info("=" * 80)
+        logger.info(
+            f"Total Time: {self._stats['total_time_seconds']:.1f}s",
+            LogCategory.SYSTEM_OPERATIONS,
+            component,
+            data={"total_time_seconds": self._stats['total_time_seconds']}
+        )
+        logger.info("=" * 80, LogCategory.SYSTEM_OPERATIONS, component)
 
         # Show what happened
         if self._stats['models_found'] > 0 and self._stats['models_downloaded'] == 0:
-            logger.info("✅ All models already available - NO DOWNLOADS NEEDED")
+            logger.info(
+                "✅ All models already available - NO DOWNLOADS NEEDED",
+                LogCategory.SYSTEM_OPERATIONS,
+                component
+            )
         elif self._stats['models_downloaded'] > 0:
-            logger.info(f"✅ Downloaded {self._stats['models_downloaded']} new models")
+            logger.info(
+                f"✅ Downloaded {self._stats['models_downloaded']} new models",
+                LogCategory.SYSTEM_OPERATIONS,
+                component,
+                data={"models_downloaded": self._stats['models_downloaded']}
+            )
 
-        logger.info("=" * 80)
+        logger.info("=" * 80, LogCategory.SYSTEM_OPERATIONS, component)
 
     def get_model_location(self, model_id: str) -> Optional[ModelLocation]:
         """
@@ -759,7 +954,12 @@ async def ensure_embedding_model(model_id: str = "all-MiniLM-L6-v2") -> Optional
 
     model_spec = get_model_by_id(model_id)
     if not model_spec:
-        logger.error(f"Unknown model: {model_id}")
+        logger.error(
+            f"Unknown model: {model_id}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.core.model_initialization_service",
+            data={"model_id": model_id}
+        )
         return None
 
     service = await get_model_initialization_service()
@@ -786,7 +986,12 @@ async def ensure_reranking_model(model_id: str = "bge-reranker-base") -> Optiona
 
     model_spec = get_model_by_id(model_id)
     if not model_spec:
-        logger.error(f"Unknown model: {model_id}")
+        logger.error(
+            f"Unknown model: {model_id}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.core.model_initialization_service",
+            data={"model_id": model_id}
+        )
         return None
 
     service = await get_model_initialization_service()
@@ -813,7 +1018,12 @@ async def ensure_vision_model(model_id: str = "clip-ViT-B-32") -> Optional[Path]
 
     model_spec = get_model_by_id(model_id)
     if not model_spec:
-        logger.error(f"Unknown model: {model_id}")
+        logger.error(
+            f"Unknown model: {model_id}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.core.model_initialization_service",
+            data={"model_id": model_id}
+        )
         return None
 
     service = await get_model_initialization_service()
@@ -849,13 +1059,23 @@ async def ensure_all_required_models(enabled_features: Optional[List[str]] = Non
         for model_spec in required_models:
             location = locations.get(model_spec.model_id)
             if not location or not location.is_valid:
-                logger.error(f"Required model not available: {model_spec.model_id}")
+                logger.error(
+                    f"Required model not available: {model_spec.model_id}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.core.model_initialization_service",
+                    data={"model_id": model_spec.model_id}
+                )
                 return False
 
         return True
 
     except Exception as e:
-        logger.error(f"Failed to ensure required models: {e}")
+        logger.error(
+            "Failed to ensure required models",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.core.model_initialization_service",
+            error=e
+        )
         return False
 
 

@@ -29,7 +29,6 @@ from typing import List, Dict, Any, Optional, Callable, Awaitable
 from dataclasses import dataclass, field
 from enum import Enum
 
-import structlog
 from pydantic import BaseModel, Field
 import numpy as np
 
@@ -48,7 +47,12 @@ from app.rag.retrieval.contextual_compression import (
     CompressionStrategy
 )
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class RetrievalMode(str, Enum):
@@ -173,12 +177,16 @@ class AdvancedRetrievalPipeline:
         
         logger.info(
             "AdvancedRetrievalPipeline initialized",
-            mode=self.config.mode.value,
-            query_expansion=self.config.enable_query_expansion,
-            bm25=self.config.enable_bm25,
-            reranking=self.config.enable_reranking,
-            mmr=self.config.enable_mmr,
-            compression=self.config.enable_compression
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline",
+            data={
+                "mode": self.config.mode.value,
+                "query_expansion": self.config.enable_query_expansion,
+                "bm25": self.config.enable_bm25,
+                "reranking": self.config.enable_reranking,
+                "mmr": self.config.enable_mmr,
+                "compression": self.config.enable_compression
+            }
         )
     
     async def initialize(self) -> None:
@@ -236,10 +244,19 @@ class AdvancedRetrievalPipeline:
                     self._compressor = ContextualCompressor(compression_config)
                 
                 self._initialized = True
-                logger.info("AdvancedRetrievalPipeline components initialized")
-                
+                logger.info(
+                    "AdvancedRetrievalPipeline components initialized",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline"
+                )
+
             except Exception as e:
-                logger.error(f"Failed to initialize pipeline: {e}")
+                logger.error(
+                    f"Failed to initialize pipeline: {e}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline",
+                    error=e
+                )
                 raise
     
     async def retrieve(
@@ -290,7 +307,12 @@ class AdvancedRetrievalPipeline:
                 )
                 expanded_queries = expansion_result.expanded_queries
                 timings['query_expansion'] = (time.time() - t0) * 1000
-                logger.debug(f"Query expanded: {len(expanded_queries)} variants")
+                logger.debug(
+                    f"Query expanded: {len(expanded_queries)} variants",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline",
+                    data={"variants_count": len(expanded_queries)}
+                )
 
             # Stage 2: Parallel Retrieval (Dense + Sparse)
             dense_results = []
@@ -319,7 +341,12 @@ class AdvancedRetrievalPipeline:
                 dense_results = await dense_retriever(query, self.config.initial_top_k)
 
             timings['dense_retrieval'] = (time.time() - t0) * 1000
-            logger.debug(f"Dense retrieval: {len(dense_results)} results")
+            logger.debug(
+                f"Dense retrieval: {len(dense_results)} results",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline",
+                data={"results_count": len(dense_results)}
+            )
 
             # Execute sparse retrieval (BM25) if enabled
             if self.config.enable_bm25 and self._bm25_retriever:
@@ -344,10 +371,20 @@ class AdvancedRetrievalPipeline:
                     ]
 
                     timings['sparse_retrieval'] = (time.time() - t0) * 1000
-                    logger.debug(f"Sparse retrieval: {len(sparse_results)} results")
+                    logger.debug(
+                        f"Sparse retrieval: {len(sparse_results)} results",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline",
+                        data={"results_count": len(sparse_results)}
+                    )
 
                 except Exception as e:
-                    logger.warning(f"BM25 retrieval failed: {e}")
+                    logger.warn(
+                        f"BM25 retrieval failed: {e}",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline",
+                        error=e
+                    )
                     sparse_results = []
 
             # Stage 3: Hybrid Fusion
@@ -409,7 +446,12 @@ class AdvancedRetrievalPipeline:
                 ]
 
                 timings['fusion'] = (time.time() - t0) * 1000
-                logger.debug(f"Fusion: {len(combined_results)} results")
+                logger.debug(
+                    f"Fusion: {len(combined_results)} results",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline",
+                    data={"results_count": len(combined_results)}
+                )
             else:
                 # No fusion, use dense results only
                 combined_results = [
@@ -461,10 +503,20 @@ class AdvancedRetrievalPipeline:
                     ]
 
                     timings['reranking'] = (time.time() - t0) * 1000
-                    logger.debug(f"Reranking: {len(reranked_results)} results")
+                    logger.debug(
+                        f"Reranking: {len(reranked_results)} results",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline",
+                        data={"results_count": len(reranked_results)}
+                    )
 
                 except Exception as e:
-                    logger.warning(f"Reranking failed: {e}")
+                    logger.warn(
+                        f"Reranking failed: {e}",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline",
+                        error=e
+                    )
                     reranked_results = combined_results
 
             # Stage 5: MMR (Diversity)
@@ -519,10 +571,20 @@ class AdvancedRetrievalPipeline:
                     ]
 
                     timings['mmr'] = (time.time() - t0) * 1000
-                    logger.debug(f"MMR: {len(final_results)} results")
+                    logger.debug(
+                        f"MMR: {len(final_results)} results",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline",
+                        data={"results_count": len(final_results)}
+                    )
 
                 except Exception as e:
-                    logger.warning(f"MMR failed: {e}")
+                    logger.warn(
+                        f"MMR failed: {e}",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline",
+                        error=e
+                    )
                     final_results = reranked_results[:top_k]
             else:
                 # No MMR, just limit to top_k
@@ -547,10 +609,20 @@ class AdvancedRetrievalPipeline:
                             final_results[i]['metadata']['compression_ratio'] = compressed.compression_ratio
 
                     timings['compression'] = (time.time() - t0) * 1000
-                    logger.debug(f"Compression: {len(compressed_output)} documents")
+                    logger.debug(
+                        f"Compression: {len(compressed_output)} documents",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline",
+                        data={"documents_count": len(compressed_output)}
+                    )
 
                 except Exception as e:
-                    logger.warning(f"Compression failed: {e}")
+                    logger.warn(
+                        f"Compression failed: {e}",
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline",
+                        error=e
+                    )
 
             # Convert to RetrievalResult objects
             results = []
@@ -602,15 +674,25 @@ class AdvancedRetrievalPipeline:
 
             logger.info(
                 f"Advanced retrieval completed",
-                query=query[:50],
-                results_count=len(results),
-                total_time_ms=total_time_ms
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline",
+                data={
+                    "query": query[:50],
+                    "results_count": len(results),
+                    "total_time_ms": total_time_ms
+                }
             )
 
             return results, metrics
 
         except Exception as e:
-            logger.error(f"Advanced retrieval failed: {e}", query=query[:50])
+            logger.error(
+                f"Advanced retrieval failed: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline",
+                error=e,
+                data={"query": query[:50]}
+            )
             raise
 
     async def add_documents_to_bm25(
@@ -627,7 +709,11 @@ class AdvancedRetrievalPipeline:
             Number of documents added
         """
         if not self.config.enable_bm25 or not self._bm25_retriever:
-            logger.warning("BM25 not enabled, cannot add documents")
+            logger.warn(
+                "BM25 not enabled, cannot add documents",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline"
+            )
             return 0
 
         return await self._bm25_retriever.add_documents(documents)
@@ -646,7 +732,11 @@ class AdvancedRetrievalPipeline:
             Number of documents deleted
         """
         if not self.config.enable_bm25 or not self._bm25_retriever:
-            logger.warning("BM25 not enabled, cannot delete documents")
+            logger.warn(
+                "BM25 not enabled, cannot delete documents",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline"
+            )
             return 0
 
         return await self._bm25_retriever.delete_documents(doc_ids)
@@ -691,5 +781,9 @@ class AdvancedRetrievalPipeline:
         if self._reranker:
             self._reranker.clear_cache()
 
-        logger.info("AdvancedRetrievalPipeline cleaned up")
+        logger.info(
+            "AdvancedRetrievalPipeline cleaned up",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.retrieval.advanced_retrieval_pipeline.AdvancedRetrievalPipeline"
+        )
 

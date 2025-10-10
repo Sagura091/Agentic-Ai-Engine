@@ -21,13 +21,15 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Callable, Union
 from uuid import uuid4
-import structlog
 import json
 import os
 
 from pydantic import BaseModel, Field
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
+
+_backend_logger = get_backend_logger()
 
 
 class ConfigurationSection(str, Enum):
@@ -208,23 +210,35 @@ class GlobalConfigurationManager:
 
         # Load persisted configuration on startup
         self._load_persisted_config()
-        
+
         self._initialized = False
-        logger.info("🚀 Global Configuration Manager initialized")
-    
+        _backend_logger.info(
+            "🚀 Global Configuration Manager initialized",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.global_config_manager"
+        )
+
     async def initialize(self) -> None:
         """Initialize the configuration manager."""
         if self._initialized:
-            logger.warning("Global Configuration Manager already initialized")
+            _backend_logger.warn(
+                "Global Configuration Manager already initialized",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.global_config_manager"
+            )
             return
-        
+
         # Initialize all section managers
         for section, manager in self._section_managers.items():
             if hasattr(manager, 'initialize'):
                 await manager.initialize()
-        
+
         self._initialized = True
-        logger.info("✅ Global Configuration Manager fully initialized")
+        _backend_logger.info(
+            "✅ Global Configuration Manager fully initialized",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.global_config_manager"
+        )
     
     def register_observer(self, observer: ConfigurationObserver) -> None:
         """
@@ -241,32 +255,50 @@ class GlobalConfigurationManager:
             if observer not in self._observers[section]:
                 self._observers[section].append(observer)
                 self._stats["observers_registered"] += 1
-                logger.info(
-                    f"✅ Registered observer {observer.observer_name} for section {section.value}"
+                _backend_logger.info(
+                    f"✅ Registered observer {observer.observer_name} for section {section.value}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.global_config_manager"
                 )
-    
+
     def register_section_manager(self, manager: ConfigurationSectionManager) -> None:
         """
         Register a section manager for a specific configuration section.
-        
+
         Args:
             manager: Section manager instance to register
         """
         section = manager.section_name
         if section in self._section_managers:
-            logger.warning(f"Section manager for {section.value} already registered, replacing")
-        
+            _backend_logger.warn(
+                f"Section manager for {section.value} already registered, replacing",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.global_config_manager"
+            )
+
         self._section_managers[section] = manager
         self._stats["section_managers_registered"] += 1
-        logger.info(f"✅ Registered section manager for {section.value}")
+        _backend_logger.info(
+            f"✅ Registered section manager for {section.value}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.global_config_manager"
+        )
 
         # If we have persisted configuration for this section, sync it to the manager
         if section in self._current_config and self._current_config[section]:
             try:
                 manager._current_config.update(self._current_config[section])
-                logger.info(f"✅ Synced persisted configuration to {section.value} manager")
+                _backend_logger.info(
+                    f"✅ Synced persisted configuration to {section.value} manager",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.global_config_manager"
+                )
             except Exception as e:
-                logger.warning(f"Failed to sync persisted config to {section.value}: {str(e)}")
+                _backend_logger.warn(
+                    f"Failed to sync persisted config to {section.value}: {str(e)}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.global_config_manager"
+                )
     
     async def update_section(
         self,
@@ -287,8 +319,12 @@ class GlobalConfigurationManager:
         """
         async with self._update_lock:
             update_id = str(uuid4())
-            logger.info(f"🔄 Starting configuration update for section {section.value}", 
-                       update_id=update_id, changes=list(changes.keys()))
+            _backend_logger.info(
+                f"🔄 Starting configuration update for section {section.value}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.global_config_manager",
+                data={"update_id": update_id, "changes": list(changes.keys())}
+            )
             
             # Get current configuration for this section
             current_config = self._current_config.get(section, {})
@@ -337,12 +373,20 @@ class GlobalConfigurationManager:
                     await self._notify_observers(section, changes, previous_config)
 
                     self._stats["successful_updates"] += 1
-                    logger.info(f"✅ Configuration update successful for section {section.value}",
-                               update_id=update_id)
+                    _backend_logger.info(
+                        f"✅ Configuration update successful for section {section.value}",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.core.global_config_manager",
+                        data={"update_id": update_id}
+                    )
                 else:
                     self._stats["failed_updates"] += 1
-                    logger.error(f"❌ Configuration update failed for section {section.value}", 
-                                update_id=update_id, errors=result.errors)
+                    _backend_logger.error(
+                        f"❌ Configuration update failed for section {section.value}",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.core.global_config_manager",
+                        data={"update_id": update_id, "errors": result.errors}
+                    )
                 
                 # Record in history
                 await self._record_history(section, changes, previous_config, user_id, result)
@@ -352,8 +396,13 @@ class GlobalConfigurationManager:
                 
             except Exception as e:
                 error_msg = f"Unexpected error during configuration update: {str(e)}"
-                logger.error(error_msg, update_id=update_id, error=str(e))
-                
+                _backend_logger.error(
+                    error_msg,
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.global_config_manager",
+                    data={"update_id": update_id, "error": str(e)}
+                )
+
                 result = UpdateResult(
                     success=False,
                     section=section.value,
@@ -361,11 +410,11 @@ class GlobalConfigurationManager:
                     errors=[error_msg],
                     update_id=update_id
                 )
-                
+
                 await self._record_history(section, changes, previous_config, user_id, result)
                 self._stats["failed_updates"] += 1
                 self._stats["total_updates"] += 1
-                
+
                 return result
 
     async def update_multiple_sections(
@@ -386,8 +435,12 @@ class GlobalConfigurationManager:
         results = {}
         successful_updates = []
 
-        logger.info(f"🔄 Starting multi-section configuration update",
-                   sections=list(section_updates.keys()), user_id=user_id)
+        _backend_logger.info(
+            f"🔄 Starting multi-section configuration update",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.global_config_manager",
+            data={"sections": [s.value for s in section_updates.keys()], "user_id": user_id}
+        )
 
         try:
             # Apply all updates
@@ -399,19 +452,35 @@ class GlobalConfigurationManager:
                     successful_updates.append((section, changes, result.rollback_data))
                 else:
                     # If any update fails, rollback all successful ones
-                    logger.error(f"❌ Multi-section update failed at section {section.value}, rolling back")
+                    _backend_logger.error(
+                        f"❌ Multi-section update failed at section {section.value}, rolling back",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.core.global_config_manager"
+                    )
                     await self._rollback_updates(successful_updates)
                     break
 
             if all(result.success for result in results.values()):
-                logger.info("✅ Multi-section configuration update completed successfully")
+                _backend_logger.info(
+                    "✅ Multi-section configuration update completed successfully",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.global_config_manager"
+                )
             else:
-                logger.error("❌ Multi-section configuration update failed")
+                _backend_logger.error(
+                    "❌ Multi-section configuration update failed",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.global_config_manager"
+                )
 
             return results
 
         except Exception as e:
-            logger.error(f"❌ Unexpected error in multi-section update: {str(e)}")
+            _backend_logger.error(
+                f"❌ Unexpected error in multi-section update: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.global_config_manager"
+            )
             await self._rollback_updates(successful_updates)
 
             # Return error results for all sections
@@ -507,14 +576,26 @@ class GlobalConfigurationManager:
             return
 
         observers = self._observers[section]
-        logger.info(f"📢 Notifying {len(observers)} observers for section {section.value}")
+        _backend_logger.info(
+            f"📢 Notifying {len(observers)} observers for section {section.value}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.global_config_manager"
+        )
 
         for observer in observers:
             try:
                 await observer.on_configuration_changed(section, changes, previous_config)
-                logger.debug(f"✅ Notified observer {observer.observer_name}")
+                _backend_logger.debug(
+                    f"✅ Notified observer {observer.observer_name}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.global_config_manager"
+                )
             except Exception as e:
-                logger.error(f"❌ Failed to notify observer {observer.observer_name}: {str(e)}")
+                _backend_logger.error(
+                    f"❌ Failed to notify observer {observer.observer_name}: {str(e)}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.global_config_manager"
+                )
 
     async def _record_history(
         self,
@@ -555,13 +636,29 @@ class GlobalConfigurationManager:
                         section = ConfigurationSection(section_str)
                         self._current_config[section] = config
                     except ValueError:
-                        logger.warning(f"Unknown configuration section in persisted data: {section_str}")
+                        _backend_logger.warn(
+                            f"Unknown configuration section in persisted data: {section_str}",
+                            LogCategory.SYSTEM_OPERATIONS,
+                            "app.core.global_config_manager"
+                        )
 
-                logger.info(f"✅ Loaded persisted configuration from {self._config_file}")
+                _backend_logger.info(
+                    f"✅ Loaded persisted configuration from {self._config_file}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.global_config_manager"
+                )
             else:
-                logger.info("No persisted configuration found, using defaults")
+                _backend_logger.info(
+                    "No persisted configuration found, using defaults",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.global_config_manager"
+                )
         except Exception as e:
-            logger.error(f"❌ Failed to load persisted configuration: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to load persisted configuration: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.global_config_manager"
+            )
 
     async def _persist_config(self) -> None:
         """Persist current configuration to disk."""
@@ -579,27 +676,55 @@ class GlobalConfigurationManager:
             # Atomic rename
             temp_file.replace(self._config_file)
 
-            logger.debug(f"✅ Configuration persisted to {self._config_file}")
+            _backend_logger.debug(
+                f"✅ Configuration persisted to {self._config_file}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.global_config_manager"
+            )
         except Exception as e:
-            logger.error(f"❌ Failed to persist configuration: {str(e)}")
+            _backend_logger.error(
+                f"❌ Failed to persist configuration: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.global_config_manager"
+            )
 
     async def _rollback_updates(self, successful_updates: List[tuple]) -> None:
         """Rollback a list of successful updates."""
-        logger.info(f"🔄 Rolling back {len(successful_updates)} configuration updates")
+        _backend_logger.info(
+            f"🔄 Rolling back {len(successful_updates)} configuration updates",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.global_config_manager"
+        )
 
         for section, changes, rollback_data in reversed(successful_updates):
             try:
                 if section in self._section_managers and rollback_data:
                     success = await self._section_managers[section].rollback_configuration(rollback_data)
                     if success:
-                        logger.info(f"✅ Rolled back section {section.value}")
+                        _backend_logger.info(
+                            f"✅ Rolled back section {section.value}",
+                            LogCategory.SYSTEM_OPERATIONS,
+                            "app.core.global_config_manager"
+                        )
                         self._stats["rollbacks_performed"] += 1
                     else:
-                        logger.error(f"❌ Failed to rollback section {section.value}")
+                        _backend_logger.error(
+                            f"❌ Failed to rollback section {section.value}",
+                            LogCategory.SYSTEM_OPERATIONS,
+                            "app.core.global_config_manager"
+                        )
                 else:
-                    logger.warning(f"⚠️ No rollback mechanism for section {section.value}")
+                    _backend_logger.warn(
+                        f"⚠️ No rollback mechanism for section {section.value}",
+                        LogCategory.SYSTEM_OPERATIONS,
+                        "app.core.global_config_manager"
+                    )
             except Exception as e:
-                logger.error(f"❌ Error during rollback of section {section.value}: {str(e)}")
+                _backend_logger.error(
+                    f"❌ Error during rollback of section {section.value}: {str(e)}",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.core.global_config_manager"
+                )
 
 
 # Global instance
@@ -613,7 +738,11 @@ async def initialize_global_config_manager() -> None:
     # Register all enhanced settings observers
     await _register_enhanced_observers()
 
-    logger.info("🚀 Global Configuration Manager ready for revolutionary configuration management!")
+    _backend_logger.info(
+        "🚀 Global Configuration Manager ready for revolutionary configuration management!",
+        LogCategory.SYSTEM_OPERATIONS,
+        "app.core.global_config_manager"
+    )
 
 
 # Section managers are now registered by unified_system_orchestrator with proper dependencies
@@ -630,19 +759,31 @@ async def _register_enhanced_observers() -> None:
             from .config_observers.rag_observer import RAGConfigurationObserver
             observers.append(RAGConfigurationObserver())
         except ImportError as e:
-            logger.warning(f"⚠️ Could not import RAGConfigurationObserver: {str(e)}")
+            _backend_logger.warn(
+                f"⚠️ Could not import RAGConfigurationObserver: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.global_config_manager"
+            )
 
         try:
             from .config_observers.llm_observer import LLMConfigurationObserver
             observers.append(LLMConfigurationObserver())
         except ImportError as e:
-            logger.warning(f"⚠️ Could not import LLMConfigurationObserver: {str(e)}")
+            _backend_logger.warn(
+                f"⚠️ Could not import LLMConfigurationObserver: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.global_config_manager"
+            )
 
         try:
             from .config_observers.memory_observer import MemoryConfigurationObserver
             observers.append(MemoryConfigurationObserver())
         except ImportError as e:
-            logger.warning(f"⚠️ Could not import MemoryConfigurationObserver: {str(e)}")
+            _backend_logger.warn(
+                f"⚠️ Could not import MemoryConfigurationObserver: {str(e)}",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.global_config_manager"
+            )
 
         for observer in observers:
             # Initialize observer
@@ -652,10 +793,18 @@ async def _register_enhanced_observers() -> None:
             # Register with global config manager
             global_config_manager.register_observer(observer)
 
-        logger.info(f"✅ Registered {len(observers)} enhanced settings observers")
+        _backend_logger.info(
+            f"✅ Registered {len(observers)} enhanced settings observers",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.global_config_manager"
+        )
 
     except Exception as e:
-        logger.error(f"❌ Failed to register enhanced observers: {str(e)}")
+        _backend_logger.error(
+            f"❌ Failed to register enhanced observers: {str(e)}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.global_config_manager"
+        )
 
 
 async def update_configuration_section(
@@ -706,13 +855,21 @@ def ensure_initialized():
         try:
             loop = asyncio.get_running_loop()
             # We're in an async context, can't run synchronously
-            logger.warning("⚠️ Cannot initialize synchronously in async context")
+            _backend_logger.warn(
+                "⚠️ Cannot initialize synchronously in async context",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.global_config_manager"
+            )
             return False
         except RuntimeError:
             # No running loop, we can initialize synchronously
             return asyncio.run(initialize_global_config_manager())
     except Exception as e:
-        logger.error(f"❌ Failed to ensure initialization: {str(e)}")
+        _backend_logger.error(
+            f"❌ Failed to ensure initialization: {str(e)}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.global_config_manager"
+        )
         return False
 
 
@@ -727,12 +884,24 @@ def _safe_initialize():
             loop = asyncio.get_running_loop()
             # If we're in a running loop, schedule the initialization
             asyncio.create_task(initialize_global_config_manager())
-            logger.info("🔄 Scheduled global config manager initialization")
+            _backend_logger.info(
+                "🔄 Scheduled global config manager initialization",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.global_config_manager"
+            )
         except RuntimeError:
             # No running loop, we'll initialize on first use
-            logger.info("🔄 Global config manager will be initialized on first use")
+            _backend_logger.info(
+                "🔄 Global config manager will be initialized on first use",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.core.global_config_manager"
+            )
     except Exception as e:
-        logger.warning(f"⚠️ Could not schedule global config manager initialization: {str(e)}")
+        _backend_logger.warn(
+            f"⚠️ Could not schedule global config manager initialization: {str(e)}",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.core.global_config_manager"
+        )
 
 # Schedule initialization
 _safe_initialize()

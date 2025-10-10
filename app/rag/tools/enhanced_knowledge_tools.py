@@ -14,14 +14,18 @@ import json
 from typing import Dict, Any, Optional, List, Type
 from datetime import datetime
 
-import structlog
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from ..core.unified_rag_system import UnifiedRAGSystem
 from ..core.collection_based_kb_manager import CollectionBasedKBManager, AccessLevel
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class EnhancedKnowledgeSearchInput(BaseModel):
@@ -157,7 +161,16 @@ class EnhancedKnowledgeSearchTool(BaseTool):
             return json.dumps(response, indent=2)
             
         except Exception as e:
-            logger.error(f"Enhanced knowledge search failed: {str(e)}")
+            logger.error(
+                f"Enhanced knowledge search failed: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.tools.enhanced_knowledge_tools.EnhancedKnowledgeSearchTool",
+                error=e,
+                data={
+                    "query": kwargs.get("query", "unknown"),
+                    "agent_id": kwargs.get("agent_id", "unknown")
+                }
+            )
             return json.dumps({
                 "success": False,
                 "error": str(e),
@@ -249,7 +262,16 @@ class AgentDocumentIngestTool(BaseTool):
             return json.dumps(response, indent=2)
             
         except Exception as e:
-            logger.error(f"Agent document ingestion failed: {str(e)}")
+            logger.error(
+                f"Agent document ingestion failed: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.tools.enhanced_knowledge_tools.AgentDocumentIngestTool",
+                error=e,
+                data={
+                    "title": kwargs.get("title", "unknown"),
+                    "agent_id": kwargs.get("agent_id", "unknown")
+                }
+            )
             return json.dumps({
                 "success": False,
                 "error": str(e),
@@ -325,7 +347,13 @@ class AgentMemoryTool(BaseTool):
             return json.dumps(response, indent=2)
             
         except Exception as e:
-            logger.error(f"Agent memory creation failed: {str(e)}")
+            logger.error(
+                f"Agent memory creation failed: {str(e)}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.tools.enhanced_knowledge_tools.AgentMemoryTool",
+                error=e,
+                data={"agent_id": kwargs.get("agent_id", "unknown")}
+            )
             return json.dumps({
                 "success": False,
                 "error": str(e),

@@ -13,9 +13,13 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine
 )
 from sqlalchemy.orm import declarative_base
-import structlog
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 # SQLAlchemy declarative base for all models
 Base = declarative_base()
@@ -51,10 +55,14 @@ def get_engine() -> AsyncEngine:
         
         logger.info(
             "Database engine created",
-            pool_size=settings.DATABASE_POOL_SIZE,
-            max_overflow=settings.DATABASE_POOL_MAX_OVERFLOW
+            LogCategory.DATABASE_OPERATIONS,
+            "app.models.database.base",
+            data={
+                "pool_size": settings.DATABASE_POOL_SIZE,
+                "max_overflow": settings.DATABASE_POOL_MAX_OVERFLOW
+            }
         )
-    
+
     return _engine
 
 
@@ -76,9 +84,13 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
             autoflush=True,
             autocommit=False
         )
-        
-        logger.info("Database session factory created")
-    
+
+        logger.info(
+            "Database session factory created",
+            LogCategory.DATABASE_OPERATIONS,
+            "app.models.database.base"
+        )
+
     return _async_session_factory
 
 
@@ -101,15 +113,28 @@ async def get_database_session() -> AsyncGenerator[AsyncSession, None]:
     
     async with session_factory() as session:
         try:
-            logger.debug("Database session created")
+            logger.debug(
+                "Database session created",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.models.database.base"
+            )
             yield session
         except Exception as e:
-            logger.error("Database session error", error=str(e))
+            logger.error(
+                "Database session error",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.models.database.base",
+                error=e
+            )
             await session.rollback()
             raise
         finally:
             await session.close()
-            logger.debug("Database session closed")
+            logger.debug(
+                "Database session closed",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.models.database.base"
+            )
 
 
 async def init_database() -> None:
@@ -138,7 +163,11 @@ async def init_database() -> None:
         
         # Create all tables
         await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database tables created successfully")
+        logger.info(
+            "Database tables created successfully",
+            LogCategory.DATABASE_OPERATIONS,
+            "app.models.database.base"
+        )
 
 
 async def close_database() -> None:
@@ -152,7 +181,11 @@ async def close_database() -> None:
     
     if _engine is not None:
         await _engine.dispose()
-        logger.info("Database engine disposed")
+        logger.info(
+            "Database engine disposed",
+            LogCategory.DATABASE_OPERATIONS,
+            "app.models.database.base"
+        )
         _engine = None
         _async_session_factory = None
 

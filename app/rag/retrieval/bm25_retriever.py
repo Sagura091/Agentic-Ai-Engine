@@ -30,9 +30,12 @@ from collections import defaultdict
 from enum import Enum
 import math
 
-import structlog
 from pydantic import BaseModel, Field
 import numpy as np
+
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
 
 # BM25 implementation
 try:
@@ -68,7 +71,8 @@ except ImportError:
     SnowballStemmer = None
     stopwords = None
 
-logger = structlog.get_logger(__name__)
+# Get backend logger instance
+logger = get_logger()
 
 
 class BM25Variant(str, Enum):
@@ -162,9 +166,13 @@ class BM25Retriever:
         
         logger.info(
             "BM25Retriever initialized",
-            variant=self.config.variant.value,
-            stemming=self.config.enable_stemming,
-            stopwords=self.config.enable_stopwords
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.bm25_retriever.BM25Retriever",
+            data={
+                "variant": self.config.variant.value,
+                "stemming": self.config.enable_stemming,
+                "stopwords": self.config.enable_stopwords
+            }
         )
     
     async def initialize(self) -> None:
@@ -181,9 +189,11 @@ class BM25Retriever:
                     try:
                         self._stemmer = SnowballStemmer(self.config.language)
                     except Exception:
-                        logger.warning(
+                        logger.warn(
                             f"Stemmer not available for language: {self.config.language}",
-                            fallback="No stemming"
+                            LogCategory.RAG_OPERATIONS,
+                            "app.rag.retrieval.bm25_retriever.BM25Retriever",
+                            data={"language": self.config.language, "fallback": "No stemming"}
                         )
                         self._stemmer = None
             
@@ -192,9 +202,11 @@ class BM25Retriever:
                 try:
                     self._stopwords = set(stopwords.words(self.config.language))
                 except Exception:
-                    logger.warning(
+                    logger.warn(
                         f"Stopwords not available for language: {self.config.language}",
-                        fallback="No stopword filtering"
+                        LogCategory.RAG_OPERATIONS,
+                        "app.rag.retrieval.bm25_retriever.BM25Retriever",
+                        data={"language": self.config.language, "fallback": "No stopword filtering"}
                     )
                     self._stopwords = set()
             
@@ -203,10 +215,19 @@ class BM25Retriever:
                 await self._load_index()
             
             self._initialized = True
-            logger.info("BM25Retriever initialized successfully")
-            
+            logger.info(
+                "BM25Retriever initialized successfully",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.bm25_retriever.BM25Retriever"
+            )
+
         except Exception as e:
-            logger.error(f"Failed to initialize BM25Retriever: {e}")
+            logger.error(
+                f"Failed to initialize BM25Retriever: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.bm25_retriever.BM25Retriever",
+                error=e
+            )
             raise
     
     async def add_documents(
@@ -235,7 +256,11 @@ class BM25Retriever:
             metadata = doc.get('metadata', {})
             
             if not doc_id or not content:
-                logger.warning("Skipping document with missing id or content")
+                logger.warn(
+                    "Skipping document with missing id or content",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.retrieval.bm25_retriever.BM25Retriever"
+                )
                 continue
             
             # Tokenize content
@@ -263,8 +288,13 @@ class BM25Retriever:
         # Auto-save if enabled
         if self.config.auto_save and self.config.index_path:
             await self._save_index()
-        
-        logger.info(f"Added {added_count} documents to BM25 index")
+
+        logger.info(
+            f"Added {added_count} documents to BM25 index",
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.bm25_retriever.BM25Retriever",
+            data={"added_count": added_count}
+        )
         return added_count
     
     async def delete_documents(
@@ -302,8 +332,13 @@ class BM25Retriever:
         # Auto-save if enabled
         if self.config.auto_save and self.config.index_path:
             await self._save_index()
-        
-        logger.info(f"Deleted {deleted_count} documents from BM25 index")
+
+        logger.info(
+            f"Deleted {deleted_count} documents from BM25 index",
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.bm25_retriever.BM25Retriever",
+            data={"deleted_count": deleted_count}
+        )
         return deleted_count
 
     async def search(
@@ -334,21 +369,34 @@ class BM25Retriever:
 
         # Check if index exists
         if not self._bm25_index or len(self._documents) == 0:
-            logger.warning("BM25 index is empty")
+            logger.warn(
+                "BM25 index is empty",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.bm25_retriever.BM25Retriever"
+            )
             return []
 
         # Tokenize query
         query_tokens = await self._tokenize(query)
 
         if not query_tokens:
-            logger.warning("Query tokenization resulted in empty tokens")
+            logger.warn(
+                "Query tokenization resulted in empty tokens",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.bm25_retriever.BM25Retriever"
+            )
             return []
 
         # Get BM25 scores
         try:
             scores = self._bm25_index.get_scores(query_tokens)
         except Exception as e:
-            logger.error(f"BM25 scoring failed: {e}")
+            logger.error(
+                f"BM25 scoring failed: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.bm25_retriever.BM25Retriever",
+                error=e
+            )
             return []
 
         # Create results with scores
@@ -394,9 +442,13 @@ class BM25Retriever:
 
         logger.debug(
             f"BM25 search completed",
-            query=query,
-            results_count=len(results),
-            search_time_ms=search_time_ms
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.bm25_retriever.BM25Retriever",
+            data={
+                "query": query,
+                "results_count": len(results),
+                "search_time_ms": search_time_ms
+            }
         )
 
         return results
@@ -404,7 +456,11 @@ class BM25Retriever:
     async def _rebuild_index(self) -> None:
         """Rebuild BM25 index from documents."""
         if not RANK_BM25_AVAILABLE:
-            logger.error("rank-bm25 library not available")
+            logger.error(
+                "rank-bm25 library not available",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.bm25_retriever.BM25Retriever"
+            )
             return
 
         start_time = time.time()
@@ -422,7 +478,11 @@ class BM25Retriever:
         # Create BM25 index
         if len(self._corpus_tokens) == 0:
             self._bm25_index = None
-            logger.warning("Cannot build BM25 index: no documents")
+            logger.warn(
+                "Cannot build BM25 index: no documents",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.bm25_retriever.BM25Retriever"
+            )
             return
 
         try:
@@ -452,12 +512,21 @@ class BM25Retriever:
             rebuild_time_ms = (time.time() - start_time) * 1000
             logger.info(
                 f"BM25 index rebuilt",
-                documents=len(self._documents),
-                rebuild_time_ms=rebuild_time_ms
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.bm25_retriever.BM25Retriever",
+                data={
+                    "documents": len(self._documents),
+                    "rebuild_time_ms": rebuild_time_ms
+                }
             )
 
         except Exception as e:
-            logger.error(f"Failed to rebuild BM25 index: {e}")
+            logger.error(
+                f"Failed to rebuild BM25 index: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.bm25_retriever.BM25Retriever",
+                error=e
+            )
             self._bm25_index = None
 
     async def _tokenize(self, text: str) -> List[str]:
@@ -521,10 +590,20 @@ class BM25Retriever:
             with open(index_path, 'wb') as f:
                 pickle.dump(state, f)
 
-            logger.info(f"BM25 index saved to {index_path}")
+            logger.info(
+                f"BM25 index saved to {index_path}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.bm25_retriever.BM25Retriever",
+                data={"index_path": str(index_path)}
+            )
 
         except Exception as e:
-            logger.error(f"Failed to save BM25 index: {e}")
+            logger.error(
+                f"Failed to save BM25 index: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.bm25_retriever.BM25Retriever",
+                error=e
+            )
 
     async def _load_index(self) -> None:
         """Load index from disk."""
@@ -534,7 +613,12 @@ class BM25Retriever:
         try:
             index_path = Path(self.config.index_path)
             if not index_path.exists():
-                logger.info(f"No existing index found at {index_path}")
+                logger.info(
+                    f"No existing index found at {index_path}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.retrieval.bm25_retriever.BM25Retriever",
+                    data={"index_path": str(index_path)}
+                )
                 return
 
             with open(index_path, 'rb') as f:
@@ -552,11 +636,21 @@ class BM25Retriever:
 
             logger.info(
                 f"BM25 index loaded from {index_path}",
-                documents=len(self._documents)
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.bm25_retriever.BM25Retriever",
+                data={
+                    "index_path": str(index_path),
+                    "documents": len(self._documents)
+                }
             )
 
         except Exception as e:
-            logger.error(f"Failed to load BM25 index: {e}")
+            logger.error(
+                f"Failed to load BM25 index: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.bm25_retriever.BM25Retriever",
+                error=e
+            )
 
     def get_metrics(self) -> Dict[str, Any]:
         """Get retriever metrics."""
@@ -582,7 +676,11 @@ class BM25Retriever:
         self._bm25_index = None
         self._initialized = False
 
-        logger.info("BM25Retriever cleaned up")
+        logger.info(
+            "BM25Retriever cleaned up",
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.bm25_retriever.BM25Retriever"
+        )
 
 
 # Fix missing import

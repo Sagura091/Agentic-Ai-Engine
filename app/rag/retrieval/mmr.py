@@ -32,11 +32,15 @@ from typing import List, Dict, Any, Optional, Tuple, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 
-import structlog
 from pydantic import BaseModel, Field
 import numpy as np
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class SimilarityMetric(str, Enum):
@@ -111,8 +115,12 @@ class MMRSelector:
         
         logger.info(
             "MMRSelector initialized",
-            lambda_param=self.config.lambda_param,
-            similarity_metric=self.config.similarity_metric.value
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.mmr.MMRSelector",
+            data={
+                "lambda_param": self.config.lambda_param,
+                "similarity_metric": self.config.similarity_metric.value
+            }
         )
     
     def select(
@@ -138,11 +146,19 @@ class MMRSelector:
         lambda_param = lambda_param if lambda_param is not None else self.config.lambda_param
         
         if not results:
-            logger.warning("No results to select from")
+            logger.warn(
+                "No results to select from",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.mmr.MMRSelector"
+            )
             return []
-        
+
         if top_k <= 0:
-            logger.warning("top_k must be positive")
+            logger.warn(
+                "top_k must be positive",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.mmr.MMRSelector"
+            )
             return []
         
         # Limit to available results
@@ -151,12 +167,20 @@ class MMRSelector:
         # Validate embeddings if required
         if self.config.use_embeddings:
             if query_embedding is None:
-                logger.error("Query embedding required when use_embeddings=True")
+                logger.error(
+                    "Query embedding required when use_embeddings=True",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.retrieval.mmr.MMRSelector"
+                )
                 return self._fallback_to_top_k(results, top_k)
-            
+
             # Check if results have embeddings
             if not all('embedding' in r and r['embedding'] is not None for r in results):
-                logger.warning("Some results missing embeddings, falling back to top-k")
+                logger.warn(
+                    "Some results missing embeddings, falling back to top-k",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.retrieval.mmr.MMRSelector"
+                )
                 return self._fallback_to_top_k(results, top_k)
         
         try:
@@ -186,7 +210,11 @@ class MMRSelector:
                 })
             
             if not candidates:
-                logger.warning("No valid candidates for MMR")
+                logger.warn(
+                    "No valid candidates for MMR",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.retrieval.mmr.MMRSelector"
+                )
                 return []
             
             # Perform MMR selection
@@ -245,15 +273,24 @@ class MMRSelector:
             
             logger.debug(
                 f"MMR selection completed",
-                selected_count=len(selected),
-                candidates_count=len(candidates),
-                selection_time_ms=selection_time_ms
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.mmr.MMRSelector",
+                data={
+                    "selected_count": len(selected),
+                    "candidates_count": len(candidates),
+                    "selection_time_ms": selection_time_ms
+                }
             )
-            
+
             return selected
-            
+
         except Exception as e:
-            logger.error(f"MMR selection failed: {e}")
+            logger.error(
+                f"MMR selection failed: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.mmr.MMRSelector",
+                error=e
+            )
             return self._fallback_to_top_k(results, top_k)
     
     def _select_next(
@@ -339,9 +376,15 @@ class MMRSelector:
 
         # Handle dimension mismatch
         if vec1.shape != vec2.shape:
-            logger.warning(
+            logger.warn(
                 f"Vector dimension mismatch: {vec1.shape} vs {vec2.shape}",
-                fallback="zero similarity"
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.mmr.MMRSelector",
+                data={
+                    "vec1_shape": str(vec1.shape),
+                    "vec2_shape": str(vec2.shape),
+                    "fallback": "zero similarity"
+                }
             )
             return 0.0
 
@@ -372,11 +415,21 @@ class MMRSelector:
                 return float(similarity)
 
             else:
-                logger.warning(f"Unknown similarity metric: {self.config.similarity_metric}")
+                logger.warn(
+                    f"Unknown similarity metric: {self.config.similarity_metric}",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.rag.retrieval.mmr.MMRSelector",
+                    data={"metric": str(self.config.similarity_metric)}
+                )
                 return 0.0
 
         except Exception as e:
-            logger.error(f"Similarity computation failed: {e}")
+            logger.error(
+                f"Similarity computation failed: {e}",
+                LogCategory.RAG_OPERATIONS,
+                "app.rag.retrieval.mmr.MMRSelector",
+                error=e
+            )
             return 0.0
 
     def _fallback_to_top_k(
@@ -394,7 +447,11 @@ class MMRSelector:
         Returns:
             List of MMRResult using original ranking
         """
-        logger.warning("Falling back to top-k selection")
+        logger.warn(
+            "Falling back to top-k selection",
+            LogCategory.RAG_OPERATIONS,
+            "app.rag.retrieval.mmr.MMRSelector"
+        )
 
         mmr_results = []
         for idx, result in enumerate(results[:top_k], 1):

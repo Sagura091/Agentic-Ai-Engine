@@ -31,9 +31,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 from collections import deque
 
-import structlog
+from app.backend_logging.backend_logger import get_logger as get_backend_logger
+from app.backend_logging.models import LogCategory
 
-logger = structlog.get_logger(__name__)
+_backend_logger = get_backend_logger()
 
 
 class MessageType(str, Enum):
@@ -164,7 +165,11 @@ class AgentCommunicationSystem:
             "collaborations": 0
         }
 
-        logger.info("THE Agent communication system created")
+        _backend_logger.info(
+            "THE Agent communication system created",
+            LogCategory.AGENT_OPERATIONS,
+            "app.communication.agent_communication_system"
+        )
 
     async def initialize(self) -> None:
         """Initialize the communication system."""
@@ -173,10 +178,18 @@ class AgentCommunicationSystem:
                 return
 
             self.is_initialized = True
-            logger.info("Agent communication system initialized successfully")
+            _backend_logger.info(
+                "Agent communication system initialized successfully",
+                LogCategory.AGENT_OPERATIONS,
+                "app.communication.agent_communication_system"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to initialize communication system: {str(e)}")
+            _backend_logger.error(
+                f"Failed to initialize communication system: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.communication.agent_communication_system"
+            )
             raise
 
     async def register_agent(self, agent_id: str) -> AgentCommunicationProfile:
@@ -191,7 +204,11 @@ class AgentCommunicationSystem:
         """
         try:
             if agent_id in self.agent_profiles:
-                logger.warning(f"Agent {agent_id} already registered for communication")
+                _backend_logger.warn(
+                    f"Agent {agent_id} already registered for communication",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.communication.agent_communication_system"
+                )
                 return self.agent_profiles[agent_id]
 
             # Create communication profile
@@ -199,11 +216,19 @@ class AgentCommunicationSystem:
             self.agent_profiles[agent_id] = profile
             self.stats["total_agents"] += 1
 
-            logger.info(f"Registered agent {agent_id} for communication")
+            _backend_logger.info(
+                f"Registered agent {agent_id} for communication",
+                LogCategory.AGENT_OPERATIONS,
+                "app.communication.agent_communication_system"
+            )
             return profile
 
         except Exception as e:
-            logger.error(f"Failed to register agent {agent_id}: {str(e)}")
+            _backend_logger.error(
+                f"Failed to register agent {agent_id}: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.communication.agent_communication_system"
+            )
             raise
     async def send_message(
         self,
@@ -252,11 +277,19 @@ class AgentCommunicationSystem:
             # Update stats
             self.stats["total_messages"] += 1
 
-            logger.info(f"Message sent: {message.message_id}")
+            _backend_logger.info(
+                f"Message sent: {message.message_id}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.communication.agent_communication_system"
+            )
             return message.message_id
 
         except Exception as e:
-            logger.error(f"Failed to send message: {str(e)}")
+            _backend_logger.error(
+                f"Failed to send message: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.communication.agent_communication_system"
+            )
             raise
     async def get_messages(
         self,
@@ -290,7 +323,11 @@ class AgentCommunicationSystem:
             return messages
 
         except Exception as e:
-            logger.error(f"Failed to get messages for agent {agent_id}: {str(e)}")
+            _backend_logger.error(
+                f"Failed to get messages for agent {agent_id}: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.communication.agent_communication_system"
+            )
             return []
     async def _deliver_message(self, message: Message) -> None:
         """Deliver a message to recipients."""
@@ -323,7 +360,11 @@ class AgentCommunicationSystem:
                     self.stats["messages_failed"] += 1
 
         except Exception as e:
-            logger.error(f"Failed to deliver message: {str(e)}")
+            _backend_logger.error(
+                f"Failed to deliver message: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.communication.agent_communication_system"
+            )
             message.status = MessageStatus.FAILED
             self.stats["messages_failed"] += 1
 

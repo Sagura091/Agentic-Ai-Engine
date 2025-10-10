@@ -12,9 +12,12 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 from pydantic import BaseModel, Field
 
-import structlog
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
 
-logger = structlog.get_logger(__name__)
+# Get backend logger instance
+logger = get_logger()
 
 class PersistentConfig:
     """
@@ -133,8 +136,13 @@ class OpenWebUIRAGConfig:
         
         # Load or create configuration
         self.config = self._load_config()
-        
-        logger.info("✅ RAG configuration initialized", data_dir=str(self.data_dir))
+
+        logger.info(
+            "✅ RAG configuration initialized",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.config.openwebui_config.RAGConfigManager",
+            data={"data_dir": str(self.data_dir)}
+        )
     
     def _init_persistent_configs(self):
         """Initialize persistent configuration objects."""
@@ -198,7 +206,12 @@ class OpenWebUIRAGConfig:
                     config_data = json.load(f)
                 return RAGConfig(**config_data)
             except Exception as e:
-                logger.warning("Failed to load config file, using defaults", error=str(e))
+                logger.warn(
+                    "Failed to load config file, using defaults",
+                    LogCategory.SYSTEM_OPERATIONS,
+                    "app.rag.config.openwebui_config.RAGConfigManager",
+                    error=e
+                )
         
         # Create default configuration
         config = RAGConfig(
@@ -236,9 +249,19 @@ class OpenWebUIRAGConfig:
         try:
             with open(self.config_file, 'w') as f:
                 json.dump(config.model_dump(), f, indent=2)
-            logger.info("Configuration saved", file=str(self.config_file))
+            logger.info(
+                "Configuration saved",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.config.openwebui_config.RAGConfigManager",
+                data={"file": str(self.config_file)}
+            )
         except Exception as e:
-            logger.error("Failed to save configuration", error=str(e))
+            logger.error(
+                "Failed to save configuration",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.config.openwebui_config.RAGConfigManager",
+                error=e
+            )
     
     def update_config(self, **kwargs):
         """Update configuration values."""
@@ -246,7 +269,12 @@ class OpenWebUIRAGConfig:
         config_dict.update(kwargs)
         self.config = RAGConfig(**config_dict)
         self._save_config(self.config)
-        logger.info("Configuration updated", updates=list(kwargs.keys()))
+        logger.info(
+            "Configuration updated",
+            LogCategory.SYSTEM_OPERATIONS,
+            "app.rag.config.openwebui_config.RAGConfigManager",
+            data={"updates": list(kwargs.keys())}
+        )
     
     def get_data_directories(self) -> Dict[str, Path]:
         """Get all data directories as Path objects."""
@@ -263,7 +291,12 @@ class OpenWebUIRAGConfig:
         directories = self.get_data_directories()
         for name, path in directories.items():
             path.mkdir(parents=True, exist_ok=True)
-            logger.debug("Directory ensured", name=name, path=str(path))
+            logger.debug(
+                "Directory ensured",
+                LogCategory.SYSTEM_OPERATIONS,
+                "app.rag.config.openwebui_config.RAGConfigManager",
+                data={"name": name, "path": str(path)}
+            )
 
 # Global configuration instance
 _global_config: Optional[OpenWebUIRAGConfig] = None

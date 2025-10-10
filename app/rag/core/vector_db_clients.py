@@ -12,14 +12,18 @@ import asyncio
 from typing import Dict, List, Optional, Any, Union
 from uuid import uuid4
 
-import structlog
 from app.rag.core.vector_db_factory import VectorDBBase, VectorItem, SearchResult, GetResult
 from app.rag.core.vector_db_config import (
-    VectorDBType, WeaviateConfig, QdrantConfig, 
+    VectorDBType, WeaviateConfig, QdrantConfig,
     get_vector_db_config_manager
 )
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 class WeaviateClient(VectorDBBase):
@@ -29,9 +33,13 @@ class WeaviateClient(VectorDBBase):
         self.config = config or get_vector_db_config_manager().get_config(VectorDBType.WEAVIATE)
         self.client = None
         self._initialize_client()
-        
-        logger.info("✅ Weaviate client initialized", 
-                   host=self.config.host, port=self.config.port)
+
+        logger.info(
+            "✅ Weaviate client initialized",
+            LogCategory.DATABASE_OPERATIONS,
+            "app.rag.core.vector_db_clients.WeaviateClient",
+            data={"host": self.config.host, "port": self.config.port}
+        )
     
     def _initialize_client(self):
         """Initialize Weaviate client."""
@@ -56,14 +64,27 @@ class WeaviateClient(VectorDBBase):
             
             # Test connection
             if self.client.is_ready():
-                logger.info("Weaviate client connected successfully")
+                logger.info(
+                    "Weaviate client connected successfully",
+                    LogCategory.DATABASE_OPERATIONS,
+                    "app.rag.core.vector_db_clients.WeaviateClient"
+                )
             else:
-                logger.warning("Weaviate client connection test failed")
-                
+                logger.warn(
+                    "Weaviate client connection test failed",
+                    LogCategory.DATABASE_OPERATIONS,
+                    "app.rag.core.vector_db_clients.WeaviateClient"
+                )
+
         except ImportError:
             raise ImportError("weaviate-client is required for Weaviate support. Install with: pip install weaviate-client")
         except Exception as e:
-            logger.error(f"Failed to initialize Weaviate client: {e}")
+            logger.error(
+                "Failed to initialize Weaviate client",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.WeaviateClient",
+                error=e
+            )
             raise
     
     def _get_class_name(self, collection_name: str) -> str:
@@ -101,10 +122,20 @@ class WeaviateClient(VectorDBBase):
                 }
                 
                 self.client.schema.create_class(class_schema)
-                logger.info(f"Created Weaviate class: {class_name}")
-                
+                logger.info(
+                    f"Created Weaviate class: {class_name}",
+                    LogCategory.DATABASE_OPERATIONS,
+                    "app.rag.core.vector_db_clients.WeaviateClient",
+                    data={"class_name": class_name}
+                )
+
         except Exception as e:
-            logger.error(f"Failed to ensure class exists: {e}")
+            logger.error(
+                "Failed to ensure class exists",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.WeaviateClient",
+                error=e
+            )
             raise
     
     def has_collection(self, collection_name: str) -> bool:
@@ -114,17 +145,32 @@ class WeaviateClient(VectorDBBase):
             existing_classes = self.client.schema.get()["classes"]
             return any(cls["class"] == class_name for cls in existing_classes)
         except Exception as e:
-            logger.error(f"Failed to check collection existence: {e}")
+            logger.error(
+                "Failed to check collection existence",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.WeaviateClient",
+                error=e
+            )
             return False
-    
+
     def delete_collection(self, collection_name: str):
         """Delete a collection."""
         try:
             class_name = self._get_class_name(collection_name)
             self.client.schema.delete_class(class_name)
-            logger.info(f"Deleted Weaviate class: {class_name}")
+            logger.info(
+                f"Deleted Weaviate class: {class_name}",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.WeaviateClient",
+                data={"class_name": class_name}
+            )
         except Exception as e:
-            logger.error(f"Failed to delete collection: {e}")
+            logger.error(
+                "Failed to delete collection",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.WeaviateClient",
+                error=e
+            )
             raise
     
     def search(self, collection_name: str, vectors: List[List[float]], limit: int) -> Optional[SearchResult]:
@@ -165,9 +211,14 @@ class WeaviateClient(VectorDBBase):
                 documents=[documents],
                 metadatas=[metadatas]
             )
-            
+
         except Exception as e:
-            logger.error(f"Weaviate search failed: {e}")
+            logger.error(
+                "Weaviate search failed",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.WeaviateClient",
+                error=e
+            )
             return None
     
     def add(self, collection_name: str, items: List[VectorItem]) -> bool:
@@ -192,12 +243,22 @@ class WeaviateClient(VectorDBBase):
                         uuid=item.id,
                         vector=item.vector
                     )
-            
-            logger.info(f"Added {len(items)} items to Weaviate collection {collection_name}")
+
+            logger.info(
+                f"Added {len(items)} items to Weaviate collection {collection_name}",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.WeaviateClient",
+                data={"collection_name": collection_name, "items_count": len(items)}
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to add items to Weaviate: {e}")
+            logger.error(
+                "Failed to add items to Weaviate",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.WeaviateClient",
+                error=e
+            )
             return False
     
     def get(self, collection_name: str) -> Optional[GetResult]:
@@ -230,27 +291,42 @@ class WeaviateClient(VectorDBBase):
                 documents=[documents],
                 metadatas=[metadatas]
             )
-            
+
         except Exception as e:
-            logger.error(f"Failed to get collection data from Weaviate: {e}")
+            logger.error(
+                "Failed to get collection data from Weaviate",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.WeaviateClient",
+                error=e
+            )
             return None
-    
+
     def delete(self, collection_name: str, ids: List[str]) -> bool:
         """Delete items by IDs."""
         try:
             class_name = self._get_class_name(collection_name)
-            
+
             for item_id in ids:
                 self.client.data_object.delete(
                     uuid=item_id,
                     class_name=class_name
                 )
-            
-            logger.info(f"Deleted {len(ids)} items from Weaviate collection {collection_name}")
+
+            logger.info(
+                f"Deleted {len(ids)} items from Weaviate collection {collection_name}",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.WeaviateClient",
+                data={"collection_name": collection_name, "ids_count": len(ids)}
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to delete items from Weaviate: {e}")
+            logger.error(
+                "Failed to delete items from Weaviate",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.WeaviateClient",
+                error=e
+            )
             return False
 
 
@@ -261,9 +337,13 @@ class QdrantClient(VectorDBBase):
         self.config = config or get_vector_db_config_manager().get_config(VectorDBType.QDRANT)
         self.client = None
         self._initialize_client()
-        
-        logger.info("✅ Qdrant client initialized", 
-                   host=self.config.host, port=self.config.port)
+
+        logger.info(
+            "✅ Qdrant client initialized",
+            LogCategory.DATABASE_OPERATIONS,
+            "app.rag.core.vector_db_clients.QdrantClient",
+            data={"host": self.config.host, "port": self.config.port}
+        )
     
     def _initialize_client(self):
         """Initialize Qdrant client."""
@@ -282,12 +362,21 @@ class QdrantClient(VectorDBBase):
             
             # Test connection
             info = self.client.get_collections()
-            logger.info("Qdrant client connected successfully")
-            
+            logger.info(
+                "Qdrant client connected successfully",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.QdrantClient"
+            )
+
         except ImportError:
             raise ImportError("qdrant-client is required for Qdrant support. Install with: pip install qdrant-client")
         except Exception as e:
-            logger.error(f"Failed to initialize Qdrant client: {e}")
+            logger.error(
+                "Failed to initialize Qdrant client",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.QdrantClient",
+                error=e
+            )
             raise
     
     def _ensure_collection_exists(self, collection_name: str, vector_size: int = 384):
@@ -308,28 +397,53 @@ class QdrantClient(VectorDBBase):
                         distance=Distance.COSINE
                     )
                 )
-                logger.info(f"Created Qdrant collection: {collection_name}")
-                
+                logger.info(
+                    f"Created Qdrant collection: {collection_name}",
+                    LogCategory.DATABASE_OPERATIONS,
+                    "app.rag.core.vector_db_clients.QdrantClient",
+                    data={"collection_name": collection_name}
+                )
+
         except Exception as e:
-            logger.error(f"Failed to ensure collection exists: {e}")
+            logger.error(
+                "Failed to ensure collection exists",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.QdrantClient",
+                error=e
+            )
             raise
-    
+
     def has_collection(self, collection_name: str) -> bool:
         """Check if collection exists."""
         try:
             collections = self.client.get_collections()
             return any(col.name == collection_name for col in collections.collections)
         except Exception as e:
-            logger.error(f"Failed to check collection existence: {e}")
+            logger.error(
+                "Failed to check collection existence",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.QdrantClient",
+                error=e
+            )
             return False
-    
+
     def delete_collection(self, collection_name: str):
         """Delete a collection."""
         try:
             self.client.delete_collection(collection_name)
-            logger.info(f"Deleted Qdrant collection: {collection_name}")
+            logger.info(
+                f"Deleted Qdrant collection: {collection_name}",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.QdrantClient",
+                data={"collection_name": collection_name}
+            )
         except Exception as e:
-            logger.error(f"Failed to delete collection: {e}")
+            logger.error(
+                "Failed to delete collection",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.QdrantClient",
+                error=e
+            )
             raise
     
     def search(self, collection_name: str, vectors: List[List[float]], limit: int) -> Optional[SearchResult]:
@@ -363,9 +477,14 @@ class QdrantClient(VectorDBBase):
                 documents=[documents],
                 metadatas=[metadatas]
             )
-            
+
         except Exception as e:
-            logger.error(f"Qdrant search failed: {e}")
+            logger.error(
+                "Qdrant search failed",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.QdrantClient",
+                error=e
+            )
             return None
     
     def add(self, collection_name: str, items: List[VectorItem]) -> bool:
@@ -396,12 +515,22 @@ class QdrantClient(VectorDBBase):
                 collection_name=collection_name,
                 points=points
             )
-            
-            logger.info(f"Added {len(items)} items to Qdrant collection {collection_name}")
+
+            logger.info(
+                f"Added {len(items)} items to Qdrant collection {collection_name}",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.QdrantClient",
+                data={"collection_name": collection_name, "items_count": len(items)}
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to add items to Qdrant: {e}")
+            logger.error(
+                "Failed to add items to Qdrant",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.QdrantClient",
+                error=e
+            )
             return False
     
     def get(self, collection_name: str) -> Optional[GetResult]:
@@ -427,24 +556,39 @@ class QdrantClient(VectorDBBase):
                 documents=[documents],
                 metadatas=[metadatas]
             )
-            
+
         except Exception as e:
-            logger.error(f"Failed to get collection data from Qdrant: {e}")
+            logger.error(
+                "Failed to get collection data from Qdrant",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.QdrantClient",
+                error=e
+            )
             return None
-    
+
     def delete(self, collection_name: str, ids: List[str]) -> bool:
         """Delete items by IDs."""
         try:
             from qdrant_client.models import PointIdsList
-            
+
             self.client.delete(
                 collection_name=collection_name,
                 points_selector=PointIdsList(points=ids)
             )
-            
-            logger.info(f"Deleted {len(ids)} items from Qdrant collection {collection_name}")
+
+            logger.info(
+                f"Deleted {len(ids)} items from Qdrant collection {collection_name}",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.QdrantClient",
+                data={"collection_name": collection_name, "ids_count": len(ids)}
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to delete items from Qdrant: {e}")
+            logger.error(
+                "Failed to delete items from Qdrant",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.vector_db_clients.QdrantClient",
+                error=e
+            )
             return False

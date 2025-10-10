@@ -11,9 +11,13 @@ from typing import Dict, List, Optional, Any, AsyncContextManager
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-import structlog
 
-logger = structlog.get_logger(__name__)
+# Import backend logging system
+from app.backend_logging.backend_logger import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+# Get backend logger instance
+logger = get_logger()
 
 
 @dataclass
@@ -65,7 +69,13 @@ class PooledConnection:
                 raise AttributeError(f"Connection does not have operation: {operation}")
                 
         except Exception as e:
-            logger.error(f"Connection operation failed: {operation}", error=str(e))
+            logger.error(
+                f"Connection operation failed: {operation}",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.connection_pool.PooledConnection",
+                error=e,
+                data={"operation": operation}
+            )
             raise
     
     def is_expired(self, max_age: float = 3600) -> bool:
@@ -125,8 +135,12 @@ class ConnectionPool:
             self._initialized = True
             logger.info(
                 "Connection pool initialized",
-                min_connections=self.min_connections,
-                max_connections=self.max_connections
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.connection_pool.ConnectionPool",
+                data={
+                    "min_connections": self.min_connections,
+                    "max_connections": self.max_connections
+                }
             )
     
     async def _create_connection(self) -> PooledConnection:
@@ -138,12 +152,22 @@ class ConnectionPool:
             
             self.stats.total_connections += 1
             self.stats.peak_connections = max(self.stats.peak_connections, len(self.connections))
-            
-            logger.debug("New connection created", total_connections=len(self.connections))
+
+            logger.debug(
+                "New connection created",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.connection_pool.ConnectionPool",
+                data={"total_connections": len(self.connections)}
+            )
             return pooled_conn
-            
+
         except Exception as e:
-            logger.error("Failed to create connection", error=str(e))
+            logger.error(
+                "Failed to create connection",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.connection_pool.ConnectionPool",
+                error=e
+            )
             raise
     
     @asynccontextmanager
@@ -178,7 +202,15 @@ class ConnectionPool:
                 return conn
             
             # Wait for connection to become available
-            logger.warning("Connection pool exhausted, waiting for available connection")
+            logger.warn(
+                "Connection pool exhausted, waiting for available connection",
+                LogCategory.DATABASE_OPERATIONS,
+                "app.rag.core.connection_pool.ConnectionPool",
+                data={
+                    "current_connections": len(self.connections),
+                    "max_connections": self.max_connections
+                }
+            )
             
         # Wait and retry (simple backoff)
         await asyncio.sleep(0.1)
@@ -201,7 +233,12 @@ class ConnectionPool:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error("Health check failed", error=str(e))
+                logger.error(
+                    "Health check failed",
+                    LogCategory.DATABASE_OPERATIONS,
+                    "app.rag.core.connection_pool.ConnectionPool",
+                    error=e
+                )
     
     async def _cleanup_connections(self):
         """Clean up expired and idle connections."""
@@ -221,13 +258,22 @@ class ConnectionPool:
                         if hasattr(conn.connection, 'close'):
                             await conn.connection.close()
                     except Exception as e:
-                        logger.warning("Failed to close connection", error=str(e))
-            
+                        logger.warn(
+                            "Failed to close connection",
+                            LogCategory.DATABASE_OPERATIONS,
+                            "app.rag.core.connection_pool.ConnectionPool",
+                            error=e
+                        )
+
             if connections_to_remove:
                 logger.debug(
                     "Cleaned up connections",
-                    removed=len(connections_to_remove),
-                    remaining=len(self.connections)
+                    LogCategory.DATABASE_OPERATIONS,
+                    "app.rag.core.connection_pool.ConnectionPool",
+                    data={
+                        "removed": len(connections_to_remove),
+                        "remaining": len(self.connections)
+                    }
                 )
     
     async def _ensure_min_connections(self):
@@ -266,12 +312,21 @@ class ConnectionPool:
                     if hasattr(conn.connection, 'close'):
                         await conn.connection.close()
                 except Exception as e:
-                    logger.warning("Failed to close connection during shutdown", error=str(e))
-            
+                    logger.warn(
+                        "Failed to close connection during shutdown",
+                        LogCategory.DATABASE_OPERATIONS,
+                        "app.rag.core.connection_pool.ConnectionPool",
+                        error=e
+                    )
+
             self.connections.clear()
             self._initialized = False
-        
-        logger.info("Connection pool closed")
+
+        logger.info(
+            "Connection pool closed",
+            LogCategory.DATABASE_OPERATIONS,
+            "app.rag.core.connection_pool.ConnectionPool"
+        )
     
     def get_stats(self) -> ConnectionStats:
         """Get current connection pool statistics."""
@@ -293,8 +348,13 @@ async def get_connection_pool(
         pool = ConnectionPool(connection_factory, **pool_config)
         await pool.initialize()
         _connection_pools[pool_name] = pool
-        logger.info(f"Created connection pool: {pool_name}")
-    
+        logger.info(
+            f"Created connection pool: {pool_name}",
+            LogCategory.DATABASE_OPERATIONS,
+            "app.rag.core.connection_pool",
+            data={"pool_name": pool_name}
+        )
+
     return _connection_pools[pool_name]
 
 
@@ -302,6 +362,11 @@ async def close_all_pools():
     """Close all connection pools."""
     for pool_name, pool in _connection_pools.items():
         await pool.close()
-        logger.info(f"Closed connection pool: {pool_name}")
-    
+        logger.info(
+            f"Closed connection pool: {pool_name}",
+            LogCategory.DATABASE_OPERATIONS,
+            "app.rag.core.connection_pool",
+            data={"pool_name": pool_name}
+        )
+
     _connection_pools.clear()
