@@ -216,6 +216,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("System initializing...", version=app.version)
 
     try:
+        # Ensure system is fully initialized (models downloaded, etc.)
+        from app.core.system_initialization import ensure_system_ready
+        system_ready = await ensure_system_ready(silent=False)
+
+        if not system_ready:
+            backend_logger.warning(
+                "System initialization incomplete - some models may be unavailable",
+                category=LogCategory.SYSTEM_HEALTH,
+                component="SystemInitialization"
+            )
+
         # Initialize seamless integration system (includes orchestrator)
         print("⚙️  Initializing core systems...")
         await seamless_integration.initialize_complete_system()

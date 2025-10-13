@@ -96,13 +96,14 @@ class AgentTemplate:
     async def initialize(self) -> bool:
         """
         Initialize the agent and all required systems.
-        
+
         This method:
-        1. Initializes the unified system orchestrator
-        2. Loads agent configuration from YAML
-        3. Creates the agent using the factory (which reads YAML)
-        4. Sets up memory, RAG, and tool systems
-        
+        1. Ensures system is ready (models downloaded, etc.)
+        2. Initializes the unified system orchestrator
+        3. Loads agent configuration from YAML
+        4. Creates the agent using the factory (which reads YAML)
+        5. Sets up memory, RAG, and tool systems
+
         Returns:
             bool: True if initialization successful, False otherwise
         """
@@ -112,7 +113,23 @@ class AgentTemplate:
                 LogCategory.AGENT_OPERATIONS,
                 "agent_template"
             )
-            
+
+            # Ensure system is fully initialized (models downloaded, etc.)
+            from app.core.system_initialization import ensure_system_ready
+
+            print(f"🔍 Checking system initialization for agent: {self.agent_id}")
+            system_ready = await ensure_system_ready(silent=True)
+
+            if not system_ready:
+                logger.warning(
+                    "System initialization incomplete - some features may be unavailable",
+                    LogCategory.AGENT_OPERATIONS,
+                    "agent_template"
+                )
+                print("⚠️  Warning: Some models may be unavailable")
+            else:
+                print("✅ System ready")
+
             # Initialize the unified system orchestrator
             self.orchestrator = get_enhanced_system_orchestrator()
             await self.orchestrator.initialize()
