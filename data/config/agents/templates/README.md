@@ -1,257 +1,393 @@
-# 🚀 **AGENT TEMPLATES - CREATE YOUR OWN AGENTS IN MINUTES**
+# 🚀 **UNIVERSAL AGENT TEMPLATE - CREATE ANY AGENT IN 10 MINUTES**
 
-Welcome to the **Revolutionary Agent Template System**! Create powerful, customized AI agents using simple YAML configuration files.
+Welcome to the **Revolutionary Universal Agent Template System**! Create powerful, customized AI agents using a single comprehensive template that shows EVERY possible configuration option.
 
-## 🎯 **What Are These Templates?**
+## 🎯 **What Is This?**
 
-These are **production-ready agent templates** that you can:
-1. **Copy** - Choose the template that matches your needs
-2. **Customize** - Edit the YAML configuration to fit your requirements  
-3. **Deploy** - Use the AgentBuilderFactory to create your agent instantly
+This is a **production-ready universal template system** with:
+1. **ONE comprehensive YAML template** showing ALL configuration options
+2. **ONE universal Python template** that works with ANY YAML configuration
+3. **Complete documentation** of every field and option
+4. **No coding required** - just copy, customize YAML, and run!
 
-**No Python coding required!** Just edit YAML configuration files.
+## ✨ **Why Universal Template?**
 
-## 🤖 **Available Templates**
+### **Old Approach (Confusing):**
+- ❌ 4 different templates to choose from
+- ❌ Duplication between templates
+- ❌ Missing advanced options in simple templates
+- ❌ Hard to know what's possible
 
-### **1. Basic Agent Template** (`basic_agent_template.yaml`)
-- **Perfect for**: General-purpose tasks, beginners, simple automation
-- **Capabilities**: Web research, text processing, general assistance
-- **Complexity**: ⭐ Simple
-- **Use cases**: Customer support, information lookup, basic task automation
+### **New Approach (Simple & Powerful):**
+- ✅ ONE template showing EVERYTHING
+- ✅ See all options in one place
+- ✅ Enable/disable what you need
+- ✅ Clear documentation for each field
+- ✅ Works for ANY agent type (ReAct, Autonomous, RAG, etc.)
 
-### **2. Autonomous Agent Template** (`autonomous_agent_template.yaml`)
-- **Perfect for**: Advanced automation, proactive assistance, learning systems
-- **Capabilities**: Autonomous decision making, goal setting, continuous learning
-- **Complexity**: ⭐⭐⭐⭐ Advanced
-- **Use cases**: Personal assistants, business automation, intelligent monitoring
+## 📁 **Template Files**
 
-### **3. Business Agent Template** (`business_agent_template.yaml`)
-- **Perfect for**: Business analysis, financial metrics, strategic insights
-- **Capabilities**: Business intelligence, financial analysis, report generation
-- **Complexity**: ⭐⭐⭐ Intermediate-Advanced
-- **Use cases**: Business analytics, financial reporting, market research
+### **1. `universal_agent_template.yaml`** (COMPREHENSIVE YAML)
+- **1000+ lines** of fully documented configuration
+- Shows **EVERY possible option** for agents
+- Organized into **26 clear sections**
+- Marks **REQUIRED** vs **OPTIONAL** fields
+- Includes **examples and valid values**
+- Works for **ALL agent types**
 
-### **4. Creative Agent Template** (`creative_agent_template.yaml`)
-- **Perfect for**: Content creation, writing, marketing, artistic tasks
-- **Capabilities**: Creative writing, content generation, social media, copywriting
-- **Complexity**: ⭐⭐ Intermediate
-- **Use cases**: Content marketing, blog writing, social media management
+### **2. `agent_template.py`** (UNIVERSAL PYTHON SHELL)
+- **Minimal Python wrapper** (~300 lines)
+- Works with **ANY YAML configuration**
+- Just change `AGENT_ID` constant
+- Handles initialization, execution, cleanup
+- Provides interactive session mode
 
-## 🚀 **Quick Start Guide**
+## 🚀 **10-MINUTE QUICK START**
 
-### **Step 1: Choose Your Template**
+### **Step 1: Copy Templates**
+
 ```bash
-# Copy the template that matches your needs
-cp data/config/agents/templates/basic_agent_template.yaml data/config/agents/my_agent.yaml
+# Copy Python template
+cp data/agents/templates/agent_template.py data/agents/my_agent.py
+
+# Copy YAML template
+cp data/config/agents/templates/universal_agent_template.yaml data/config/agents/my_agent.yaml
 ```
 
-### **Step 2: Customize Your Agent**
-Edit the YAML file and change these key sections:
+### **Step 2: Update Python File (1 minute)**
+
+Edit `data/agents/my_agent.py` and change ONE line:
+
+```python
+# Line 73: Change this to match your YAML's agent_id
+AGENT_ID = "my_agent"  # Must match agent_id in YAML
+```
+
+That's it for Python! The template handles everything else.
+
+### **Step 3: Customize YAML (5-8 minutes)**
+
+Edit `data/config/agents/my_agent.yaml` and configure these REQUIRED fields:
 
 ```yaml
-# ===== AGENT IDENTITY =====
-agent_id: "my_custom_agent"        # CHANGE THIS: Unique ID
-name: "My Custom Agent"            # CHANGE THIS: Display name
-description: "What my agent does"  # CHANGE THIS: Description
+# ═══════════════════════════════════════════════════════════════════════════════
+# REQUIRED FIELDS (must configure these)
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# ===== LLM CONFIGURATION =====
+agent_id: "my_agent"              # Must match Python AGENT_ID
+name: "My Agent"                  # Human-readable name
+description: "What my agent does" # Brief description
+agent_type: "react"               # react, autonomous, rag, workflow, etc.
+framework: "react"                # basic, react, or autonomous
+
 llm_config:
-  provider: "ollama"               # CHANGE THIS: ollama, openai, anthropic, google
-  model_id: "llama3.2:latest"     # CHANGE THIS: Your preferred model
-  temperature: 0.7                 # CHANGE THIS: 0.0 (focused) to 1.0 (creative)
+  provider: "ollama"              # ollama, openai, anthropic, google
+  model_id: "llama3.2:latest"    # Your model
+  temperature: 0.7                # 0.0 (focused) to 1.0 (creative)
+  max_tokens: 2048                # Response length
 
-# ===== TOOL CONFIGURATION =====
-use_cases:                         # CHANGE THIS: Add your use cases
+use_cases:                        # What your agent can do
   - "web_research"
   - "text_processing"
-  - "your_custom_use_case"
+  - "general_assistance"
 
-# ===== SYSTEM PROMPT =====
-system_prompt: |                  # CHANGE THIS: Define your agent's behavior
-  You are my custom agent that specializes in...
+system_prompt: |                  # Define agent behavior
+  You are an intelligent AI agent that...
 ```
 
-### **Step 3: Create Your Agent**
+**Optional**: Browse the template and enable/customize other sections as needed.
+
+### **Step 4: Run Your Agent (1 minute)**
+
+```bash
+# Run in interactive mode
+python data/agents/my_agent.py
+```
+
+Or use programmatically:
+
 ```python
-from app.agents.factory import AgentBuilderFactory
+from data.agents.my_agent import AgentTemplate
 
-# Create the factory
-factory = AgentBuilderFactory(llm_manager, memory_system)
-
-# Build your agent from YAML
-agent = await factory.build_agent_from_yaml("my_custom_agent")
-
-# Your agent is ready to use!
-result = await agent.execute("Your task here")
+agent = AgentTemplate()
+await agent.initialize()
+result = await agent.execute_task("Your task here")
 ```
 
-## 🎨 **Customization Guide**
+**Total time: ~10 minutes!** ⚡
 
-### **🧠 LLM Configuration**
+## 📚 **Template Structure Overview**
+
+The universal template has **26 comprehensive sections**:
+
+### **Core Sections (REQUIRED)**
+
+1. **Agent Identity** - agent_id, name, description
+2. **Agent Type & Framework** - react, autonomous, rag, etc.
+5. **LLM Configuration** - provider, model, temperature, etc.
+6. **Tool Configuration** - use_cases or explicit tools
+10. **System Prompt** - defines agent behavior
+
+### **Optional Sections**
+
+3-4. **Autonomy Settings** (autonomous agents only)
+7. **Memory Configuration** - short-term, long-term, episodic, etc.
+8. **RAG Configuration** - knowledge base integration
+9. **Personality & Expertise** - communication style, traits
+11. **Performance Settings** - timeouts, iterations, caching
+12. **Learning & Adaptation** - continuous improvement
+13. **Goal Management** (autonomous agents only)
+14. **Collaboration** - multi-agent cooperation
+15. **Safety & Ethics** - constraints and guidelines
+16-18. **Execution, Capabilities, Monitoring**
+19-24. **Advanced Autonomous** (decision patterns, behavioral rules)
+25. **Domain-Specific** (business, trading, creative configs)
+26. **Custom Configuration** - your own fields
+
+## 🎯 **Agent Type Guide**
+
+### **ReAct Agent** (Reasoning + Acting)
+
+**Best for**: General tasks, research, analysis, problem-solving
+
+**Configuration**:
+
 ```yaml
-llm_config:
-  provider: "ollama"          # Choose: ollama, openai, anthropic, google
-  model_id: "llama3.2:latest" # Your model
-  temperature: 0.7            # Creativity: 0.0 (focused) to 1.0 (creative)
-  max_tokens: 2048           # Response length limit
+agent_type: "react"
+framework: "react"
+# Remove autonomy sections (3, 4, 13, 19-24)
 ```
 
-### **🛠️ Tool Configuration**
+**Use cases**: Customer support, research assistant, data analysis
+
+### **Autonomous Agent** (Proactive & Self-Directed)
+
+**Best for**: Long-running tasks, monitoring, proactive assistance
+
+**Configuration**:
+
+```yaml
+agent_type: "autonomous"
+framework: "autonomous"
+autonomy_level: "proactive"  # or "autonomous"
+enable_proactive_behavior: true
+enable_goal_setting: true
+# Keep all sections, customize autonomous behavior
+```
+
+**Use cases**: Personal assistant, business automation, trading bots
+
+### **RAG Agent** (Knowledge-Enhanced)
+
+**Best for**: Domain-specific expertise, document Q&A
+
+**Configuration**:
+
+```yaml
+agent_type: "rag"
+framework: "basic"
+rag_config:
+  enable_rag: true
+  collection_name: "my_knowledge_base"
+```
+
+**Use cases**: Technical support, legal assistant, medical advisor
+
+## 🎨 **Common Customization Patterns**
+
+### **Pattern 1: Simple Research Agent**
+
+```yaml
+agent_id: "research_agent"
+agent_type: "react"
+use_cases: ["web_research", "text_processing"]
+memory_config:
+  memory_type: "simple"
+temperature: 0.3  # Focused and accurate
+```
+
+### **Pattern 2: Creative Content Agent**
+
+```yaml
+agent_id: "content_creator"
+agent_type: "react"
+use_cases: ["content_creation", "creative_writing", "social_media"]
+temperature: 0.9  # Highly creative
+creativity_level: "maximum"
+```
+
+### **Pattern 3: Business Intelligence Agent**
+
+```yaml
+agent_id: "business_analyst"
+agent_type: "autonomous"
+use_cases: ["business_analysis", "financial_analysis", "excel_processing"]
+autonomy_level: "proactive"
+memory_config:
+  memory_type: "advanced"
+```
+
+### **Pattern 4: Personal Assistant**
+
+```yaml
+agent_id: "personal_assistant"
+agent_type: "autonomous"
+autonomy_level: "autonomous"
+enable_proactive_behavior: true
+enable_goal_setting: true
+enable_learning: true
+memory_config:
+  memory_type: "advanced"
+  enable_episodic: true  # Remember interactions
+```
+
+## 📖 **Configuration Reference**
+
+### **Available Use Cases**
+
 ```yaml
 use_cases:
+  # Research & Information
   - "web_research"           # Web searching and information gathering
-  - "business_analysis"      # Business intelligence and analysis
-  - "document_generation"    # Document creation and processing
+  - "document_analysis"      # Document processing and analysis
   - "text_processing"        # Text analysis and manipulation
-  - "social_media"          # Social media content and management
-  - "creative_writing"       # Creative content generation
+
+  # Business & Finance
+  - "business_analysis"      # Business intelligence and analysis
   - "financial_analysis"     # Financial metrics and reporting
+  - "excel_processing"       # Excel file operations
+
+  # Content & Creative
+  - "content_creation"       # Content generation
+  - "creative_writing"       # Creative content
+  - "social_media"          # Social media management
+
+  # Technical
+  - "code_generation"        # Code writing and analysis
+  - "data_analysis"         # Data processing and insights
+
+  # General
+  - "general_assistance"     # General-purpose help
+  - "autonomous_research"    # Autonomous information gathering
+  - "goal_planning"         # Goal setting and planning
+  - "proactive_assistance"  # Proactive help
 ```
 
-### **🧠 Memory Configuration**
+### **LLM Providers**
+
 ```yaml
-memory_config:
-  memory_type: "simple"      # Options: none, simple, advanced, auto
-  enable_short_term: true    # Recent conversation memory
-  enable_long_term: true     # Persistent knowledge storage
-  enable_episodic: false     # Experience-based memories (advanced)
+llm_config:
+  provider: "ollama"         # Local models
+  # provider: "openai"       # OpenAI GPT models
+  # provider: "anthropic"    # Claude models
+  # provider: "google"       # Gemini models
 ```
 
-### **🎭 Personality Configuration**
-```yaml
-personality:
-  expertise_areas:           # What your agent specializes in
-    - "your_domain"
-    - "your_specialty"
-  
-  communication_style: "professional"  # professional, casual, friendly, creative
-  creativity_level: "balanced"         # conservative, balanced, creative, highly_creative
-  
-  traits:                    # Personality characteristics
-    - "helpful"
-    - "accurate"
-    - "professional"
-```
+### **Agent Types**
 
-## 🔧 **Advanced Configuration**
+- **react**: Reasoning + Acting (best for most use cases)
+- **autonomous**: Self-directed, proactive agents
+- **rag**: Knowledge-enhanced agents
+- **workflow**: Multi-step workflow agents
+- **multimodal**: Text, image, audio processing
+- **composite**: Multiple agent types combined
 
-### **Autonomous Behavior** (Autonomous Template Only)
-```yaml
-autonomy_level: "proactive"           # reactive, proactive, adaptive, autonomous
-decision_threshold: 0.7               # Confidence threshold (0.0-1.0)
-enable_proactive_behavior: true       # Proactive assistance
-enable_goal_setting: true             # Autonomous goal setting
-enable_self_improvement: true         # Continuous learning
-```
+### **Memory Types**
 
-### **RAG Knowledge Base**
-```yaml
-rag_config:
-  enable_rag: true                     # Enable knowledge base
-  collection_name: "my_agent_kb"      # Unique collection name
-  similarity_threshold: 0.7           # Search sensitivity
-  max_results: 10                     # Number of results to retrieve
-```
+- **none**: No memory (stateless)
+- **simple**: Basic conversation memory
+- **advanced**: Full memory system (short-term, long-term, episodic)
+- **auto**: Automatically choose based on agent type
 
-### **Performance Tuning**
-```yaml
-performance:
-  timeout_seconds: 300                # Maximum execution time
-  max_iterations: 50                  # Maximum reasoning steps
-  enable_caching: true                # Cache results for speed
-  enable_streaming: false             # Stream responses
-```
+### **Autonomy Levels**
 
-## 📋 **Template Comparison**
-
-| Feature | Basic | Autonomous | Business | Creative |
-|---------|-------|------------|----------|----------|
-| **Complexity** | ⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ |
-| **Memory Type** | Simple | Advanced | Advanced | Simple |
-| **Autonomy** | None | Full | Proactive | None |
-| **Learning** | No | Yes | Yes | Yes |
-| **RAG Enabled** | Optional | Yes | Yes | Yes |
-| **Best For** | Beginners | Advanced Users | Business | Content |
-
-## 🎯 **Use Case Examples**
-
-### **Customer Support Agent**
-```yaml
-# Use: basic_agent_template.yaml
-agent_id: "customer_support_agent"
-use_cases: ["web_research", "text_processing", "general_assistance"]
-communication_style: "friendly"
-traits: ["helpful", "patient", "empathetic"]
-```
-
-### **Business Analyst Agent**
-```yaml
-# Use: business_agent_template.yaml
-agent_id: "business_analyst_agent"
-use_cases: ["business_analysis", "financial_analysis", "document_generation"]
-expertise_areas: ["financial_analysis", "market_research", "strategic_planning"]
-```
-
-### **Content Creator Agent**
-```yaml
-# Use: creative_agent_template.yaml
-agent_id: "content_creator_agent"
-use_cases: ["content_creation", "social_media", "creative_writing"]
-creativity_level: "highly_creative"
-content_types: ["blog_posts", "social_media", "marketing_copy"]
-```
-
-### **Personal Assistant Agent**
-```yaml
-# Use: autonomous_agent_template.yaml
-agent_id: "personal_assistant_agent"
-autonomy_level: "proactive"
-use_cases: ["autonomous_research", "goal_planning", "proactive_assistance"]
-enable_proactive_behavior: true
-```
+- **reactive**: Responds only to user input
+- **proactive**: Offers suggestions and assistance
+- **adaptive**: Learns and adapts behavior
+- **autonomous**: Fully self-directed
 
 ## 🔍 **Testing Your Agent**
 
-After creating your agent, test it thoroughly:
+### **Interactive Mode**
 
-```python
-# Test basic functionality
-result = await agent.execute("Simple test task")
-
-# Test tool usage
-result = await agent.execute("Research the latest trends in AI")
-
-# Test memory (if enabled)
-await agent.execute("Remember that I prefer detailed explanations")
-result = await agent.execute("Explain machine learning")  # Should use preference
-
-# Test domain expertise
-result = await agent.execute("Task specific to your agent's domain")
+```bash
+python data/agents/my_agent.py
 ```
 
-## 🚨 **Common Mistakes to Avoid**
+### **Programmatic Usage**
 
-1. **❌ Duplicate agent_id**: Each agent must have a unique identifier
-2. **❌ Invalid provider**: Make sure your LLM provider is correctly configured
-3. **❌ Mismatched use_cases**: Ensure use_cases match your available tools
-4. **❌ Memory type mismatch**: Advanced memory requires autonomous agent type
-5. **❌ Temperature extremes**: Very high (>0.9) or very low (<0.1) temperatures can cause issues
+```python
+from data.agents.my_agent import AgentTemplate
 
-## 🎉 **Ready to Create Your Agent?**
+# Initialize
+agent = AgentTemplate()
+await agent.initialize()
 
-1. Choose your template based on your needs
-2. Copy it to `data/config/agents/your_agent_name.yaml`
-3. Customize the configuration
-4. Use `AgentBuilderFactory.build_agent_from_yaml()` to create it
-5. Test and iterate!
+# Execute tasks
+result = await agent.execute_task("Research the latest AI trends")
+print(result)
 
-**Your AI agent will be ready in minutes, not hours!** 🚀
+# Cleanup
+await agent.cleanup()
+```
 
-## 📞 **Need Help?**
+### **Test Checklist**
 
-- Check the existing agent examples in `data/config/agents/`
-- Review the configuration documentation
-- Test with simple tasks first, then increase complexity
-- Use the basic template if you're unsure where to start
+- ✅ Agent initializes without errors
+- ✅ Responds to simple queries
+- ✅ Uses tools correctly
+- ✅ Memory works (if enabled)
+- ✅ Follows personality/style settings
+- ✅ Handles errors gracefully
+
+## 🚨 **Common Issues & Solutions**
+
+### **Issue: Agent fails to initialize**
+
+**Solution**: Check that agent_id in YAML matches AGENT_ID in Python
+
+### **Issue: Tools not working**
+
+**Solution**: Verify use_cases are valid and tools are available
+
+### **Issue: Memory not persisting**
+
+**Solution**: Ensure memory_type is not "none" and memory system is initialized
+
+### **Issue: Responses too short/long**
+
+**Solution**: Adjust max_tokens in llm_config
+
+### **Issue: Agent too creative/not creative enough**
+
+**Solution**: Adjust temperature (0.0-1.0) and creativity_level
+
+## 💡 **Pro Tips**
+
+1. **Start Simple**: Begin with minimal configuration, add features incrementally
+2. **Test Incrementally**: Test each new feature before adding more
+3. **Use Comments**: Comment out sections you might need later
+4. **Check Examples**: Review existing agents in `data/config/agents/`
+5. **Monitor Logs**: Enable detailed logging for debugging
+6. **Version Control**: Keep your YAML in version control
+7. **Document Changes**: Add comments explaining your customizations
+
+## 🎉 **You're Ready!**
+
+You now have everything you need to create powerful AI agents in minutes:
+
+✅ **Universal YAML template** with all options documented
+✅ **Universal Python template** that works with any configuration
+✅ **Complete documentation** and examples
+✅ **10-minute quick start** guide
+
+**Start building your agent now!** 🚀
+
+## 📞 **Additional Resources**
+
+- **Existing Agents**: `data/config/agents/` - Real-world examples
+- **System Defaults**: `data/config/agent_defaults.yaml` - Default values
+- **Main Documentation**: `data/config/README.md` - System overview
+- **Agent Factory**: `app/agents/factory.py` - How agents are built
 
 **Happy Agent Building!** 🤖✨

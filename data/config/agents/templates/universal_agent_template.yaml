@@ -1,0 +1,1021 @@
+# 🚀 **UNIVERSAL AGENT TEMPLATE - CREATE ANY AGENT IN 10 MINUTES**
+
+Welcome to the **Revolutionary Universal Agent Template System**! Create powerful, customized AI agents using a single comprehensive template that shows EVERY possible configuration option.
+
+## 🎯 **What Is This?**
+
+This is a **production-ready universal template system** with:
+1. **ONE comprehensive YAML template** showing ALL configuration options
+2. **ONE universal Python template** that works with ANY YAML configuration
+3. **Complete documentation** of every field and option
+4. **No coding required** - just copy, customize YAML, and run!
+
+## ✨ **Why Universal Template?**
+
+### **Old Approach (Confusing):**
+- ❌ 4 different templates to choose from
+- ❌ Duplication between templates
+- ❌ Missing advanced options in simple templates
+- ❌ Hard to know what's possible
+
+### **New Approach (Simple & Powerful):**
+- ✅ ONE template showing EVERYTHING
+- ✅ See all options in one place
+- ✅ Enable/disable what you need
+- ✅ Clear documentation for each field
+- ✅ Works for ANY agent type (ReAct, Autonomous, RAG, etc.)
+
+## 📁 **Template Files**
+
+### **1. `universal_agent_template.yaml`** (COMPREHENSIVE YAML)
+- **1000+ lines** of fully documented configuration
+- Shows **EVERY possible option** for agents
+- Organized into **26 clear sections**
+- Marks **REQUIRED** vs **OPTIONAL** fields
+- Includes **examples and valid values**
+- Works for **ALL agent types**
+
+### **2. `agent_template.py`** (UNIVERSAL PYTHON SHELL)
+- **Minimal Python wrapper** (~300 lines)
+- Works with **ANY YAML configuration**
+- Just change `AGENT_ID` constant
+- Handles initialization, execution, cleanup
+- Provides interactive session mode
+
+## 🚀 **Quick Start Guide**
+
+### **Step 1: Choose Your Template**
+```bash
+# Copy the template that matches your needs
+cp data/config/agents/templates/basic_agent_template.yaml data/config/agents/my_agent.yaml
+```
+
+### **Step 2: Customize Your Agent**
+Edit the YAML file and change these key sections:
+
+```yaml
+# ===== AGENT IDENTITY =====
+agent_id: "my_custom_agent"        # CHANGE THIS: Unique ID
+name: "My Custom Agent"            # CHANGE THIS: Display name
+description: "What my agent does"  # CHANGE THIS: Description
+
+# ===== LLM CONFIGURATION =====
+llm_config:
+  provider: "ollama"               # CHANGE THIS: ollama, openai, anthropic, google
+  model_id: "llama3.2:latest"     # CHANGE THIS: Your preferred model
+  temperature: 0.7                 # CHANGE THIS: 0.0 (focused) to 1.0 (creative)
+
+# ===== TOOL CONFIGURATION =====
+use_cases:                         # CHANGE THIS: Add your use cases
+  - "web_research"
+  - "text_processing"
+  - "your_custom_use_case"
+
+# ===== SYSTEM PROMPT =====
+system_prompt: |                  # CHANGE THIS: Define your agent's behavior
+  You are my custom agent that specializes in...
+```
+
+### **Step 3: Create Your Agent**
+```python
+from app.agents.factory import AgentBuilderFactory
+
+# Create the factory
+factory = AgentBuilderFactory(llm_manager, memory_system)
+
+# Build your agent from YAML
+agent = await factory.build_agent_from_yaml("my_custom_agent")
+
+# Your agent is ready to use!
+result = await agent.execute("Your task here")
+```
+
+## 🎨 **Customization Guide**
+
+### **🧠 LLM Configuration**
+```yaml
+llm_config:
+  provider: "ollama"          # Choose: ollama, openai, anthropic, google
+  model_id: "llama3.2:latest" # Your model
+  temperature: 0.7            # Creativity: 0.0 (focused) to 1.0 (creative)
+  max_tokens: 2048           # Response length limit
+```
+
+### **🛠️ Tool Configuration**
+```yaml
+use_cases:
+  - "web_research"           # Web searching and information gathering
+  - "business_analysis"      # Business intelligence and analysis
+  - "document_generation"    # Document creation and processing
+  - "text_processing"        # Text analysis and manipulation
+  - "social_media"          # Social media content and management
+  - "creative_writing"       # Creative content generation
+  - "financial_analysis"     # Financial metrics and reporting
+```
+
+### **🧠 Memory Configuration**
+```yaml
+memory_config:
+  memory_type: "simple"      # Options: none, simple, advanced, auto
+  enable_short_term: true    # Recent conversation memory
+  enable_long_term: true     # Persistent knowledge storage
+  enable_episodic: false     # Experience-based memories (advanced)
+```
+
+### **🎭 Personality Configuration**
+```yaml
+personality:
+  expertise_areas:           # What your agent specializes in
+    - "your_domain"
+    - "your_specialty"
+  
+  communication_style: "professional"  # professional, casual, friendly, creative
+  creativity_level: "balanced"         # conservative, balanced, creative, highly_creative
+  
+  traits:                    # Personality characteristics
+    - "helpful"
+    - "accurate"
+    - "professional"
+```
+
+## 🔧 **Advanced Configuration**
+
+### **Autonomous Behavior** (Autonomous Template Only)
+```yaml
+autonomy_level: "proactive"           # reactive, proactive, adaptive, autonomous
+decision_threshold: 0.7               # Confidence threshold (0.0-1.0)
+enable_proactive_behavior: true       # Proactive assistance
+enable_goal_setting: true             # Autonomous goal setting
+enable_self_improvement: true         # Continuous learning
+```
+
+### **RAG Knowledge Base**
+```yaml
+rag_config:
+  enable_rag: true                     # Enable knowledge base
+  collection_name: "my_agent_kb"      # Unique collection name
+  similarity_threshold: 0.7           # Search sensitivity
+  max_results: 10                     # Number of results to retrieve
+```
+
+### **Performance Tuning**
+```yaml
+performance:
+  timeout_seconds: 300                # Maximum execution time
+  max_iterations: 50                  # Maximum reasoning steps
+  enable_caching: true                # Cache results for speed
+  enable_streaming: false             # Stream responses
+```
+
+## 📋 **Template Comparison**
+
+| Feature | Basic | Autonomous | Business | Creative |
+|---------|-------|------------|----------|----------|
+| **Complexity** | ⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ |
+| **Memory Type** | Simple | Advanced | Advanced | Simple |
+| **Autonomy** | None | Full | Proactive | None |
+| **Learning** | No | Yes | Yes | Yes |
+| **RAG Enabled** | Optional | Yes | Yes | Yes |
+| **Best For** | Beginners | Advanced Users | Business | Content |
+
+## 🎯 **Use Case Examples**
+
+### **Customer Support Agent**
+```yaml
+# Use: basic_agent_template.yaml
+agent_id: "customer_support_agent"
+use_cases: ["web_research", "text_processing", "general_assistance"]
+communication_style: "friendly"
+traits: ["helpful", "patient", "empathetic"]
+```
+
+### **Business Analyst Agent**
+```yaml
+# Use: business_agent_template.yaml
+agent_id: "business_analyst_agent"
+use_cases: ["business_analysis", "financial_analysis", "document_generation"]
+expertise_areas: ["financial_analysis", "market_research", "strategic_planning"]
+```
+
+### **Content Creator Agent**
+```yaml
+# Use: creative_agent_template.yaml
+agent_id: "content_creator_agent"
+use_cases: ["content_creation", "social_media", "creative_writing"]
+creativity_level: "highly_creative"
+content_types: ["blog_posts", "social_media", "marketing_copy"]
+```
+
+### **Personal Assistant Agent**
+```yaml
+# Use: autonomous_agent_template.yaml
+agent_id: "personal_assistant_agent"
+autonomy_level: "proactive"
+use_cases: ["autonomous_research", "goal_planning", "proactive_assistance"]
+enable_proactive_behavior: true
+```
+
+## 🔍 **Testing Your Agent**
+
+After creating your agent, test it thoroughly:
+
+```python
+# Test basic functionality
+result = await agent.execute("Simple test task")
+
+# Test tool usage
+result = await agent.execute("Research the latest trends in AI")
+
+# Test memory (if enabled)
+await agent.execute("Remember that I prefer detailed explanations")
+result = await agent.execute("Explain machine learning")  # Should use preference
+
+# Test domain expertise
+result = await agent.execute("Task specific to your agent's domain")
+```
+
+## 🚨 **Common Mistakes to Avoid**
+
+1. **❌ Duplicate agent_id**: Each agent must have a unique identifier
+2. **❌ Invalid provider**: Make sure your LLM provider is correctly configured
+3. **❌ Mismatched use_cases**: Ensure use_cases match your available tools
+4. **❌ Memory type mismatch**: Advanced memory requires autonomous agent type
+5. **❌ Temperature extremes**: Very high (>0.9) or very low (<0.1) temperatures can cause issues
+
+## 🎉 **Ready to Create Your Agent?**
+
+1. Choose your template based on your needs
+2. Copy it to `data/config/agents/your_agent_name.yaml`
+3. Customize the configuration
+4. Use `AgentBuilderFactory.build_agent_from_yaml()` to create it
+5. Test and iterate!
+
+**Your AI agent will be ready in minutes, not hours!** 🚀
+
+## 📞 **Need Help?**
+
+- Check the existing agent examples in `data/config/agents/`
+- Review the configuration documentation
+- Test with simple tasks first, then increase complexity
+- Use the basic template if you're unsure where to start
+
+**Happy Agent Building!** 🤖✨
+  
+  # OPTIONAL: Maximum semantic memories
+  # TYPICAL: 500 (basic), 5000 (moderate), 50000+ (extensive)
+  max_semantic_memory: 500
+  
+  # OPTIONAL: Maximum procedural memories
+  # TYPICAL: 100 (basic), 1000 (moderate), 10000+ (extensive)
+  max_procedural_memory: 100
+  
+  # OPTIONAL: Threshold for memory consolidation
+  # LOWER = faster learning, HIGHER = more selective
+  consolidation_threshold: 10
+  
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Memory Behavior
+  # ─────────────────────────────────────────────────────────────────────────────
+  
+  # OPTIONAL: Default importance level for new memories
+  # OPTIONS: "low", "medium", "high"
+  default_importance: "medium"
+  
+  # OPTIONAL: Automatically consolidate memories
+  auto_consolidation: false
+  
+  # OPTIONAL: Learning rate for memory updates (0.0-1.0)
+  # HIGHER = faster adaptation to new information
+  learning_rate: 0.1
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 8: RAG CONFIGURATION (OPTIONAL)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Retrieval-Augmented Generation for knowledge base integration
+
+rag_config:
+  # OPTIONAL: Enable RAG system for knowledge retrieval
+  enable_rag: false
+
+  # REQUIRED (if enable_rag=true): Unique collection name for this agent
+  collection_name: "my_agent_knowledge_base"
+
+  # REQUIRED (if enable_rag=true): Directory for persistent storage
+  persist_directory: "./data/chroma/my_agent"
+
+  # OPTIONAL: Embedding model for vector similarity
+  # COMMON: "all-MiniLM-L6-v2", "all-mpnet-base-v2"
+  embedding_model: "all-MiniLM-L6-v2"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Advanced RAG: Multiple Collections (OPTIONAL)
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Uncomment to use multiple specialized knowledge collections
+
+  # collections:
+  #   - name: "domain_knowledge"
+  #     description: "Domain-specific knowledge and expertise"
+  #     auto_create: true
+  #
+  #   - name: "procedures"
+  #     description: "Standard operating procedures and workflows"
+  #     auto_create: true
+  #
+  #   - name: "historical_data"
+  #     description: "Historical data and past interactions"
+  #     auto_create: true
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Search Settings
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  # OPTIONAL: Minimum similarity score for retrieval (0.0-1.0)
+  # LOWER = broader results, HIGHER = more precise results
+  # TYPICAL: 0.5-0.6 (broad), 0.7-0.8 (balanced), 0.9+ (precise)
+  similarity_threshold: 0.7
+
+  # OPTIONAL: Maximum number of results to retrieve
+  max_results: 5
+
+  # OPTIONAL: Re-rank results for better relevance
+  enable_reranking: false
+
+  # OPTIONAL: Chunk size for document splitting (characters)
+  chunk_size: 1000
+
+  # OPTIONAL: Overlap between chunks (characters)
+  chunk_overlap: 200
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 9: AGENT PERSONALITY & EXPERTISE (OPTIONAL)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+personality:
+  # OPTIONAL: Areas of expertise for this agent
+  expertise_areas:
+    - "general_assistance"      # Customize based on your agent's purpose
+    - "problem_solving"
+    - "information_retrieval"
+    - "task_execution"
+
+  # OPTIONAL: Communication style
+  # OPTIONS: "professional", "friendly", "casual", "creative", "technical_expert",
+  #          "analytical", "creative_expert", "hilarious_data_comedian",
+  #          "chaotic_creative", "consultative", "inspiring", "artistic"
+  communication_style: "professional"
+
+  # OPTIONAL: Creativity level (0.0-1.0 or descriptive)
+  # NUMERIC: 0.0-0.3 (analytical), 0.4-0.7 (balanced), 0.8-1.0 (creative)
+  # DESCRIPTIVE: "analytical", "balanced", "creative", "highly_creative", "maximum"
+  creativity_level: "balanced"
+
+  # OPTIONAL: Risk tolerance for decision-making (0.0-1.0)
+  # LOWER = more cautious, HIGHER = more risk-taking
+  risk_tolerance: 0.5
+
+  # OPTIONAL: Personality traits
+  traits:
+    - "helpful"
+    - "analytical"
+    - "detail_oriented"
+    - "professional"
+    - "adaptive"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 10: SYSTEM PROMPT (REQUIRED)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# REQUIRED: Main system prompt defining agent behavior and capabilities
+system_prompt: |
+  You are an intelligent AI agent designed to help users accomplish their goals.
+
+  Your core capabilities include:
+  - Understanding and analyzing user requests
+  - Using available tools to gather information and perform tasks
+  - Providing clear, accurate, and helpful responses
+  - Learning from interactions to improve performance
+
+  Your approach:
+  1. Carefully analyze the user's request
+  2. Determine the best tools and strategies to use
+  3. Execute tasks systematically and thoroughly
+  4. Provide clear explanations of your reasoning and actions
+  5. Ensure accuracy and quality in all outputs
+
+  Always maintain:
+  - Professional and helpful demeanor
+  - Accuracy and attention to detail
+  - Transparency about your capabilities and limitations
+  - Ethical behavior and user privacy
+
+  When using tools:
+  - Select the most appropriate tools for each task
+  - Use tools efficiently and effectively
+  - Verify results and handle errors gracefully
+  - Explain your tool usage and reasoning
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Advanced Prompts (OPTIONAL)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# OPTIONAL: Template for user prompts
+# user_prompt_template: |
+#   Task: {task}
+#   Context: {context}
+#   Requirements: {requirements}
+#
+#   Please approach this task with your full expertise.
+
+# OPTIONAL: Template for agent responses
+# response_template: |
+#   **Analysis:** {analysis}
+#   **Approach:** {approach}
+#   **Result:** {result}
+#   **Next Steps:** {next_steps}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 11: PERFORMANCE SETTINGS (OPTIONAL)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+performance:
+  # OPTIONAL: Timeout for agent execution in seconds
+  # TYPICAL: 300 (5 min), 600 (10 min), 900 (15 min), 1200+ (20+ min)
+  timeout_seconds: 300
+
+  # OPTIONAL: Maximum reasoning/action iterations
+  # TYPICAL: 10-30 (simple), 50-100 (moderate), 100+ (complex/autonomous)
+  max_iterations: 50
+
+  # OPTIONAL: Enable streaming responses
+  enable_streaming: true
+
+  # OPTIONAL: Enable response caching
+  enable_caching: true
+
+  # OPTIONAL: Enable parallel processing (autonomous agents)
+  enable_parallel_processing: false
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 12: LEARNING & ADAPTATION (OPTIONAL)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# OPTIONAL: Enable learning from interactions
+enable_learning: false
+
+# OPTIONAL: Enable adaptation to user preferences
+enable_adaptation: false
+
+# OPTIONAL: Enable self-improvement mechanisms
+enable_self_improvement: false
+
+# OPTIONAL: Enable meta-learning (learning how to learn)
+enable_meta_learning: false
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 13: GOAL MANAGEMENT (CONDITIONAL - only for autonomous agents)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Remove this entire section if agent_type != "autonomous"
+
+goal_management:
+  # OPTIONAL: Enable hierarchical goal structures
+  enable_goal_hierarchy: true
+
+  # OPTIONAL: Maximum concurrent goals
+  # TYPICAL: 3-5 (focused), 10-15 (moderate), 20+ (complex)
+  max_concurrent_goals: 5
+
+  # OPTIONAL: System for prioritizing goals
+  # OPTIONS: "weighted", "priority_based", "risk_adjusted", "chaos_balanced"
+  goal_priority_system: "weighted"
+
+  # OPTIONAL: Break down complex goals into sub-goals
+  enable_goal_decomposition: true
+
+  # OPTIONAL: Track progress toward goals
+  enable_progress_tracking: true
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 14: COLLABORATION (OPTIONAL)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# OPTIONAL: Enable collaboration with other agents or users
+enable_collaboration: false
+
+# OPTIONAL: Collaboration style
+# OPTIONS: "cooperative", "leadership", "consultative", "independent",
+#          "creative", "chaotic_creative"
+collaboration_style: "cooperative"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 15: SAFETY & ETHICS (OPTIONAL BUT RECOMMENDED)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# OPTIONAL: Safety constraints for agent behavior
+safety_constraints:
+  - "no_harmful_content"
+  - "respect_privacy"
+  - "verify_information"
+  - "ethical_guidelines"
+  - "maintain_data_accuracy"
+  - "respect_resource_limits"
+
+# OPTIONAL: Ethical guidelines for decision-making
+ethical_guidelines:
+  - "Be honest and transparent"
+  - "Respect user privacy and confidentiality"
+  - "Provide accurate and verified information"
+  - "Avoid harmful or biased content"
+  - "Act in the user's best interest"
+  - "Maintain professional standards"
+
+# OPTIONAL: Content filtering settings
+# content_filtering:
+#   enable_content_filtering: true
+#   enable_output_validation: true
+#   blocked_content_types: ["malicious", "harmful", "explicit"]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 16: EXECUTION SETTINGS (OPTIONAL - advanced configuration)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+execution:
+  # OPTIONAL: Maximum iterations for complex reasoning
+  max_iterations: 100
+
+  # OPTIONAL: Timeout for individual operations
+  timeout_seconds: 300
+
+  # OPTIONAL: Absolute maximum execution time
+  max_execution_time_seconds: 3600
+
+  # OPTIONAL: Minimum confidence for decisions (0.0-1.0)
+  min_decision_confidence: 0.1
+
+  # OPTIONAL: Maximum confidence for decisions (0.0-1.0)
+  max_decision_confidence: 0.9
+
+  # OPTIONAL: Default decision threshold
+  default_decision_threshold: 0.6
+
+  # OPTIONAL: Maximum memory per agent in MB
+  max_memory_per_agent_mb: 1024
+
+  # OPTIONAL: Maximum concurrent operations
+  max_concurrent_operations: 5
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 17: CAPABILITIES (OPTIONAL - explicit capability declaration)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+capabilities:
+  - "reasoning"              # Logical reasoning and analysis
+  - "tool_use"              # Using tools and external resources
+  - "memory"                # Memory and context management
+  - "planning"              # Strategic planning and goal setting
+  - "learning"              # Learning from interactions
+  # - "creativity"          # Creative content generation
+  # - "analysis"            # Data and information analysis
+  # - "multimodal"          # Multi-modal processing (text, image, audio)
+  # - "audio"               # Audio processing capabilities
+  # - "business_analysis"   # Business intelligence and analysis
+  # - "financial_analysis"  # Financial calculations and analysis
+  # - "text_processing"     # Advanced text processing and NLP
+  # - "document_analysis"   # Document processing and analysis
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 18: MONITORING & LOGGING (OPTIONAL)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+monitoring:
+  # OPTIONAL: Enable performance tracking
+  enable_performance_tracking: false
+
+  # OPTIONAL: Enable metrics collection
+  enable_metrics_collection: false
+
+  # OPTIONAL: Metrics collection interval in seconds
+  metrics_interval_seconds: 60
+
+  # OPTIONAL: Enable continuous learning from metrics
+  enable_continuous_learning: false
+
+  # OPTIONAL: Rate of adaptation based on feedback (0.0-1.0)
+  adaptation_rate: 0.1
+
+  # OPTIONAL: Integrate user feedback into learning
+  feedback_integration: false
+
+  # OPTIONAL: Logging level
+  # OPTIONS: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+  log_level: "INFO"
+
+  # OPTIONAL: Enable detailed logging
+  enable_detailed_logging: false
+
+  # OPTIONAL: Log tool usage
+  log_tool_usage: false
+
+  # OPTIONAL: Log decision-making process
+  log_decision_process: false
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 19: AUTONOMOUS BEHAVIOR CONFIGURATION (CONDITIONAL - autonomous only)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Remove this entire section if agent_type != "autonomous"
+
+autonomous_behavior:
+  # OPTIONAL: Interval for proactive assistance checks (seconds)
+  proactive_assistance_interval: 300
+
+  # OPTIONAL: Interval for learning consolidation (seconds)
+  learning_consolidation_interval: 3600
+
+  # OPTIONAL: Interval for goal review (seconds)
+  goal_review_interval: 1800
+
+  # OPTIONAL: Interval for self-improvement analysis (seconds)
+  self_improvement_interval: 86400
+
+  # OPTIONAL: Interval for creative content generation (seconds)
+  # creative_generation_interval: 1800
+
+  # OPTIONAL: Interval for screen capture/monitoring (seconds)
+  # screen_capture_interval: 1800
+
+  # OPTIONAL: Interval for inspiration scanning (seconds)
+  # inspiration_scan_interval: 900
+
+  # OPTIONAL: Interval for personality evolution (seconds)
+  # personality_evolution_interval: 3600
+
+  # OPTIONAL: Interval for memory consolidation (seconds)
+  # memory_consolidation_interval: 7200
+
+  # OPTIONAL: Interval for market/domain monitoring (seconds)
+  # market_monitoring_interval: 300
+
+  # OPTIONAL: Interval for analysis updates (seconds)
+  # analysis_update_interval: 900
+
+  # OPTIONAL: Interval for portfolio/project review (seconds)
+  # portfolio_review_interval: 3600
+
+  # OPTIONAL: Interval for opportunity scanning (seconds)
+  # opportunity_scan_interval: 1800
+
+  # OPTIONAL: Interval for risk assessment (seconds)
+  # risk_assessment_interval: 1800
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 20: DECISION PATTERNS (CONDITIONAL - autonomous only, ADVANCED)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Remove this entire section if agent_type != "autonomous"
+# This section provides metadata-driven decision-making for autonomous agents
+
+# decision_patterns:
+#   - name: "execution_task_pattern"
+#     description: "Strongly favors tool usage over reasoning for execution tasks"
+#     trigger_conditions:
+#       - "current_task:generate"
+#       - "current_task:create"
+#       - "current_task:make"
+#       - "current_task:build"
+#       - "current_task:produce"
+#     tool_preferences:
+#       tool_name_1: 0.4  # Boost confidence by 0.4 for this tool
+#       tool_name_2: 0.3  # Boost confidence by 0.3 for this tool
+#     confidence_modifiers:
+#       "task_type:execution": 0.4
+#       "task_type:creative": 0.3
+#     execution_order: 0  # Lower = higher priority
+#     enabled: true
+#
+#   - name: "analysis_task_pattern"
+#     description: "Balances reasoning and tool usage for analytical tasks"
+#     trigger_conditions:
+#       - "current_task:analyze"
+#       - "current_task:evaluate"
+#       - "current_task:assess"
+#     tool_preferences:
+#       analysis_tool: 0.3
+#     confidence_modifiers:
+#       "task_type:analysis": 0.2
+#     execution_order: 1
+#     enabled: true
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 21: BEHAVIORAL RULES (CONDITIONAL - autonomous only, ADVANCED)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Remove this entire section if agent_type != "autonomous"
+# This section defines rules that modify agent behavior dynamically
+
+# behavioral_rules:
+#   - name: "reduce_excessive_reasoning"
+#     condition: "autonomous_reasoning"
+#     action: "reduce_confidence"
+#     parameters:
+#       amount: 0.3
+#     priority: 1
+#     enabled: true
+#
+#   - name: "boost_tool_usage_for_execution"
+#     condition: "current_task:generate"
+#     action: "boost_confidence"
+#     parameters:
+#       amount: 0.4
+#     priority: 0
+#     enabled: true
+#
+#   - name: "encourage_creative_tools"
+#     condition: "current_task:creative"
+#     action: "boost_confidence"
+#     parameters:
+#       amount: 0.2
+#     priority: 2
+#     enabled: true
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 22: REASONING BEHAVIOR (CONDITIONAL - autonomous only, ADVANCED)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Remove this entire section if agent_type != "autonomous"
+
+# reasoning_behavior:
+#   enabled: true
+#   base_confidence: 0.5  # Base confidence for reasoning actions
+#   execution_task_penalty: 0.2  # Penalty for reasoning on execution tasks
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 23: EXECUTION TASK PATTERNS (CONDITIONAL - autonomous only, ADVANCED)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Remove this entire section if agent_type != "autonomous"
+# Keywords that identify execution tasks (favor tools over reasoning)
+
+# execution_task_patterns:
+#   - "generate"
+#   - "create"
+#   - "build"
+#   - "make"
+#   - "produce"
+#   - "develop"
+#   - "write"
+#   - "compose"
+#   - "design"
+#   - "construct"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 24: ADVANCED DECISION THRESHOLDS (CONDITIONAL - autonomous only)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Remove this entire section if agent_type != "autonomous"
+
+# Configuration-driven thresholds for autonomous decision-making
+# decision_threshold: 0.6  # Already defined in Section 3
+# reasoning_penalty_per_iteration: 0.1  # Penalty for excessive reasoning
+# tool_boost_for_execution_tasks: 0.4   # Boost for tool usage on execution tasks
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 25: DOMAIN-SPECIFIC CONFIGURATIONS (OPTIONAL)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Uncomment and customize the section relevant to your agent's domain
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BUSINESS INTELLIGENCE CONFIGURATION
+# ─────────────────────────────────────────────────────────────────────────────
+
+# business_config:
+#   # Industry focus
+#   industry_focus: "general"  # technology, finance, healthcare, retail, etc.
+#
+#   # Analysis frameworks to use
+#   analysis_frameworks:
+#     - "SWOT"
+#     - "Porter's Five Forces"
+#     - "ROI Analysis"
+#     - "Financial Ratios"
+#     - "Market Analysis"
+#
+#   # Reporting formats
+#   reporting_formats:
+#     - "executive_summary"
+#     - "detailed_analysis"
+#     - "financial_dashboard"
+#     - "strategic_recommendations"
+#
+#   # Key metrics to track
+#   key_metrics:
+#     - "revenue_growth"
+#     - "profit_margins"
+#     - "market_share"
+#     - "customer_acquisition_cost"
+#     - "lifetime_value"
+#     - "roi"
+#
+#   # Business intelligence mode
+#   business_intelligence_mode: "comprehensive"
+#   financial_precision: "high"
+#   market_analysis_depth: "detailed"
+#   reporting_style: "executive"
+#   data_visualization: "enabled"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TRADING/FINANCIAL CONFIGURATION
+# ─────────────────────────────────────────────────────────────────────────────
+
+# trading_config:
+#   # Target assets for analysis and trading
+#   target_stocks:
+#     - "AAPL"
+#     - "NVDA"
+#     - "META"
+#     - "GOOGL"
+#     - "MSFT"
+#
+#   # Risk management parameters
+#   risk_management:
+#     max_position_size: 0.10          # 10% max per position
+#     max_portfolio_risk: 0.02         # 2% max portfolio risk per trade
+#     stop_loss_percentage: 0.05       # 5% stop loss
+#     take_profit_percentage: 0.15     # 15% take profit
+#     max_daily_trades: 5
+#     min_confidence_threshold: 0.7
+#
+#   # Market timing
+#   market_hours:
+#     start_time: "09:30"
+#     end_time: "16:00"
+#     timezone: "US/Eastern"
+#     trading_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+#
+#   # Analysis parameters
+#   analysis_config:
+#     technical_indicators:
+#       - "RSI"
+#       - "MACD"
+#       - "Bollinger_Bands"
+#       - "Moving_Averages"
+#       - "Volume_Analysis"
+#
+#     fundamental_metrics:
+#       - "PE_Ratio"
+#       - "PEG_Ratio"
+#       - "Price_to_Book"
+#       - "Debt_to_Equity"
+#       - "ROE"
+#       - "Profit_Margin"
+#
+#     risk_metrics:
+#       - "Volatility"
+#       - "Beta"
+#       - "VaR"
+#       - "Max_Drawdown"
+#       - "Sharpe_Ratio"
+#
+#   # Trading mode settings
+#   trading_mode: "autonomous"
+#   decision_logging: true
+#   performance_tracking: true
+#   adaptive_strategies: true
+#   continuous_monitoring: true
+#   real_time_analysis: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CREATIVE CONTENT CONFIGURATION
+# ─────────────────────────────────────────────────────────────────────────────
+
+# creative_config:
+#   # Content types to create
+#   content_types:
+#     - "blog_posts"
+#     - "social_media"
+#     - "marketing_copy"
+#     - "creative_writing"
+#     - "scripts"
+#     - "articles"
+#
+#   # Writing styles
+#   writing_styles:
+#     - "conversational"
+#     - "professional"
+#     - "creative"
+#     - "persuasive"
+#     - "informative"
+#     - "entertaining"
+#
+#   # Tone options
+#   tone_options:
+#     - "friendly"
+#     - "professional"
+#     - "casual"
+#     - "authoritative"
+#     - "playful"
+#     - "inspiring"
+#
+#   # Creative techniques
+#   creative_techniques:
+#     - "storytelling"
+#     - "metaphor_usage"
+#     - "emotional_appeal"
+#     - "humor_integration"
+#     - "visual_language"
+#     - "call_to_action"
+#
+#   # Content generation targets (for autonomous agents)
+#   content_targets:
+#     posts_per_day: 5
+#     articles_per_week: 3
+#     campaigns_per_month: 2
+#
+#   # Personality evolution (for creative autonomous agents)
+#   personality_evolution:
+#     mood_shift_probability: 0.2
+#     creativity_adaptation_rate: 0.1
+#     engagement_boost_threshold: 0.8
+#
+#   # Creative mode settings
+#   creative_mode: "high_originality"
+#   content_freshness: "always_new"
+#   style_adaptation: "dynamic"
+#   audience_focus: "engagement_first"
+#   quality_standard: "professional"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# INSPIRATION SOURCES (for creative agents)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# inspiration_config:
+#   # Creative domains for inspiration
+#   creative_domains:
+#     - "literature"
+#     - "visual_arts"
+#     - "music"
+#     - "film"
+#     - "digital_media"
+#     - "advertising"
+#
+#   # Research sources
+#   research_sources:
+#     - "trending_topics"
+#     - "industry_news"
+#     - "cultural_events"
+#     - "seasonal_themes"
+#     - "audience_insights"
+#
+#   # Inspiration sources for autonomous creative agents
+#   inspiration_sources:
+#     - "internet_culture"
+#     - "scientific_papers"
+#     - "philosophical_texts"
+#     - "user_interactions"
+#     - "random_wikipedia"
+#     - "trending_topics"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SPECIALIZATION AREAS (OPTIONAL)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# specialization_areas:
+#   - "domain_expertise_1"
+#   - "domain_expertise_2"
+#   - "domain_expertise_3"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 26: CUSTOM CONFIGURATION (OPTIONAL)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Add any custom settings specific to your agent here
+
+custom_config:
+  # Example custom settings - customize or remove as needed
+  preferred_language: "en"
+  response_format: "markdown"
+  include_sources: true
+
+  # Add your own custom fields here
+  # custom_field_1: "value1"
+  # custom_field_2: "value2"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# END OF UNIVERSAL AGENT TEMPLATE
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# 📝 NEXT STEPS:
+# 1. Copy this file to data/config/agents/YOUR_AGENT_NAME.yaml
+# 2. Update agent_id to match your Python file's AGENT_ID constant
+# 3. Customize required fields (agent_id, name, description, agent_type, llm_config, tools/use_cases, system_prompt)
+# 4. Remove or comment out optional sections you don't need
+# 5. Customize optional sections based on your agent's purpose
+# 6. Test your agent configuration
+#
+# 💡 TIPS:
+# - Start simple: Use basic configuration first, add advanced features later
+# - Required fields: agent_id, name, description, agent_type, framework, llm_config, tools/use_cases, system_prompt
+# - For ReAct agents: Remove autonomy sections (3, 4, 13, 19-24)
+# - For Autonomous agents: Keep all sections, customize autonomous behavior
+# - Use comments (#) to disable sections you might need later
+# - Test incrementally: Add one feature at a time and verify it works
+#
+# 🔗 RELATED FILES:
+# - Python template: data/agents/templates/agent_template.py
+# - System defaults: data/config/agent_defaults.yaml
+# - Documentation: data/config/agents/templates/README.md
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
