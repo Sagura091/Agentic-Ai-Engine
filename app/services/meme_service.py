@@ -10,21 +10,22 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple
 from uuid import uuid4
 
-import structlog
 from sqlalchemy import select, update, delete, func, desc, asc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from app.models.database.base import get_session_factory
 from app.models.meme import (
-    MemeDB, MemeAnalysisDB, GeneratedMemeDB, MemeTemplateDB, 
+    MemeDB, MemeAnalysisDB, GeneratedMemeDB, MemeTemplateDB,
     MemeAgentStateDB, MemeTrendDB
 )
 from app.tools.meme_collection_tool import MemeData
 from app.tools.meme_analysis_tool import MemeAnalysisResult
 from app.tools.meme_generation_tool import GeneratedMeme
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class MemeService:
@@ -42,7 +43,12 @@ class MemeService:
                     select(MemeDB).where(MemeDB.meme_id == meme_data.id)
                 )
                 if existing.scalar_one_or_none():
-                    logger.info(f"Meme {meme_data.id} already exists, skipping")
+                    logger.info(
+                        f"Meme {meme_data.id} already exists, skipping",
+                        LogCategory.SERVICE_OPERATIONS,
+                        "app.services.meme_service",
+                        data={"meme_id": meme_data.id}
+                    )
                     return meme_data.id
                 
                 # Create new meme record
@@ -71,12 +77,23 @@ class MemeService:
                 
                 session.add(meme_db)
                 await session.commit()
-                
-                logger.info(f"Stored meme {meme_data.id} in database")
+
+                logger.info(
+                    f"Stored meme {meme_data.id} in database",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.meme_service",
+                    data={"meme_id": meme_data.id}
+                )
                 return meme_data.id
-                
+
         except Exception as e:
-            logger.error(f"Failed to store meme {meme_data.id}: {str(e)}")
+            logger.error(
+                f"Failed to store meme {meme_data.id}: {str(e)}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.meme_service",
+                data={"meme_id": meme_data.id},
+                error=e
+            )
             raise
     
     async def store_meme_analysis(self, analysis_result: MemeAnalysisResult) -> str:
@@ -90,12 +107,17 @@ class MemeService:
                 meme_db = meme_result.scalar_one_or_none()
                 
                 if not meme_db:
-                    logger.error(f"Meme {analysis_result.meme_id} not found for analysis storage")
+                    logger.error(
+                        f"Meme {analysis_result.meme_id} not found for analysis storage",
+                        LogCategory.SERVICE_OPERATIONS,
+                        "app.services.meme_service",
+                        data={"meme_id": analysis_result.meme_id}
+                    )
                     return ""
-                
+
                 # Create analysis record
                 analysis_id = f"analysis_{analysis_result.meme_id}_{int(datetime.now().timestamp())}"
-                
+
                 analysis_db = MemeAnalysisDB(
                     analysis_id=analysis_id,
                     meme_id=meme_db.id,
@@ -115,15 +137,26 @@ class MemeService:
                     overall_quality_score=analysis_result.quality_score,
                     metadata=analysis_result.metadata
                 )
-                
+
                 session.add(analysis_db)
                 await session.commit()
-                
-                logger.info(f"Stored analysis {analysis_id} for meme {analysis_result.meme_id}")
+
+                logger.info(
+                    f"Stored analysis {analysis_id} for meme {analysis_result.meme_id}",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.meme_service",
+                    data={"analysis_id": analysis_id, "meme_id": analysis_result.meme_id}
+                )
                 return analysis_id
-                
+
         except Exception as e:
-            logger.error(f"Failed to store analysis for meme {analysis_result.meme_id}: {str(e)}")
+            logger.error(
+                f"Failed to store analysis for meme {analysis_result.meme_id}: {str(e)}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.meme_service",
+                data={"meme_id": analysis_result.meme_id},
+                error=e
+            )
             raise
     
     async def store_generated_meme(self, generated_meme: GeneratedMeme, agent_id: str = None) -> str:
@@ -135,9 +168,14 @@ class MemeService:
                     select(GeneratedMemeDB).where(GeneratedMemeDB.meme_id == generated_meme.meme_id)
                 )
                 if existing.scalar_one_or_none():
-                    logger.info(f"Generated meme {generated_meme.meme_id} already exists, skipping")
+                    logger.info(
+                        f"Generated meme {generated_meme.meme_id} already exists, skipping",
+                        LogCategory.SERVICE_OPERATIONS,
+                        "app.services.meme_service",
+                        data={"meme_id": generated_meme.meme_id}
+                    )
                     return generated_meme.meme_id
-                
+
                 # Create generated meme record
                 generated_db = GeneratedMemeDB(
                     meme_id=generated_meme.meme_id,
@@ -153,15 +191,26 @@ class MemeService:
                     agent_id=agent_id,
                     metadata=generated_meme.metadata
                 )
-                
+
                 session.add(generated_db)
                 await session.commit()
-                
-                logger.info(f"Stored generated meme {generated_meme.meme_id} in database")
+
+                logger.info(
+                    f"Stored generated meme {generated_meme.meme_id} in database",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.meme_service",
+                    data={"meme_id": generated_meme.meme_id}
+                )
                 return generated_meme.meme_id
-                
+
         except Exception as e:
-            logger.error(f"Failed to store generated meme {generated_meme.meme_id}: {str(e)}")
+            logger.error(
+                f"Failed to store generated meme {generated_meme.meme_id}: {str(e)}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.meme_service",
+                data={"meme_id": generated_meme.meme_id},
+                error=e
+            )
             raise
     
     async def get_memes_for_analysis(self, limit: int = 50, unanalyzed_only: bool = True) -> List[MemeDB]:
@@ -182,9 +231,14 @@ class MemeService:
                 return list(memes)
                 
         except Exception as e:
-            logger.error(f"Failed to get memes for analysis: {str(e)}")
+            logger.error(
+                "Failed to get memes for analysis",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.meme_service",
+                error=e
+            )
             return []
-    
+
     async def get_popular_templates(self, limit: int = 10) -> List[Tuple[str, int]]:
         """Get most popular meme templates based on usage."""
         try:
@@ -200,14 +254,19 @@ class MemeService:
                 ).order_by(
                     desc('usage_count')
                 ).limit(limit)
-                
+
                 result = await session.execute(query)
                 templates = result.all()
-                
+
                 return [(template[0], template[1]) for template in templates]
-                
+
         except Exception as e:
-            logger.error(f"Failed to get popular templates: {str(e)}")
+            logger.error(
+                "Failed to get popular templates",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.meme_service",
+                error=e
+            )
             return []
     
     async def get_trending_topics(self, hours: int = 24, limit: int = 10) -> List[str]:
@@ -241,7 +300,12 @@ class MemeService:
                 return list(topics)[:limit]
                 
         except Exception as e:
-            logger.error(f"Failed to get trending topics: {str(e)}")
+            logger.error(
+                "Failed to get trending topics",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.meme_service",
+                error=e
+            )
             return []
     
     async def update_agent_state(self, agent_id: str, state_data: Dict[str, Any]) -> bool:
@@ -269,13 +333,24 @@ class MemeService:
                     session.add(agent_state)
                 
                 await session.commit()
-                logger.info(f"Updated agent state for {agent_id}")
+                logger.info(
+                    f"Updated agent state for {agent_id}",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.meme_service",
+                    data={"agent_id": agent_id}
+                )
                 return True
-                
+
         except Exception as e:
-            logger.error(f"Failed to update agent state for {agent_id}: {str(e)}")
+            logger.error(
+                f"Failed to update agent state for {agent_id}: {str(e)}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.meme_service",
+                data={"agent_id": agent_id},
+                error=e
+            )
             return False
-    
+
     async def get_agent_state(self, agent_id: str) -> Optional[MemeAgentStateDB]:
         """Get meme agent state from database."""
         try:
@@ -284,9 +359,15 @@ class MemeService:
                     select(MemeAgentStateDB).where(MemeAgentStateDB.agent_id == agent_id)
                 )
                 return result.scalar_one_or_none()
-                
+
         except Exception as e:
-            logger.error(f"Failed to get agent state for {agent_id}: {str(e)}")
+            logger.error(
+                f"Failed to get agent state for {agent_id}: {str(e)}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.meme_service",
+                data={"agent_id": agent_id},
+                error=e
+            )
             return None
     
     async def get_meme_statistics(self) -> Dict[str, Any]:
@@ -339,40 +420,55 @@ class MemeService:
                 }
                 
         except Exception as e:
-            logger.error(f"Failed to get meme statistics: {str(e)}")
+            logger.error(
+                "Failed to get meme statistics",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.meme_service",
+                error=e
+            )
             return {}
-    
+
     async def cleanup_old_data(self, days_old: int = 30) -> Dict[str, int]:
         """Clean up old meme data to manage storage."""
         try:
             async with self.session_factory() as session:
                 cutoff_date = datetime.utcnow() - timedelta(days=days_old)
-                
+
                 # Delete old low-quality memes
                 old_memes_query = delete(MemeDB).where(
                     MemeDB.collected_at < cutoff_date,
                     MemeDB.quality_score < 0.3
                 )
                 old_memes_result = await session.execute(old_memes_query)
-                
+
                 # Delete old analysis results for deleted memes
                 orphaned_analysis_query = delete(MemeAnalysisDB).where(
                     ~MemeAnalysisDB.meme_id.in_(select(MemeDB.id))
                 )
                 orphaned_analysis_result = await session.execute(orphaned_analysis_query)
-                
+
                 await session.commit()
-                
+
                 cleanup_stats = {
                     'deleted_memes': old_memes_result.rowcount,
                     'deleted_analysis': orphaned_analysis_result.rowcount
                 }
-                
-                logger.info(f"Cleanup completed: {cleanup_stats}")
+
+                logger.info(
+                    f"Cleanup completed: {cleanup_stats}",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.meme_service",
+                    data=cleanup_stats
+                )
                 return cleanup_stats
-                
+
         except Exception as e:
-            logger.error(f"Failed to cleanup old data: {str(e)}")
+            logger.error(
+                "Failed to cleanup old data",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.meme_service",
+                error=e
+            )
             return {'deleted_memes': 0, 'deleted_analysis': 0}
 
 

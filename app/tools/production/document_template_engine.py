@@ -13,11 +13,12 @@ import re
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Union
 from pathlib import Path
-import structlog
 from jinja2 import Template, Environment, BaseLoader
 from io import BytesIO
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging import get_logger
+
+logger = get_logger()
 
 
 class DocumentTemplate:

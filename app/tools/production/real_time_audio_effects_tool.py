@@ -25,13 +25,14 @@ import tempfile
 import threading
 import queue
 
-import structlog
 from pydantic import BaseModel, Field
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class EffectType(str, Enum):
@@ -272,10 +273,20 @@ class RealTimeAudioEffectsTool(BaseTool):
             # Load preset if specified
             if preset_name and preset_name in self._effect_presets:
                 effect_chain = self._effect_presets[preset_name]
-                logger.info(f"Using preset: {preset_name}")
+                logger.info(
+                    f"Using preset: {preset_name}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "RealTimeAudioEffectsTool",
+                    data={"preset_name": preset_name}
+                )
             elif effect_chain_name and effect_chain_name in self._effect_presets:
                 effect_chain = self._effect_presets[effect_chain_name]
-                logger.info(f"Using effect chain: {effect_chain_name}")
+                logger.info(
+                    f"Using effect chain: {effect_chain_name}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "RealTimeAudioEffectsTool",
+                    data={"effect_chain_name": effect_chain_name}
+                )
             else:
                 # Create effect chain from individual effects
                 effect_chain = self._create_effect_chain_from_list(effects)
@@ -322,16 +333,25 @@ class RealTimeAudioEffectsTool(BaseTool):
 
             logger.info(
                 "Audio effects processing completed",
-                mode=mode.value,
-                effects_count=len(effect_chain.effects),
-                execution_time=execution_time
+                LogCategory.TOOL_OPERATIONS,
+                "RealTimeAudioEffectsTool",
+                data={
+                    "mode": mode.value,
+                    "effects_count": len(effect_chain.effects),
+                    "execution_time": execution_time
+                }
             )
 
             return json.dumps(final_result, indent=2)
 
         except Exception as e:
             error_msg = f"Audio effects processing failed: {str(e)}"
-            logger.error(error_msg, error=str(e))
+            logger.error(
+                error_msg,
+                LogCategory.TOOL_OPERATIONS,
+                "RealTimeAudioEffectsTool",
+                error=e
+            )
             return json.dumps({
                 'success': False,
                 'error': error_msg,
@@ -374,7 +394,12 @@ class RealTimeAudioEffectsTool(BaseTool):
         processed_buffers = 0
         visualization_data = []
 
-        logger.info(f"Starting real-time processing: {duration}s, {num_buffers} buffers")
+        logger.info(
+            f"Starting real-time processing: {duration}s, {num_buffers} buffers",
+            LogCategory.TOOL_OPERATIONS,
+            "RealTimeAudioEffectsTool",
+            data={"duration": duration, "num_buffers": num_buffers}
+        )
 
         for buffer_idx in range(num_buffers):
             # Simulate audio buffer (normally would come from audio input)
@@ -422,7 +447,12 @@ class RealTimeAudioEffectsTool(BaseTool):
             )
         else:
             # In a real implementation, load audio file
-            logger.info(f"Would load audio from: {input_file}")
+            logger.info(
+                f"Would load audio from: {input_file}",
+                LogCategory.TOOL_OPERATIONS,
+                "RealTimeAudioEffectsTool",
+                data={"input_file": input_file}
+            )
             audio_buffer = self._generate_test_audio_buffer(
                 sample_rate * 5, sample_rate, 0
             )
@@ -456,7 +486,11 @@ class RealTimeAudioEffectsTool(BaseTool):
         """Process audio in streaming mode."""
 
         # Simulate streaming processing
-        logger.info("Starting streaming audio processing")
+        logger.info(
+            "Starting streaming audio processing",
+            LogCategory.TOOL_OPERATIONS,
+            "RealTimeAudioEffectsTool"
+        )
 
         # In a real implementation, this would set up streaming input/output
         processed_chunks = 0
@@ -578,7 +612,17 @@ class RealTimeAudioEffectsTool(BaseTool):
         with open(metadata_path, 'w') as f:
             json.dump(metadata, f, indent=2)
 
-        logger.info(f"Audio would be saved to: {output_path}")
-        logger.info(f"Audio metadata saved to: {metadata_path}")
+        logger.info(
+            f"Audio would be saved to: {output_path}",
+            LogCategory.TOOL_OPERATIONS,
+            "RealTimeAudioEffectsTool",
+            data={"output_path": str(output_path)}
+        )
+        logger.info(
+            f"Audio metadata saved to: {metadata_path}",
+            LogCategory.TOOL_OPERATIONS,
+            "RealTimeAudioEffectsTool",
+            data={"metadata_path": str(metadata_path)}
+        )
 
         return metadata_path

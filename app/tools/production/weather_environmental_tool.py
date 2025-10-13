@@ -15,13 +15,14 @@ from enum import Enum
 import random
 import math
 
-import structlog
 from pydantic import BaseModel, Field, validator
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class WeatherOperation(str, Enum):
@@ -232,7 +233,11 @@ class WeatherEnvironmentalTool(BaseTool):
         # Location cache for coordinate lookup
         self._location_cache = {}
         
-        logger.info("Weather & Environmental Tool initialized")
+        logger.info(
+            "Weather & Environmental Tool initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "WeatherEnvironmentalTool"
+        )
 
     def _get_coordinates(self, location: str) -> Tuple[float, float]:
         """Get coordinates for location (mock implementation)."""
@@ -411,7 +416,12 @@ class WeatherEnvironmentalTool(BaseTool):
             return result
 
         except Exception as e:
-            logger.error("Current weather retrieval failed", error=str(e))
+            logger.error(
+                "Current weather retrieval failed",
+                LogCategory.TOOL_OPERATIONS,
+                "WeatherEnvironmentalTool",
+                error=e
+            )
             raise
 
     async def _get_forecast(self, input_data: WeatherEnvironmentalInput) -> Dict[str, Any]:
@@ -493,7 +503,12 @@ class WeatherEnvironmentalTool(BaseTool):
             return forecast_data
 
         except Exception as e:
-            logger.error("Weather forecast retrieval failed", error=str(e))
+            logger.error(
+                "Weather forecast retrieval failed",
+                LogCategory.TOOL_OPERATIONS,
+                "WeatherEnvironmentalTool",
+                error=e
+            )
             raise
 
     async def _get_alerts(self, input_data: WeatherEnvironmentalInput) -> Dict[str, Any]:
@@ -549,7 +564,12 @@ class WeatherEnvironmentalTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error("Weather alerts retrieval failed", error=str(e))
+            logger.error(
+                "Weather alerts retrieval failed",
+                LogCategory.TOOL_OPERATIONS,
+                "WeatherEnvironmentalTool",
+                error=e
+            )
             raise
 
     async def _run(self, **kwargs) -> str:
@@ -606,11 +626,17 @@ class WeatherEnvironmentalTool(BaseTool):
             self._successful_requests += 1
 
             # Log operation
-            logger.info("Weather operation completed",
-                       operation=input_data.operation,
-                       location=input_data.location,
-                       execution_time=execution_time,
-                       success=True)
+            logger.info(
+                "Weather operation completed",
+                LogCategory.TOOL_OPERATIONS,
+                "WeatherEnvironmentalTool",
+                data={
+                    "operation": input_data.operation,
+                    "location": input_data.location,
+                    "execution_time": execution_time,
+                    "success": True
+                }
+            )
 
             # Return formatted result
             return json.dumps({
@@ -628,10 +654,16 @@ class WeatherEnvironmentalTool(BaseTool):
             self._failed_requests += 1
             execution_time = time.time() - start_time if 'start_time' in locals() else 0
 
-            logger.error("Weather operation failed",
-                        operation=kwargs.get('operation'),
-                        error=str(e),
-                        execution_time=execution_time)
+            logger.error(
+                "Weather operation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "WeatherEnvironmentalTool",
+                data={
+                    "operation": kwargs.get('operation'),
+                    "execution_time": execution_time
+                },
+                error=e
+            )
 
             return json.dumps({
                 "success": False,

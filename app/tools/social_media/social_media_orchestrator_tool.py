@@ -43,18 +43,20 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from enum import Enum
 
-import structlog
 from pydantic import BaseModel, Field
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
 from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 from .twitter_influencer_tool import TwitterInfluencerTool, TwitterInfluencerInput
 from .instagram_creator_tool import InstagramCreatorTool, InstagramCreatorInput
 from .tiktok_viral_tool import TikTokViralTool, TikTokViralInput
 from .discord_community_tool import DiscordCommunityTool, DiscordCommunityInput
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class SocialPlatform(str, Enum):
@@ -228,15 +230,24 @@ class SocialMediaOrchestratorTool(BaseTool, MetadataCapableToolMixin):
             
             logger.info(
                 "Social media orchestration completed",
-                campaign_type=input_data.campaign_type,
-                platforms=input_data.platforms,
-                success=result.get("success", False)
+                LogCategory.TOOL_OPERATIONS,
+                "SocialMediaOrchestratorTool",
+                data={
+                    "campaign_type": input_data.campaign_type,
+                    "platforms": input_data.platforms,
+                    "success": result.get("success", False)
+                }
             )
             
             return result
             
         except Exception as e:
-            logger.error(f"Social media orchestrator error: {str(e)}")
+            logger.error(
+                f"Social media orchestrator error: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "SocialMediaOrchestratorTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -255,7 +266,11 @@ class SocialMediaOrchestratorTool(BaseTool, MetadataCapableToolMixin):
         await self.tiktok_tool._initialize_session()
         await self.discord_tool._initialize_session()
         
-        logger.info("All platform tools initialized")
+        logger.info(
+            "All platform tools initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "SocialMediaOrchestratorTool"
+        )
     
     async def _execute_viral_campaign(self, input_data: SocialMediaOrchestratorInput) -> Dict[str, Any]:
         """Execute a coordinated viral campaign across platforms."""
@@ -314,7 +329,12 @@ class SocialMediaOrchestratorTool(BaseTool, MetadataCapableToolMixin):
             }
             
         except Exception as e:
-            logger.error(f"Error executing viral campaign: {str(e)}")
+            logger.error(
+                f"Error executing viral campaign: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "SocialMediaOrchestratorTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -402,7 +422,13 @@ class SocialMediaOrchestratorTool(BaseTool, MetadataCapableToolMixin):
                 return await self.discord_tool._arun(**discord_input.dict())
 
         except Exception as e:
-            logger.error(f"Error executing {platform} viral campaign: {str(e)}")
+            logger.error(
+                f"Error executing {platform} viral campaign: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "SocialMediaOrchestratorTool",
+                data={"platform": platform},
+                error=e
+            )
             return {"success": False, "error": str(e)}
 
     async def _execute_cross_platform_amplification(self, viral_content: Dict, platforms: List[SocialPlatform]) -> Dict[str, Any]:
@@ -606,7 +632,7 @@ SOCIAL_MEDIA_ORCHESTRATOR_TOOL_METADATA = ToolMetadata(
     tool_id="social_media_orchestrator",
     name="Social Media Orchestrator Tool",
     description="Revolutionary unified multi-platform social media management and orchestration tool",
-    category=ToolCategory.COMMUNICATION,
+    category=ToolCategoryEnum.COMMUNICATION,
     access_level=ToolAccessLevel.PRIVATE,
     requires_rag=False,
     use_cases={"social_media", "marketing", "brand_management", "campaign_management"}

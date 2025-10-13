@@ -10,13 +10,15 @@ import time
 from typing import Any, Dict, Optional, Type
 from datetime import datetime
 
-import structlog
 from pydantic import BaseModel, Field
 from langchain_core.callbacks import CallbackManagerForToolRun
 from langchain_core.tools import BaseTool
+
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class CalculatorInput(BaseModel):
@@ -93,10 +95,14 @@ class CalculatorTool(BaseTool, MetadataCapableToolMixin):
             # Log calculation start
             logger.info(
                 "Calculator tool execution started",
-                tool_name=self.name,
-                expression=expression,
-                precision=precision,
-                usage_count=self.usage_count
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.calculator_tool",
+                data={
+                    "tool_name": self.name,
+                    "expression": expression,
+                    "precision": precision,
+                    "usage_count": self.usage_count
+                }
             )
             
             # Sanitize and validate expression
@@ -128,25 +134,29 @@ class CalculatorTool(BaseTool, MetadataCapableToolMixin):
                 "success": True
             }
             self._execution_history.append(execution_record)
-            
+
             # Log successful calculation
             logger.info(
                 "Calculator tool execution completed successfully",
-                tool_name=self.name,
-                expression=expression,
-                result=formatted_result,
-                execution_time=execution_time,
-                usage_count=self.usage_count
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.calculator_tool",
+                data={
+                    "tool_name": self.name,
+                    "expression": expression,
+                    "result": formatted_result,
+                    "execution_time": execution_time,
+                    "usage_count": self.usage_count
+                }
             )
-            
+
             return f"Calculation: {expression} = {formatted_result}"
-            
+
         except Exception as e:
             execution_time = time.time() - start_time
-            
+
             # Update performance metrics for failure
             self._update_performance_metrics(execution_time, success=False)
-            
+
             # Record failed execution
             execution_record = {
                 "timestamp": datetime.utcnow().isoformat(),
@@ -156,15 +166,19 @@ class CalculatorTool(BaseTool, MetadataCapableToolMixin):
                 "success": False
             }
             self._execution_history.append(execution_record)
-            
+
             # Log calculation error
             logger.error(
                 "Calculator tool execution failed",
-                tool_name=self.name,
-                expression=expression,
-                error=str(e),
-                execution_time=execution_time,
-                usage_count=self.usage_count
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.calculator_tool",
+                data={
+                    "tool_name": self.name,
+                    "expression": expression,
+                    "execution_time": execution_time,
+                    "usage_count": self.usage_count
+                },
+                error=e
             )
             
             return f"Calculation error: {str(e)}"

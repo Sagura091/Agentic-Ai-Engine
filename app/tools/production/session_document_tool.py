@@ -26,7 +26,9 @@ from pathlib import Path
 
 from langchain.tools import BaseTool
 from pydantic import BaseModel, Field
-import structlog
+
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 
 # Import session document system
 try:
@@ -41,7 +43,7 @@ try:
 except ImportError:
     SESSION_SYSTEM_AVAILABLE = False
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class SessionDocumentUploadInput(BaseModel):
@@ -124,7 +126,11 @@ class SessionDocumentTool(BaseTool):
 
     def __init__(self):
         super().__init__()
-        logger.info("🔥 Revolutionary Session Document Tool initialized")
+        logger.info(
+            "🔥 Revolutionary Session Document Tool initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "SessionDocumentTool"
+        )
 
     @property
     def manager(self):
@@ -178,7 +184,12 @@ class SessionDocumentTool(BaseTool):
                 })
                 
         except Exception as e:
-            logger.error(f"Session document tool error: {e}")
+            logger.error(
+                f"Session document tool error: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "SessionDocumentTool",
+                error=e
+            )
             return json.dumps({
                 "success": False,
                 "error": str(e),
@@ -235,9 +246,13 @@ class SessionDocumentTool(BaseTool):
 
             logger.info(
                 "📤 Document uploaded via agent tool",
-                session_id=session_id,
-                document_id=document_response.document_id,
-                filename=document_response.filename
+                LogCategory.TOOL_OPERATIONS,
+                "SessionDocumentTool",
+                data={
+                    "session_id": session_id,
+                    "document_id": document_response.document_id,
+                    "filename": document_response.filename
+                }
             )
 
             return json.dumps({
@@ -257,7 +272,12 @@ class SessionDocumentTool(BaseTool):
             })
 
         except Exception as e:
-            logger.error(f"Upload operation failed: {e}")
+            logger.error(
+                f"Upload operation failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "SessionDocumentTool",
+                error=e
+            )
             return json.dumps({
                 "success": False,
                 "error": str(e),
@@ -300,9 +320,13 @@ class SessionDocumentTool(BaseTool):
 
             logger.info(
                 "🔍 Document query executed via agent tool",
-                session_id=session_id,
-                query=parameters["query"],
-                results_count=len(results)
+                LogCategory.TOOL_OPERATIONS,
+                "SessionDocumentTool",
+                data={
+                    "session_id": session_id,
+                    "query": parameters["query"],
+                    "results_count": len(results)
+                }
             )
 
             return json.dumps({
@@ -316,7 +340,12 @@ class SessionDocumentTool(BaseTool):
             })
 
         except Exception as e:
-            logger.error(f"Query operation failed: {e}")
+            logger.error(
+                f"Query operation failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "SessionDocumentTool",
+                error=e
+            )
             return json.dumps({
                 "success": False,
                 "error": str(e),
@@ -389,7 +418,13 @@ class SessionDocumentTool(BaseTool):
                     })
 
                 except Exception as e:
-                    logger.warning(f"Analysis failed for document {doc.document_id}: {e}")
+                    logger.warn(
+                        f"Analysis failed for document {doc.document_id}: {e}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "SessionDocumentTool",
+                        data={"document_id": doc.document_id},
+                        error=e
+                    )
                     analysis_results.append({
                         "document_id": doc.document_id,
                         "filename": doc.filename,
@@ -400,9 +435,13 @@ class SessionDocumentTool(BaseTool):
 
             logger.info(
                 "🧠 Document analysis completed via agent tool",
-                session_id=session_id,
-                analysis_type=analysis_type,
-                documents_analyzed=len(analysis_results)
+                LogCategory.TOOL_OPERATIONS,
+                "SessionDocumentTool",
+                data={
+                    "session_id": session_id,
+                    "analysis_type": analysis_type,
+                    "documents_analyzed": len(analysis_results)
+                }
             )
 
             return json.dumps({
@@ -416,7 +455,12 @@ class SessionDocumentTool(BaseTool):
             })
 
         except Exception as e:
-            logger.error(f"Analysis operation failed: {e}")
+            logger.error(
+                f"Analysis operation failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "SessionDocumentTool",
+                error=e
+            )
             return json.dumps({
                 "success": False,
                 "error": str(e),
@@ -460,8 +504,12 @@ class SessionDocumentTool(BaseTool):
 
             logger.info(
                 "📋 Document listing completed via agent tool",
-                session_id=session_id,
-                documents_count=len(documents)
+                LogCategory.TOOL_OPERATIONS,
+                "SessionDocumentTool",
+                data={
+                    "session_id": session_id,
+                    "documents_count": len(documents)
+                }
             )
 
             return json.dumps({
@@ -480,7 +528,12 @@ class SessionDocumentTool(BaseTool):
             })
 
         except Exception as e:
-            logger.error(f"List operation failed: {e}")
+            logger.error(
+                f"List operation failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "SessionDocumentTool",
+                error=e
+            )
             return json.dumps({
                 "success": False,
                 "error": str(e),
@@ -500,8 +553,12 @@ class SessionDocumentTool(BaseTool):
                 if success:
                     logger.info(
                         "🗑️ Document deleted via agent tool",
-                        session_id=session_id,
-                        document_id=document_id
+                        LogCategory.TOOL_OPERATIONS,
+                        "SessionDocumentTool",
+                        data={
+                            "session_id": session_id,
+                            "document_id": document_id
+                        }
                     )
 
                     return json.dumps({
@@ -525,7 +582,9 @@ class SessionDocumentTool(BaseTool):
                 if success:
                     logger.info(
                         "🧹 Session workspace cleaned via agent tool",
-                        session_id=session_id
+                        LogCategory.TOOL_OPERATIONS,
+                        "SessionDocumentTool",
+                        data={"session_id": session_id}
                     )
 
                     return json.dumps({
@@ -544,7 +603,12 @@ class SessionDocumentTool(BaseTool):
                     })
 
         except Exception as e:
-            logger.error(f"Delete operation failed: {e}")
+            logger.error(
+                f"Delete operation failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "SessionDocumentTool",
+                error=e
+            )
             return json.dumps({
                 "success": False,
                 "error": str(e),
@@ -566,7 +630,9 @@ class SessionDocumentTool(BaseTool):
 
             logger.info(
                 "📊 Statistics retrieved via agent tool",
-                session_id=session_id
+                LogCategory.TOOL_OPERATIONS,
+                "SessionDocumentTool",
+                data={"session_id": session_id}
             )
 
             return json.dumps({
@@ -599,7 +665,12 @@ class SessionDocumentTool(BaseTool):
             })
 
         except Exception as e:
-            logger.error(f"Stats operation failed: {e}")
+            logger.error(
+                f"Stats operation failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "SessionDocumentTool",
+                error=e
+            )
             return json.dumps({
                 "success": False,
                 "error": str(e),
@@ -611,4 +682,8 @@ class SessionDocumentTool(BaseTool):
 # Global tool instance
 session_document_tool = SessionDocumentTool()
 
-logger.info("🔥 Revolutionary Session Document Tool ready for agent integration!")
+logger.info(
+    "🔥 Revolutionary Session Document Tool ready for agent integration!",
+    LogCategory.TOOL_OPERATIONS,
+    "SessionDocumentTool"
+)

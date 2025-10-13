@@ -35,8 +35,10 @@ from datetime import datetime
 import json
 import io
 
-import structlog
 from pydantic import BaseModel, Field
+
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 
 # PDF libraries
 try:
@@ -96,7 +98,7 @@ from app.tools.production.universal.shared.utils import (
 )
 
 # Setup logger
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 # ============================================================================
@@ -223,19 +225,31 @@ class RevolutionaryUniversalPDFTool(BaseUniversalTool):
         
         logger.info(
             "Revolutionary Universal PDF Tool initialized",
-            pymupdf_available=PYMUPDF_AVAILABLE,
-            pypdf_available=PYPDF_AVAILABLE,
-            pdfplumber_available=PDFPLUMBER_AVAILABLE,
-            reportlab_available=REPORTLAB_AVAILABLE,
-            pikepdf_available=PIKEPDF_AVAILABLE,
+            LogCategory.TOOL_OPERATIONS,
+            "RevolutionaryUniversalPDFTool",
+            data={
+                "pymupdf_available": PYMUPDF_AVAILABLE,
+                "pypdf_available": PYPDF_AVAILABLE,
+                "pdfplumber_available": PDFPLUMBER_AVAILABLE,
+                "reportlab_available": REPORTLAB_AVAILABLE,
+                "pikepdf_available": PIKEPDF_AVAILABLE
+            }
         )
     
     def _verify_dependencies(self):
         """Verify required dependencies are available."""
         if not PYMUPDF_AVAILABLE:
-            logger.warning("PyMuPDF not available - core PDF functionality disabled")
+            logger.warn(
+                "PyMuPDF not available - core PDF functionality disabled",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalPDFTool"
+            )
         
-        logger.debug("PDF tool dependencies verified")
+        logger.debug(
+            "PDF tool dependencies verified",
+            LogCategory.TOOL_OPERATIONS,
+            "RevolutionaryUniversalPDFTool"
+        )
     
     def _resolve_output_path(self, file_path: str) -> Path:
         """
@@ -275,8 +289,12 @@ class RevolutionaryUniversalPDFTool(BaseUniversalTool):
         """
         logger.info(
             "Executing PDF operation",
-            operation=operation.value,
-            file_path=file_path,
+            LogCategory.TOOL_OPERATIONS,
+            "RevolutionaryUniversalPDFTool",
+            data={
+                "operation": operation.value,
+                "file_path": file_path
+            }
         )
         
         try:
@@ -336,10 +354,22 @@ class RevolutionaryUniversalPDFTool(BaseUniversalTool):
                 )
         
         except (ValidationError, FileOperationError, ConversionError, DependencyError, SecurityError) as e:
-            logger.error("PDF operation failed", operation=operation.value, error=str(e))
+            logger.error(
+                "PDF operation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalPDFTool",
+                data={"operation": operation.value},
+                error=e
+            )
             raise
         except Exception as e:
-            logger.error("Unexpected error in PDF operation", operation=operation.value, error=str(e))
+            logger.error(
+                "Unexpected error in PDF operation",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalPDFTool",
+                data={"operation": operation.value},
+                error=e
+            )
             raise FileOperationError(
                 f"PDF operation failed: {str(e)}",
                 file_path=file_path or "unknown",
@@ -419,8 +449,12 @@ class RevolutionaryUniversalPDFTool(BaseUniversalTool):
 
             logger.info(
                 "PDF created",
-                path=str(resolved_path),
-                pages=len(doc),
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalPDFTool",
+                data={
+                    "path": str(resolved_path),
+                    "pages": len(doc)
+                }
             )
 
             return json.dumps({
@@ -434,7 +468,12 @@ class RevolutionaryUniversalPDFTool(BaseUniversalTool):
         except DependencyError as e:
             raise
         except Exception as e:
-            logger.error("Failed to create PDF", error=str(e))
+            logger.error(
+                "Failed to create PDF",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalPDFTool",
+                error=e
+            )
             raise FileOperationError(
                 f"Failed to create PDF: {str(e)}",
                 file_path=file_path or "unknown",
@@ -479,8 +518,12 @@ class RevolutionaryUniversalPDFTool(BaseUniversalTool):
 
             logger.info(
                 "PDF opened",
-                path=str(path),
-                pages=len(doc),
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalPDFTool",
+                data={
+                    "path": str(path),
+                    "pages": len(doc)
+                }
             )
 
             return json.dumps({
@@ -495,7 +538,13 @@ class RevolutionaryUniversalPDFTool(BaseUniversalTool):
         except (ValidationError, DependencyError) as e:
             raise
         except Exception as e:
-            logger.error("Failed to open PDF", file_path=file_path, error=str(e))
+            logger.error(
+                "Failed to open PDF",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalPDFTool",
+                data={"file_path": file_path},
+                error=e
+            )
             raise FileOperationError(
                 f"Failed to open PDF: {str(e)}",
                 file_path=file_path,
@@ -542,7 +591,9 @@ class RevolutionaryUniversalPDFTool(BaseUniversalTool):
 
             logger.info(
                 "PDF saved",
-                path=str(save_path),
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalPDFTool",
+                data={"path": str(save_path)}
             )
 
             return json.dumps({
@@ -555,7 +606,13 @@ class RevolutionaryUniversalPDFTool(BaseUniversalTool):
         except (ValidationError, FileOperationError) as e:
             raise
         except Exception as e:
-            logger.error("Failed to save PDF", file_path=file_path, error=str(e))
+            logger.error(
+                "Failed to save PDF",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalPDFTool",
+                data={"file_path": file_path},
+                error=e
+            )
             raise FileOperationError(
                 f"Failed to save PDF: {str(e)}",
                 file_path=file_path,
@@ -588,7 +645,9 @@ class RevolutionaryUniversalPDFTool(BaseUniversalTool):
 
             logger.info(
                 "PDF closed",
-                path=str(resolved_path),
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalPDFTool",
+                data={"path": str(resolved_path)}
             )
 
             return json.dumps({
@@ -601,7 +660,13 @@ class RevolutionaryUniversalPDFTool(BaseUniversalTool):
         except ValidationError as e:
             raise
         except Exception as e:
-            logger.error("Failed to close PDF", file_path=file_path, error=str(e))
+            logger.error(
+                "Failed to close PDF",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalPDFTool",
+                data={"file_path": file_path},
+                error=e
+            )
             raise FileOperationError(
                 f"Failed to close PDF: {str(e)}",
                 file_path=file_path,
@@ -672,7 +737,12 @@ class RevolutionaryUniversalPDFTool(BaseUniversalTool):
             doc.new_page(width=rect.width, height=rect.height)
             doc.save(str(resolved_path))
 
-            logger.info("Page added to PDF", file_path=str(resolved_path), total_pages=len(doc))
+            logger.info(
+                "Page added to PDF",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalPDFTool",
+                data={"file_path": str(resolved_path), "total_pages": len(doc)}
+            )
 
             return json.dumps({
                 "success": True,
@@ -812,7 +882,12 @@ class RevolutionaryUniversalPDFTool(BaseUniversalTool):
             merger.write(str(out_path))
             merger.close()
 
-            logger.info("PDFs merged", output=str(out_path), input_files=len(merge_files))
+            logger.info(
+                "PDFs merged",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalPDFTool",
+                data={"output": str(out_path), "input_files": len(merge_files)}
+            )
 
             return json.dumps({"success": True, "operation": "merge_pdfs", "output_path": str(out_path), "input_files": len(merge_files), "message": f"Merged {len(merge_files)} PDFs"})
         except Exception as e:

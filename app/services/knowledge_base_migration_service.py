@@ -12,16 +12,17 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 from pathlib import Path
 
-import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, insert, update
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from app.models.database.base import get_session_factory
 from app.models.knowledge_base import KnowledgeBase
 from app.config.settings import get_settings
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class KnowledgeBaseMigrationService:
@@ -41,11 +42,20 @@ class KnowledgeBaseMigrationService:
             Dict containing migration results
         """
         try:
-            logger.info("Starting knowledge base migration from JSON to database")
-            
+            logger.info(
+                "Starting knowledge base migration from JSON to database",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.knowledge_base_migration_service"
+            )
+
             # Check if JSON file exists
             if not self.json_file_path.exists():
-                logger.warning("Knowledge bases JSON file not found", path=str(self.json_file_path))
+                logger.warn(
+                    "Knowledge bases JSON file not found",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.knowledge_base_migration_service",
+                    data={"path": str(self.json_file_path)}
+                )
                 return {
                     "success": True,
                     "message": "No JSON file to migrate",
@@ -57,7 +67,11 @@ class KnowledgeBaseMigrationService:
             # Load JSON data
             json_data = await self._load_json_data()
             if not json_data or "knowledge_bases" not in json_data:
-                logger.warning("No knowledge bases found in JSON file")
+                logger.warn(
+                    "No knowledge bases found in JSON file",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.knowledge_base_migration_service"
+                )
                 return {
                     "success": True,
                     "message": "No knowledge bases to migrate",
@@ -65,9 +79,14 @@ class KnowledgeBaseMigrationService:
                     "skipped_count": 0,
                     "errors": []
                 }
-            
+
             knowledge_bases = json_data["knowledge_bases"]
-            logger.info("Found knowledge bases to migrate", count=len(knowledge_bases))
+            logger.info(
+                "Found knowledge bases to migrate",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.knowledge_base_migration_service",
+                data={"count": len(knowledge_bases)}
+            )
             
             # Migrate each knowledge base
             results = await self._migrate_knowledge_bases(knowledge_bases)
@@ -78,16 +97,25 @@ class KnowledgeBaseMigrationService:
             
             logger.info(
                 "Knowledge base migration completed",
-                migrated=results["migrated_count"],
-                skipped=results["skipped_count"],
-                errors=len(results["errors"])
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.knowledge_base_migration_service",
+                data={
+                    "migrated": results["migrated_count"],
+                    "skipped": results["skipped_count"],
+                    "errors": len(results["errors"])
+                }
             )
-            
+
             return results
-            
+
         except Exception as e:
             error_msg = f"Knowledge base migration failed: {str(e)}"
-            logger.error(error_msg)
+            logger.error(
+                error_msg,
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.knowledge_base_migration_service",
+                error=e
+            )
             return {
                 "success": False,
                 "message": error_msg,
@@ -102,7 +130,12 @@ class KnowledgeBaseMigrationService:
             with open(self.json_file_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
-            logger.error("Failed to load JSON file", error=str(e))
+            logger.error(
+                "Failed to load JSON file",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.knowledge_base_migration_service",
+                error=e
+            )
             return None
     
     async def _migrate_knowledge_bases(self, knowledge_bases: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -120,7 +153,12 @@ class KnowledgeBaseMigrationService:
                     )
                     
                     if existing_kb.scalar_one_or_none():
-                        logger.debug("Knowledge base already exists, skipping", kb_id=kb_data["id"])
+                        logger.debug(
+                            "Knowledge base already exists, skipping",
+                            LogCategory.SERVICE_OPERATIONS,
+                            "app.services.knowledge_base_migration_service",
+                            data={"kb_id": kb_data["id"]}
+                        )
                         skipped_count += 1
                         continue
                     
@@ -147,12 +185,22 @@ class KnowledgeBaseMigrationService:
                     session.add(kb_record)
                     await session.commit()
                     
-                    logger.debug("Migrated knowledge base", kb_id=kb_data["id"], name=kb_data["name"])
+                    logger.debug(
+                        "Migrated knowledge base",
+                        LogCategory.SERVICE_OPERATIONS,
+                        "app.services.knowledge_base_migration_service",
+                        data={"kb_id": kb_data["id"], "name": kb_data["name"]}
+                    )
                     migrated_count += 1
-                    
+
                 except Exception as e:
                     error_msg = f"Failed to migrate knowledge base {kb_data.get('id', 'unknown')}: {str(e)}"
-                    logger.error(error_msg)
+                    logger.error(
+                        error_msg,
+                        LogCategory.SERVICE_OPERATIONS,
+                        "app.services.knowledge_base_migration_service",
+                        error=e
+                    )
                     errors.append(error_msg)
                     await session.rollback()
         
@@ -177,7 +225,12 @@ class KnowledgeBaseMigrationService:
                 # Try parsing without timezone
                 return datetime.fromisoformat(date_str)
             except Exception:
-                logger.warning("Failed to parse datetime", date_str=date_str)
+                logger.warn(
+                    "Failed to parse datetime",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.knowledge_base_migration_service",
+                    data={"date_str": date_str}
+                )
                 return None
     
     async def _backup_json_file(self) -> None:
@@ -188,11 +241,21 @@ class KnowledgeBaseMigrationService:
             # Copy file to backup location
             import shutil
             shutil.copy2(self.json_file_path, backup_path)
-            
-            logger.info("Created backup of JSON file", backup_path=str(backup_path))
-            
+
+            logger.info(
+                "Created backup of JSON file",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.knowledge_base_migration_service",
+                data={"backup_path": str(backup_path)}
+            )
+
         except Exception as e:
-            logger.warning("Failed to create backup of JSON file", error=str(e))
+            logger.warn(
+                "Failed to create backup of JSON file",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.knowledge_base_migration_service",
+                error=e
+            )
     
     async def export_to_json(self, output_path: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -205,7 +268,11 @@ class KnowledgeBaseMigrationService:
             Dict containing export results
         """
         try:
-            logger.info("Starting knowledge base export to JSON")
+            logger.info(
+                "Starting knowledge base export to JSON",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.knowledge_base_migration_service"
+            )
             
             if not output_path:
                 output_path = f"./data/knowledge_bases_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
@@ -243,20 +310,29 @@ class KnowledgeBaseMigrationService:
                 os.makedirs(os.path.dirname(output_path), exist_ok=True)
                 with open(output_path, 'w', encoding='utf-8') as f:
                     json.dump(json_data, f, indent=2, ensure_ascii=False)
-                
-                logger.info("Knowledge bases exported to JSON", 
-                           path=output_path, count=len(knowledge_bases))
-                
+
+                logger.info(
+                    "Knowledge bases exported to JSON",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.knowledge_base_migration_service",
+                    data={"path": output_path, "count": len(knowledge_bases)}
+                )
+
                 return {
                     "success": True,
                     "message": f"Exported {len(knowledge_bases)} knowledge bases",
                     "output_path": output_path,
                     "count": len(knowledge_bases)
                 }
-                
+
         except Exception as e:
             error_msg = f"Knowledge base export failed: {str(e)}"
-            logger.error(error_msg)
+            logger.error(
+                error_msg,
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.knowledge_base_migration_service",
+                error=e
+            )
             return {
                 "success": False,
                 "message": error_msg,
@@ -290,7 +366,12 @@ class KnowledgeBaseMigrationService:
             }
             
         except Exception as e:
-            logger.error("Failed to get migration status", error=str(e))
+            logger.error(
+                "Failed to get migration status",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.knowledge_base_migration_service",
+                error=e
+            )
             return {
                 "json_file_exists": False,
                 "json_count": 0,

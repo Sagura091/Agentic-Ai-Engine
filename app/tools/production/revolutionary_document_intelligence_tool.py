@@ -23,9 +23,13 @@ import os
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Union, Tuple
 from pathlib import Path
-import structlog
 from pydantic import BaseModel, Field
 from langchain.tools import BaseTool
+
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+
+logger = get_logger()
 
 # Document processing libraries
 try:
@@ -65,7 +69,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-logger = structlog.get_logger(__name__)
+# Logger already initialized at top of file
 
 
 class DocumentFormat(str):
@@ -147,7 +151,11 @@ class RevolutionaryDocumentIntelligenceEngine:
         # Processing jobs storage
         self.active_jobs: Dict[str, DocumentProcessingJob] = {}
         
-        logger.info("🚀 Revolutionary Document Intelligence Engine initializing...")
+        logger.info(
+            "🚀 Revolutionary Document Intelligence Engine initializing...",
+            LogCategory.TOOL_OPERATIONS,
+            "RevolutionaryDocumentIntelligenceTool"
+        )
         
     async def initialize(self):
         """Initialize AI components."""
@@ -162,12 +170,25 @@ class RevolutionaryDocumentIntelligenceEngine:
             self.screenshot_analyzer = RevolutionaryScreenshotAnalyzer()
             await self.screenshot_analyzer.initialize()
             
-            logger.info("🎯 Revolutionary Document Intelligence Engine ready!")
+            logger.info(
+                "🎯 Revolutionary Document Intelligence Engine ready!",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool"
+            )
             
         except Exception as e:
-            logger.error(f"Failed to initialize document intelligence engine: {str(e)}")
+            logger.error(
+                f"Failed to initialize document intelligence engine: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             # Continue without AI features
-            logger.warning("⚠️ Running in basic mode without AI features")
+            logger.warn(
+                "⚠️ Running in basic mode without AI features",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool"
+            )
     
     async def analyze_document(
         self,
@@ -209,11 +230,21 @@ class RevolutionaryDocumentIntelligenceEngine:
             processing_time = (datetime.utcnow() - start_time).total_seconds()
             analysis.processing_time = processing_time
             
-            logger.info(f"📊 Document analysis completed: {filename} ({processing_time:.2f}s)")
+            logger.info(
+                f"📊 Document analysis completed: {filename} ({processing_time:.2f}s)",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                data={"filename": filename, "processing_time": processing_time}
+            )
             return analysis
             
         except Exception as e:
-            logger.error(f"Document analysis failed: {str(e)}")
+            logger.error(
+                f"Document analysis failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             # Return basic analysis
             return DocumentAnalysisResult(
                 document_type="unknown",
@@ -296,7 +327,12 @@ class RevolutionaryDocumentIntelligenceEngine:
             )
             
         except Exception as e:
-            logger.error(f"PDF analysis failed: {str(e)}")
+            logger.error(
+                f"PDF analysis failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             return self._create_basic_analysis(filename, DocumentFormat.PDF, f"PDF analysis error: {str(e)}")
     
     def _create_basic_analysis(self, filename: str, format: str, error_msg: str) -> DocumentAnalysisResult:
@@ -394,7 +430,12 @@ class RevolutionaryDocumentIntelligenceTool(BaseTool):
                 return await self._start_processing_job(operation_data)
                 
         except Exception as e:
-            logger.error(f"Document intelligence tool error: {str(e)}")
+            logger.error(
+                f"Document intelligence tool error: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             return f"❌ Error: {str(e)}"
     
     def _run(self, query: str) -> str:
@@ -503,7 +544,13 @@ Use job ID to check status and retrieve results.
             # Update job status to failed
             job.status = "failed"
             job.message = f"Processing failed: {str(e)}"
-            logger.error(f"Job {job_id} failed: {str(e)}")
+            logger.error(
+                f"Job {job_id} failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                data={"job_id": job_id},
+                error=e
+            )
 
             return f"""❌ **DOCUMENT PROCESSING FAILED**
 Job ID: {job_id}
@@ -541,7 +588,12 @@ Error: {str(e)}
                 raise ValueError(f"Unsupported document type: {document_type}")
 
         except Exception as e:
-            logger.error(f"Create document job failed: {str(e)}")
+            logger.error(
+                f"Create document job failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             raise
 
     async def _create_excel_spreadsheet(
@@ -579,7 +631,12 @@ Error: {str(e)}
 
             workbook.save(str(output_path))
 
-            logger.info(f"Excel spreadsheet created successfully: {output_path}")
+            logger.info(
+                f"Excel spreadsheet created successfully: {output_path}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                data={"output_path": str(output_path)}
+            )
 
             return {
                 "success": True,
@@ -591,7 +648,12 @@ Error: {str(e)}
             }
 
         except Exception as e:
-            logger.error(f"Excel creation failed: {str(e)}")
+            logger.error(
+                f"Excel creation failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             raise
 
     async def _populate_sheet_with_business_data(
@@ -617,7 +679,13 @@ Error: {str(e)}
                 await self._create_default_business_sheet(worksheet, sheet_name, include_formulas, professional_formatting)
 
         except Exception as e:
-            logger.error(f"Failed to populate sheet {sheet_name}: {str(e)}")
+            logger.error(
+                f"Failed to populate sheet {sheet_name}: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                data={"sheet_name": sheet_name},
+                error=e
+            )
             # Add basic error message to sheet
             worksheet['A1'] = f"Error populating {sheet_name}: {str(e)}"
 
@@ -819,7 +887,12 @@ Error: {str(e)}
             # Build PDF
             doc.build(story)
 
-            logger.info(f"PDF business report created successfully: {output_path}")
+            logger.info(
+                f"PDF business report created successfully: {output_path}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                data={"output_path": str(output_path)}
+            )
 
             return {
                 "success": True,
@@ -831,7 +904,12 @@ Error: {str(e)}
             }
 
         except Exception as e:
-            logger.error(f"PDF report creation failed: {str(e)}")
+            logger.error(
+                f"PDF report creation failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             raise
 
     async def _analyze_business_performance(self) -> Dict[str, Any]:
@@ -1098,7 +1176,12 @@ Error: {str(e)}
             }
 
         except Exception as e:
-            logger.error(f"Upload and analyze failed: {str(e)}")
+            logger.error(
+                f"Upload and analyze failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -1164,7 +1247,12 @@ Error: {str(e)}
             }
 
         except Exception as e:
-            logger.error(f"Modify and download failed: {str(e)}")
+            logger.error(
+                f"Modify and download failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -1233,7 +1321,12 @@ Error: {str(e)}
             }
 
         except Exception as e:
-            logger.error(f"Generate from template failed: {str(e)}")
+            logger.error(
+                f"Generate from template failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -1317,7 +1410,12 @@ Error: {str(e)}
             }
 
         except Exception as e:
-            logger.error(f"Format conversion failed: {str(e)}")
+            logger.error(
+                f"Format conversion failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -1370,7 +1468,12 @@ Error: {str(e)}
             }
 
         except Exception as e:
-            logger.error(f"Batch processing failed: {str(e)}")
+            logger.error(
+                f"Batch processing failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -1435,7 +1538,12 @@ Error: {str(e)}
             )
 
         except Exception as e:
-            logger.error(f"DOCX analysis failed: {str(e)}")
+            logger.error(
+                f"DOCX analysis failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             return self._create_basic_analysis(filename, DocumentFormat.DOCX, f"Word analysis error: {str(e)}")
 
     async def _analyze_xlsx(self, content: bytes, filename: str) -> DocumentAnalysisResult:
@@ -1494,7 +1602,12 @@ Error: {str(e)}
             )
 
         except Exception as e:
-            logger.error(f"XLSX analysis failed: {str(e)}")
+            logger.error(
+                f"XLSX analysis failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             return self._create_basic_analysis(filename, DocumentFormat.XLSX, f"Excel analysis error: {str(e)}")
 
     async def _analyze_pptx(self, content: bytes, filename: str) -> DocumentAnalysisResult:
@@ -1546,7 +1659,12 @@ Error: {str(e)}
             )
 
         except Exception as e:
-            logger.error(f"PPTX analysis failed: {str(e)}")
+            logger.error(
+                f"PPTX analysis failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             return self._create_basic_analysis(filename, DocumentFormat.PPTX, f"PowerPoint analysis error: {str(e)}")
 
     async def modify_document(
@@ -1581,7 +1699,12 @@ Error: {str(e)}
                 raise ValueError(f"Document modification not supported for format: {detected_format}")
 
         except Exception as e:
-            logger.error(f"Document modification failed: {str(e)}")
+            logger.error(
+                f"Document modification failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             raise
 
     async def generate_document(
@@ -1615,7 +1738,12 @@ Error: {str(e)}
                 raise ValueError(f"Document generation not supported for format: {output_format}")
 
         except Exception as e:
-            logger.error(f"Document generation failed: {str(e)}")
+            logger.error(
+                f"Document generation failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             raise
 
     async def create_template_from_description(
@@ -1653,7 +1781,12 @@ Error: {str(e)}
             }
 
         except Exception as e:
-            logger.error(f"Template creation failed: {str(e)}")
+            logger.error(
+                f"Template creation failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             raise
 
     async def process_document_batch(
@@ -1713,11 +1846,21 @@ Error: {str(e)}
                             "result": result if operation == "analyze" else "modified"
                         })
 
-            logger.info(f"✅ Batch processing completed: {len(results)} files")
+            logger.info(
+                f"✅ Batch processing completed: {len(results)} files",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                data={"files_count": len(results)}
+            )
             return results
 
         except Exception as e:
-            logger.error(f"Batch processing failed: {str(e)}")
+            logger.error(
+                f"Batch processing failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             raise
 
     async def create_download_link(
@@ -1762,12 +1905,22 @@ Error: {str(e)}
 
             # In production, you'd store this in a database
             # For now, we'll just log it
-            logger.info(f"📁 Download link created: {download_url} (expires: {expiry_time})")
+            logger.info(
+                f"📁 Download link created: {download_url} (expires: {expiry_time})",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                data={"download_url": download_url, "expiry_time": str(expiry_time)}
+            )
 
             return download_url
 
         except Exception as e:
-            logger.error(f"Download link creation failed: {str(e)}")
+            logger.error(
+                f"Download link creation failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             raise
 
     async def create_template_from_description(
@@ -1802,5 +1955,10 @@ Error: {str(e)}
             }
 
         except Exception as e:
-            logger.error(f"Template creation failed: {str(e)}")
+            logger.error(
+                f"Template creation failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryDocumentIntelligenceTool",
+                error=e
+            )
             raise

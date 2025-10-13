@@ -32,10 +32,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
-import structlog
 from pydantic import BaseModel, Field
 from langchain.tools import BaseTool
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 # Import screenshot analysis capabilities
 from .screenshot_analysis_tool import (
     RevolutionaryScreenshotAnalyzer,
@@ -49,7 +50,7 @@ from .screenshot_analysis_tool import (
 from app.llm.manager import get_enhanced_llm_manager
 from app.llm.models import LLMConfig, ProviderType
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class ComputerAction(str, Enum):
@@ -188,32 +189,54 @@ class RevolutionaryComputerUseAgent:
         try:
             if self.is_initialized:
                 return True
-                
-            logger.info("🚀 Initializing Revolutionary Computer Use Agent...")
-            
+
+            logger.info(
+                "🚀 Initializing Revolutionary Computer Use Agent...",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.computer_use_agent_tool"
+            )
+
             # Initialize screenshot analyzer
             screenshot_config = self.config.screenshot_analysis_config or ScreenshotAnalysisConfig()
             self.screenshot_analyzer = RevolutionaryScreenshotAnalyzer(screenshot_config)
             await self.screenshot_analyzer.initialize()
-            logger.info("✅ Screenshot analyzer initialized")
-            
+            logger.info(
+                "✅ Screenshot analyzer initialized",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.computer_use_agent_tool"
+            )
+
             # Initialize LLM manager
             self.llm_manager = get_enhanced_llm_manager()
             if self.llm_manager:
                 await self.llm_manager.initialize()
-                logger.info("✅ LLM manager initialized")
-            
+                logger.info(
+                    "✅ LLM manager initialized",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.computer_use_agent_tool"
+                )
+
             # Check system capabilities
             await self._check_system_capabilities()
-            
+
             self.session_id = f"computer_session_{int(time.time())}"
             self.is_initialized = True
-            
-            logger.info(f"🎯 Revolutionary Computer Use Agent ready! OS: {self.current_os.value}")
+
+            logger.info(
+                f"🎯 Revolutionary Computer Use Agent ready! OS: {self.current_os.value}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.computer_use_agent_tool",
+                data={"os": self.current_os.value}
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to initialize computer use agent: {e}")
+            logger.error(
+                "Failed to initialize computer use agent",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.computer_use_agent_tool",
+                error=e
+            )
             return False
     
     async def _check_system_capabilities(self) -> None:
@@ -226,8 +249,12 @@ class RevolutionaryComputerUseAgent:
                 await self._take_screenshot("capability_test")
                 capabilities.append("screenshot")
             except Exception:
-                logger.warning("Screenshot capability not available")
-            
+                logger.warn(
+                    "Screenshot capability not available",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.computer_use_agent_tool"
+                )
+
             # Check for mouse/keyboard automation
             try:
                 if self.current_os == OperatingSystem.WINDOWS:
@@ -243,20 +270,39 @@ class RevolutionaryComputerUseAgent:
                     import pyautogui
                     capabilities.append("mouse_keyboard")
             except ImportError:
-                logger.warning("Mouse/keyboard automation not available - install pyautogui")
-            
-            logger.info(f"✅ System capabilities: {', '.join(capabilities)}")
-            
+                logger.warn(
+                    "Mouse/keyboard automation not available - install pyautogui",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.computer_use_agent_tool"
+                )
+
+            logger.info(
+                f"✅ System capabilities: {', '.join(capabilities)}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.computer_use_agent_tool",
+                data={"capabilities": capabilities}
+            )
+
         except Exception as e:
-            logger.error(f"System capability check failed: {e}")
+            logger.error(
+                "System capability check failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.computer_use_agent_tool",
+                error=e
+            )
     
     async def take_screenshot(self, purpose: str = "general") -> ComputerActionResult:
         """Take a screenshot of the desktop."""
         start_time = time.time()
         
         try:
-            logger.info(f"📸 Taking screenshot: {purpose}")
-            
+            logger.info(
+                f"📸 Taking screenshot: {purpose}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.computer_use_agent_tool",
+                data={"purpose": purpose}
+            )
+
             screenshot_path = await self._take_screenshot(purpose)
             
             if screenshot_path:
@@ -298,9 +344,15 @@ class RevolutionaryComputerUseAgent:
                     execution_time=time.time() - start_time,
                     security_level=SecurityLevel.SAFE
                 )
-                
+
         except Exception as e:
-            logger.error(f"Screenshot failed: {e}")
+            logger.error(
+                "Screenshot failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.computer_use_agent_tool",
+                data={"purpose": purpose},
+                error=e
+            )
             return ComputerActionResult(
                 action=ComputerAction.SCREENSHOT,
                 success=False,
@@ -309,18 +361,23 @@ class RevolutionaryComputerUseAgent:
                 error_details=str(e),
                 security_level=SecurityLevel.SAFE
             )
-    
+
     async def visual_click(self, target_description: str, click_type: str = "single") -> ComputerActionResult:
         """Click on an element using visual detection."""
         start_time = time.time()
-        
+
         try:
             # Security check
             security_level = SecurityLevel.SAFE
             if not self._check_security_permission(security_level):
                 return self._create_security_violation_result(ComputerAction.CLICK, "Click action not permitted")
-            
-            logger.info(f"🖱️ Visual {click_type} click: {target_description}")
+
+            logger.info(
+                f"🖱️ Visual {click_type} click: {target_description}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.computer_use_agent_tool",
+                data={"click_type": click_type, "target": target_description}
+            )
             
             # Take screenshot for analysis
             screenshot_path = await self._take_screenshot("visual_click_analysis")
@@ -373,9 +430,14 @@ class RevolutionaryComputerUseAgent:
                     "click_type": click_type,
                     "element_type": target_element.element_type.value
                 }, True, security_level)
-                
-                logger.info(f"✅ Visual {click_type} click successful: {target_description} at {target_element.center}")
-                
+
+                logger.info(
+                    f"✅ Visual {click_type} click successful: {target_description} at {target_element.center}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.computer_use_agent_tool",
+                    data={"click_type": click_type, "target": target_description, "coordinates": target_element.center}
+                )
+
                 return ComputerActionResult(
                     action=ComputerAction.CLICK if click_type == "single" else ComputerAction.DOUBLE_CLICK,
                     success=True,
@@ -393,9 +455,15 @@ class RevolutionaryComputerUseAgent:
                     execution_time=time.time() - start_time,
                     security_level=security_level
                 )
-                
+
         except Exception as e:
-            logger.error(f"Visual click failed: {e}")
+            logger.error(
+                "Visual click failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.computer_use_agent_tool",
+                data={"click_type": click_type, "target": target_description},
+                error=e
+            )
             error_screenshot = await self._take_screenshot("visual_click_error") if self.config.screenshot_on_error else None
             
             return ComputerActionResult(
@@ -425,7 +493,11 @@ class RevolutionaryComputerUseAgent:
                 screenshot.save(screenshot_path)
                 return screenshot_path
             except ImportError:
-                logger.warning("PyAutoGUI not available for screenshots")
+                logger.warn(
+                    "PyAutoGUI not available for screenshots",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.computer_use_agent_tool"
+                )
 
             # Fallback methods for different OS
             if self.current_os == OperatingSystem.WINDOWS:
@@ -434,7 +506,11 @@ class RevolutionaryComputerUseAgent:
                     import win32ui
                     import win32con
                     # Windows-specific screenshot code would go here
-                    logger.warning("Windows-specific screenshot not implemented")
+                    logger.warn(
+                        "Windows-specific screenshot not implemented",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.computer_use_agent_tool"
+                    )
                 except ImportError:
                     pass
             elif self.current_os == OperatingSystem.LINUX:
@@ -457,7 +533,13 @@ class RevolutionaryComputerUseAgent:
             return None
 
         except Exception as e:
-            logger.error(f"Screenshot failed: {e}")
+            logger.error(
+                "Screenshot failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.computer_use_agent_tool",
+                data={"purpose": purpose},
+                error=e
+            )
             return None
 
     async def _perform_click(self, coordinates: Tuple[int, int], click_type: str = "single") -> bool:
@@ -479,11 +561,21 @@ class RevolutionaryComputerUseAgent:
                 return True
 
             except ImportError:
-                logger.warning("PyAutoGUI not available for clicking")
+                logger.warn(
+                    "PyAutoGUI not available for clicking",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.computer_use_agent_tool"
+                )
                 return False
 
         except Exception as e:
-            logger.error(f"Click failed: {e}")
+            logger.error(
+                "Click failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.computer_use_agent_tool",
+                data={"coordinates": coordinates, "click_type": click_type},
+                error=e
+            )
             return False
 
     async def _perform_typing(self, text: str) -> bool:
@@ -500,11 +592,21 @@ class RevolutionaryComputerUseAgent:
                 return True
 
             except ImportError:
-                logger.warning("PyAutoGUI not available for typing")
+                logger.warn(
+                    "PyAutoGUI not available for typing",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.computer_use_agent_tool"
+                )
                 return False
 
         except Exception as e:
-            logger.error(f"Typing failed: {e}")
+            logger.error(
+                "Typing failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.computer_use_agent_tool",
+                data={"text_length": len(text)},
+                error=e
+            )
             return False
 
     async def _open_application_by_os(self, app_name: str) -> bool:
@@ -549,7 +651,13 @@ class RevolutionaryComputerUseAgent:
             return False
 
         except Exception as e:
-            logger.error(f"Application opening failed: {e}")
+            logger.error(
+                "Application opening failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.computer_use_agent_tool",
+                data={"app_name": app_name, "os": self.current_os.value},
+                error=e
+            )
             return False
 
     async def _find_target_element(
@@ -608,7 +716,13 @@ class RevolutionaryComputerUseAgent:
             return None
 
         except Exception as e:
-            logger.error(f"Element matching failed: {e}")
+            logger.error(
+                "Element matching failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.computer_use_agent_tool",
+                data={"target": target_description},
+                error=e
+            )
             return None
 
     def _check_security_permission(self, required_level: SecurityLevel) -> bool:
@@ -635,7 +749,12 @@ class RevolutionaryComputerUseAgent:
         }
         self.security_violations.append(violation)
 
-        logger.warning(f"🚨 Security violation: {message}")
+        logger.warn(
+            f"🚨 Security violation: {message}",
+            LogCategory.SECURITY_EVENTS,
+            "app.tools.production.computer_use_agent_tool",
+            data={"action": action.value, "message": message}
+        )
 
         return ComputerActionResult(
             action=action,
@@ -664,7 +783,13 @@ class RevolutionaryComputerUseAgent:
                 self.action_history = self.action_history[-500:]  # Keep last 500 actions
 
         except Exception as e:
-            logger.warning(f"Failed to record action: {e}")
+            logger.warn(
+                "Failed to record action",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.computer_use_agent_tool",
+                data={"action_type": action_type},
+                error=e
+            )
 
 
 class ComputerUseInput(BaseModel):
@@ -757,7 +882,13 @@ class ComputerUseTool(BaseTool):
             return self._format_result(result)
 
         except Exception as e:
-            logger.error(f"Computer use agent error: {e}")
+            logger.error(
+                "Computer use agent error",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.computer_use_agent_tool",
+                data={"action": action},
+                error=e
+            )
             return f"❌ Computer use agent error: {str(e)}"
 
     def _run(

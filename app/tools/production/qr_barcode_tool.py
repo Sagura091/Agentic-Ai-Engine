@@ -16,13 +16,14 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 from pathlib import Path
 
-import structlog
 from pydantic import BaseModel, Field, validator
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class BarcodeFormat(str, Enum):
@@ -211,7 +212,11 @@ class QRBarcodeTool(BaseTool):
             'magenta': (255, 0, 255)
         }
         
-        logger.info("QR Code & Barcode Tool initialized")
+        logger.info(
+            "QR Code & Barcode Tool initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "QRBarcodeTool"
+        )
 
     def _validate_data_for_format(self, data: str, format: BarcodeFormat) -> bool:
         """Validate data compatibility with barcode format."""
@@ -233,7 +238,13 @@ class QRBarcodeTool(BaseTool):
             return True
             
         except Exception as e:
-            logger.error("Data validation failed", format=format, error=str(e))
+            logger.error(
+                "Data validation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "QRBarcodeTool",
+                data={"format": format},
+                error=e
+            )
             return False
 
     def _calculate_checksum(self, data: str, format: BarcodeFormat) -> str:
@@ -256,7 +267,13 @@ class QRBarcodeTool(BaseTool):
             return data
             
         except Exception as e:
-            logger.error("Checksum calculation failed", format=format, error=str(e))
+            logger.error(
+                "Checksum calculation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "QRBarcodeTool",
+                data={"format": format},
+                error=e
+            )
             return data
 
     async def _generate_qr_code(self, input_data: QRBarcodeInput) -> BarcodeResult:
@@ -313,7 +330,12 @@ class QRBarcodeTool(BaseTool):
             
         except Exception as e:
             execution_time = time.time() - start_time
-            logger.error("QR code generation failed", error=str(e))
+            logger.error(
+                "QR code generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "QRBarcodeTool",
+                error=e
+            )
             
             return BarcodeResult(
                 operation=input_data.operation,
@@ -366,7 +388,13 @@ class QRBarcodeTool(BaseTool):
             
         except Exception as e:
             execution_time = time.time() - start_time
-            logger.error("Barcode generation failed", format=input_data.format, error=str(e))
+            logger.error(
+                "Barcode generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "QRBarcodeTool",
+                data={"format": input_data.format},
+                error=e
+            )
             
             return BarcodeResult(
                 operation=input_data.operation,
@@ -461,7 +489,12 @@ class QRBarcodeTool(BaseTool):
 
         except Exception as e:
             execution_time = time.time() - start_time
-            logger.error("Barcode scanning failed", error=str(e))
+            logger.error(
+                "Barcode scanning failed",
+                LogCategory.TOOL_OPERATIONS,
+                "QRBarcodeTool",
+                error=e
+            )
 
             return BarcodeResult(
                 operation=input_data.operation,
@@ -524,11 +557,17 @@ class QRBarcodeTool(BaseTool):
                 self._failed_operations += 1
 
             # Log operation
-            logger.info("Barcode operation completed",
-                       operation=input_data.operation,
-                       format=input_data.format,
-                       execution_time=execution_time,
-                       success=result.success)
+            logger.info(
+                "Barcode operation completed",
+                LogCategory.TOOL_OPERATIONS,
+                "QRBarcodeTool",
+                data={
+                    "operation": input_data.operation,
+                    "format": input_data.format,
+                    "execution_time": execution_time,
+                    "success": result.success
+                }
+            )
 
             # Return formatted result
             return json.dumps({
@@ -550,10 +589,16 @@ class QRBarcodeTool(BaseTool):
             self._failed_operations += 1
             execution_time = time.time() - start_time if 'start_time' in locals() else 0
 
-            logger.error("Barcode operation failed",
-                        operation=kwargs.get('operation'),
-                        error=str(e),
-                        execution_time=execution_time)
+            logger.error(
+                "Barcode operation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "QRBarcodeTool",
+                data={
+                    "operation": kwargs.get('operation'),
+                    "execution_time": execution_time
+                },
+                error=e
+            )
 
             return json.dumps({
                 "success": False,

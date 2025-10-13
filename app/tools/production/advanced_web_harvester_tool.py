@@ -43,13 +43,14 @@ import aiofiles
 from bs4 import BeautifulSoup, Comment
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
-import structlog
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 # Import required modules
 from app.http_client import SimpleHTTPClient
-from app.tools.unified_tool_repository import ToolCategory
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 # 🎯 REVOLUTIONARY BROWSER SIMULATION - Real Browser Headers
 REVOLUTIONARY_BROWSER_HEADERS = {
@@ -336,8 +337,12 @@ class AdvancedWebHarvesterTool(BaseTool):
             'archives': ['.zip', '.rar', '.7z', '.tar', '.gz'],
             'code': ['.py', '.js', '.html', '.css', '.json', '.xml', '.sql']
         }
-        
-        logger.info("🌐 Advanced Web Harvester Tool initialized - Ready for internet domination!")
+
+        logger.info(
+            "🌐 Advanced Web Harvester Tool initialized - Ready for internet domination!",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.advanced_web_harvester_tool"
+        )
 
     def _get_random_user_agent(self) -> str:
         """Get a random user agent for anti-detection."""
@@ -419,7 +424,12 @@ class AdvancedWebHarvesterTool(BaseTool):
                         image_urls.add(bg_url)
 
         except Exception as e:
-            logger.warning(f"BeautifulSoup parsing failed: {str(e)}")
+            logger.warn(
+                "BeautifulSoup parsing failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool",
+                error=e
+            )
 
         return list(image_urls)
 
@@ -460,7 +470,12 @@ class AdvancedWebHarvesterTool(BaseTool):
                 await self._create_session()
 
             if engine not in SEARCH_ENGINES:
-                logger.warning(f"Unknown search engine: {engine}, using Google")
+                logger.warn(
+                    f"Unknown search engine: {engine}, using Google",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.advanced_web_harvester_tool",
+                    data={"engine": engine}
+                )
                 engine = "google"
 
             search_config = SEARCH_ENGINES[engine]
@@ -510,14 +525,30 @@ class AdvancedWebHarvesterTool(BaseTool):
                             await asyncio.sleep(random.uniform(1, 3))
 
                 except Exception as e:
-                    logger.error(f"Search page {start} failed: {str(e)}")
+                    logger.error(
+                        f"Search page {start} failed",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.advanced_web_harvester_tool",
+                        data={"start": start},
+                        error=e
+                    )
                     continue
 
-            logger.info(f"🔍 Found {len(urls)} URLs from {engine} search for '{query}'")
+            logger.info(
+                f"🔍 Found {len(urls)} URLs from {engine} search for '{query}'",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool",
+                data={"engine": engine, "query": query, "url_count": len(urls)}
+            )
             return urls[:max_results]
 
         except Exception as e:
-            logger.error(f"Search engine harvest failed: {str(e)}")
+            logger.error(
+                "Search engine harvest failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool",
+                error=e
+            )
             return []
 
     async def _discover_meme_content(self, search_terms: List[str] = None) -> List[str]:
@@ -528,13 +559,26 @@ class AdvancedWebHarvesterTool(BaseTool):
         all_urls = []
 
         # 🌐 FIRST: Direct platform scraping (NO LOGIN REQUIRED!)
-        logger.info("🌐 Phase 1: Direct platform scraping...")
+        logger.info(
+            "🌐 Phase 1: Direct platform scraping...",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.advanced_web_harvester_tool"
+        )
         direct_memes = await self._scrape_all_direct_platforms()
         all_urls.extend(direct_memes)
-        logger.info(f"✅ Direct scraping found {len(direct_memes)} memes!")
+        logger.info(
+            f"✅ Direct scraping found {len(direct_memes)} memes!",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.advanced_web_harvester_tool",
+            data={"meme_count": len(direct_memes)}
+        )
 
         # 🔍 SECOND: Search engine discovery for additional content
-        logger.info("🔍 Phase 2: Search engine discovery...")
+        logger.info(
+            "🔍 Phase 2: Search engine discovery...",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.advanced_web_harvester_tool"
+        )
         engines = ["google_images", "bing_images"]  # Focus on image searches
 
         for term in search_terms[:3]:  # Limit to avoid overwhelming
@@ -547,15 +591,31 @@ class AdvancedWebHarvesterTool(BaseTool):
                     await asyncio.sleep(random.uniform(2, 4))
 
                 except Exception as e:
-                    logger.error(f"Search discovery failed for {term} on {engine}: {str(e)}")
+                    logger.error(
+                        f"Search discovery failed for {term} on {engine}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.advanced_web_harvester_tool",
+                        data={"term": term, "engine": engine},
+                        error=e
+                    )
                     continue
 
         # Remove duplicates and filter for meme-related domains
         unique_urls = list(set(all_urls))
         meme_urls = [url for url in unique_urls if self._is_meme_related_url(url)]
 
-        logger.info(f"🎉 TOTAL DISCOVERY COMPLETE! Found {len(meme_urls)} unique memes from {len(all_urls)} total URLs")
-        logger.info(f"📊 Direct scraping: {len(direct_memes)} | Search engines: {len(all_urls) - len(direct_memes)}")
+        logger.info(
+            f"🎉 TOTAL DISCOVERY COMPLETE! Found {len(meme_urls)} unique memes from {len(all_urls)} total URLs",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.advanced_web_harvester_tool",
+            data={"unique_memes": len(meme_urls), "total_urls": len(all_urls)}
+        )
+        logger.info(
+            f"📊 Direct scraping: {len(direct_memes)} | Search engines: {len(all_urls) - len(direct_memes)}",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.advanced_web_harvester_tool",
+            data={"direct_count": len(direct_memes), "search_count": len(all_urls) - len(direct_memes)}
+        )
         return meme_urls
 
     async def _extract_image_urls_from_search(self, html: str, engine: str) -> List[str]:
@@ -603,11 +663,22 @@ class AdvancedWebHarvesterTool(BaseTool):
                     any(ext in url.lower() for ext in MEDIA_EXTENSIONS['images'])):
                     filtered_urls.append(url)
 
-            logger.info(f"🖼️ Extracted {len(filtered_urls)} image URLs from {engine}")
+            logger.info(
+                f"🖼️ Extracted {len(filtered_urls)} image URLs from {engine}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool",
+                data={"engine": engine, "url_count": len(filtered_urls)}
+            )
             return filtered_urls[:50]  # Limit to 50 images per search
 
         except Exception as e:
-            logger.error(f"Image URL extraction failed for {engine}: {str(e)}")
+            logger.error(
+                f"Image URL extraction failed for {engine}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool",
+                data={"engine": engine},
+                error=e
+            )
             return []
 
     def _is_meme_related_url(self, url: str) -> bool:
@@ -709,7 +780,12 @@ class AdvancedWebHarvesterTool(BaseTool):
         try:
             # Safety check
             if not self._is_safe_domain(url):
-                logger.warning(f"🚫 Skipping unsafe domain: {url}")
+                logger.warn(
+                    f"🚫 Skipping unsafe domain: {url}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.advanced_web_harvester_tool",
+                    data={"url": url}
+                )
                 return False
 
             # Get the source domain for referer
@@ -734,7 +810,12 @@ class AdvancedWebHarvesterTool(BaseTool):
 
                     # Skip HTML files - we want actual media
                     if 'text/html' in content_type.lower():
-                        logger.warning(f"⚠️ Skipping HTML file: {url}")
+                        logger.warn(
+                            f"⚠️ Skipping HTML file: {url}",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.production.advanced_web_harvester_tool",
+                            data={"url": url}
+                        )
                         return False
 
                     # Get proper extension
@@ -757,12 +838,22 @@ class AdvancedWebHarvesterTool(BaseTool):
 
                     # Verify it's actually media content (not HTML disguised)
                     if content.startswith(b'<!DOCTYPE') or content.startswith(b'<html'):
-                        logger.warning(f"⚠️ Skipping HTML content disguised as media: {url}")
+                        logger.warn(
+                            f"⚠️ Skipping HTML content disguised as media: {url}",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.production.advanced_web_harvester_tool",
+                            data={"url": url}
+                        )
                         return False
 
                     # Additional validation for image content
                     if len(content) < 1024:  # Skip very small files (likely errors)
-                        logger.warning(f"⚠️ Skipping suspiciously small file: {url} ({len(content)} bytes)")
+                        logger.warn(
+                            f"⚠️ Skipping suspiciously small file: {url} ({len(content)} bytes)",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.production.advanced_web_harvester_tool",
+                            data={"url": url, "size": len(content)}
+                        )
                         return False
 
                     # Save file
@@ -773,21 +864,47 @@ class AdvancedWebHarvesterTool(BaseTool):
                     self.download_stats['successful_downloads'] += 1
                     self.download_stats['total_size'] += len(content)
 
-                    logger.info(f"✅ Revolutionary download: {filename} ({len(content)} bytes) from {parsed_url.netloc}")
+                    logger.info(
+                        f"✅ Revolutionary download: {filename} ({len(content)} bytes) from {parsed_url.netloc}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.advanced_web_harvester_tool",
+                        data={"filename": filename, "size": len(content), "domain": parsed_url.netloc}
+                    )
                     return True
 
                 elif response.status == 403:
-                    logger.warning(f"🚫 Access forbidden for {url} - trying alternative approach")
+                    logger.warn(
+                        f"🚫 Access forbidden for {url} - trying alternative approach",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.advanced_web_harvester_tool",
+                        data={"url": url, "status": 403}
+                    )
                     return False
                 elif response.status == 404:
-                    logger.warning(f"🔍 File not found: {url}")
+                    logger.warn(
+                        f"🔍 File not found: {url}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.advanced_web_harvester_tool",
+                        data={"url": url, "status": 404}
+                    )
                     return False
                 else:
-                    logger.warning(f"⚠️ Download failed for {url}: HTTP {response.status}")
+                    logger.warn(
+                        f"⚠️ Download failed for {url}: HTTP {response.status}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.advanced_web_harvester_tool",
+                        data={"url": url, "status": response.status}
+                    )
                     return False
 
         except Exception as e:
-            logger.error(f"❌ Revolutionary media download failed for {url}: {str(e)}")
+            logger.error(
+                f"❌ Revolutionary media download failed for {url}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool",
+                data={"url": url},
+                error=e
+            )
             return False
 
     async def _scrape_reddit_memes(self, subreddit_url: str) -> List[str]:
@@ -837,14 +954,30 @@ class AdvancedWebHarvesterTool(BaseTool):
                     # Remove duplicates
                     unique_memes = list(set(meme_urls))
 
-                    logger.info(f"🔥 Revolutionary Reddit extraction: {len(unique_memes)} memes from {subreddit_url}")
+                    logger.info(
+                        f"🔥 Revolutionary Reddit extraction: {len(unique_memes)} memes from {subreddit_url}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.advanced_web_harvester_tool",
+                        data={"url": subreddit_url, "meme_count": len(unique_memes)}
+                    )
                     return unique_memes[:30]  # Limit per subreddit
                 else:
-                    logger.warning(f"Reddit returned status {response.status} for {subreddit_url}")
+                    logger.warn(
+                        f"Reddit returned status {response.status} for {subreddit_url}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.advanced_web_harvester_tool",
+                        data={"url": subreddit_url, "status": response.status}
+                    )
                     return []
 
         except Exception as e:
-            logger.error(f"Revolutionary Reddit scraping failed for {subreddit_url}: {str(e)}")
+            logger.error(
+                f"Revolutionary Reddit scraping failed for {subreddit_url}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool",
+                data={"url": subreddit_url},
+                error=e
+            )
             return []
 
     async def _scrape_imgur_memes(self, imgur_url: str) -> List[str]:
@@ -876,11 +1009,22 @@ class AdvancedWebHarvesterTool(BaseTool):
                                 data_src = 'https:' + data_src
                             meme_urls.append(data_src)
 
-                    logger.info(f"🖼️ Found {len(meme_urls)} memes from Imgur: {imgur_url}")
+                    logger.info(
+                        f"🖼️ Found {len(meme_urls)} memes from Imgur: {imgur_url}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.advanced_web_harvester_tool",
+                        data={"url": imgur_url, "meme_count": len(meme_urls)}
+                    )
                     return meme_urls[:25]  # Limit per page
 
         except Exception as e:
-            logger.error(f"Imgur scraping failed for {imgur_url}: {str(e)}")
+            logger.error(
+                f"Imgur scraping failed for {imgur_url}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool",
+                data={"url": imgur_url},
+                error=e
+            )
             return []
 
     async def _scrape_9gag_memes(self, gag_url: str) -> List[str]:
@@ -914,18 +1058,33 @@ class AdvancedWebHarvesterTool(BaseTool):
                                         video_src = 'https:' + video_src
                                     meme_urls.append(video_src)
 
-                    logger.info(f"😂 Found {len(meme_urls)} memes from 9GAG: {gag_url}")
+                    logger.info(
+                        f"😂 Found {len(meme_urls)} memes from 9GAG: {gag_url}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.advanced_web_harvester_tool",
+                        data={"url": gag_url, "meme_count": len(meme_urls)}
+                    )
                     return meme_urls[:20]  # Limit per page
 
         except Exception as e:
-            logger.error(f"9GAG scraping failed for {gag_url}: {str(e)}")
+            logger.error(
+                f"9GAG scraping failed for {gag_url}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool",
+                data={"url": gag_url},
+                error=e
+            )
             return []
 
     async def _scrape_all_direct_platforms(self) -> List[str]:
         """🌐 Scrape all meme platforms directly - NO LOGIN REQUIRED!"""
         all_meme_urls = []
 
-        logger.info("🌐 Starting direct platform scraping - No login required!")
+        logger.info(
+            "🌐 Starting direct platform scraping - No login required!",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.advanced_web_harvester_tool"
+        )
 
         # Scrape Reddit subreddits
         for reddit_url in DIRECT_MEME_PLATFORMS["reddit"][:4]:  # Limit to 4 subreddits
@@ -934,7 +1093,12 @@ class AdvancedWebHarvesterTool(BaseTool):
                 all_meme_urls.extend(memes)
                 await asyncio.sleep(random.uniform(2, 4))  # Be respectful
             except Exception as e:
-                logger.error(f"Reddit platform scraping failed: {str(e)}")
+                logger.error(
+                    "Reddit platform scraping failed",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.advanced_web_harvester_tool",
+                    error=e
+                )
 
         # Scrape Imgur
         for imgur_url in DIRECT_MEME_PLATFORMS["imgur"][:2]:  # Limit to 2 pages
@@ -943,7 +1107,12 @@ class AdvancedWebHarvesterTool(BaseTool):
                 all_meme_urls.extend(memes)
                 await asyncio.sleep(random.uniform(2, 4))
             except Exception as e:
-                logger.error(f"Imgur platform scraping failed: {str(e)}")
+                logger.error(
+                    "Imgur platform scraping failed",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.advanced_web_harvester_tool",
+                    error=e
+                )
 
         # Scrape 9GAG
         for gag_url in DIRECT_MEME_PLATFORMS["9gag"][:2]:  # Limit to 2 pages
@@ -952,12 +1121,22 @@ class AdvancedWebHarvesterTool(BaseTool):
                 all_meme_urls.extend(memes)
                 await asyncio.sleep(random.uniform(2, 4))
             except Exception as e:
-                logger.error(f"9GAG platform scraping failed: {str(e)}")
+                logger.error(
+                    "9GAG platform scraping failed",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.advanced_web_harvester_tool",
+                    error=e
+                )
 
         # Remove duplicates
         unique_memes = list(set(all_meme_urls))
 
-        logger.info(f"🎉 DIRECT PLATFORM SCRAPING COMPLETE! Found {len(unique_memes)} unique memes from {len(all_meme_urls)} total")
+        logger.info(
+            f"🎉 DIRECT PLATFORM SCRAPING COMPLETE! Found {len(unique_memes)} unique memes from {len(all_meme_urls)} total",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.advanced_web_harvester_tool",
+            data={"unique_memes": len(unique_memes), "total_urls": len(all_meme_urls)}
+        )
         return unique_memes
 
     def _get_file_category(self, url: str) -> str:
@@ -998,7 +1177,11 @@ class AdvancedWebHarvesterTool(BaseTool):
                 trust_env=True  # Use system proxy settings if available
             )
 
-            logger.info("🚀 Revolutionary browser session created with anti-detection features")
+            logger.info(
+                "🚀 Revolutionary browser session created with anti-detection features",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool"
+            )
 
     async def _close_session(self):
         """Close aiohttp session."""
@@ -1034,9 +1217,14 @@ class AdvancedWebHarvesterTool(BaseTool):
                     
                     self.download_stats['successful_downloads'] += 1
                     self.download_stats['total_size'] += file_size
-                    
-                    logger.info(f"📥 Downloaded: {filename} ({file_size} bytes)")
-                    
+
+                    logger.info(
+                        f"📥 Downloaded: {filename} ({file_size} bytes)",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.advanced_web_harvester_tool",
+                        data={"filename": filename, "size": file_size}
+                    )
+
                     return DownloadResult(
                         url=url,
                         local_path=local_path,
@@ -1046,11 +1234,17 @@ class AdvancedWebHarvesterTool(BaseTool):
                     )
                 else:
                     raise Exception(f"HTTP {response.status}")
-                    
+
         except Exception as e:
             self.download_stats['failed_downloads'] += 1
-            logger.error(f"❌ Download failed for {url}: {str(e)}")
-            
+            logger.error(
+                f"❌ Download failed for {url}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool",
+                data={"url": url},
+                error=e
+            )
+
             return DownloadResult(
                 url=url,
                 local_path="",
@@ -1103,8 +1297,13 @@ class AdvancedWebHarvesterTool(BaseTool):
     async def _harvest_website(self, url: str, config: AdvancedWebHarvesterInput) -> HarvestResult:
         """Harvest complete website content."""
         try:
-            logger.info(f"🌐 Starting harvest of: {url}")
-            
+            logger.info(
+                f"🌐 Starting harvest of: {url}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool",
+                data={"url": url}
+            )
+
             # Fetch page content using aiohttp
             await self._create_session()
             async with self.session.get(url) as response:
@@ -1113,14 +1312,14 @@ class AdvancedWebHarvesterTool(BaseTool):
                 else:
                     raise Exception(f"HTTP {response.status} for {url}")
             soup = BeautifulSoup(content, 'html.parser')
-            
+
             # Extract basic information
             title = soup.title.string if soup.title else "No Title"
             text_content = soup.get_text(strip=True)
-            
+
             # Extract all links
             links_data = await self._extract_all_links(soup, url)
-            
+
             # Create harvest result
             result = HarvestResult(
                 url=url,
@@ -1132,22 +1331,38 @@ class AdvancedWebHarvesterTool(BaseTool):
                 videos=links_data['videos'],
                 downloadable_files=links_data['downloadable_files']
             )
-            
+
             # Extract structured data
             if config.extract_structured_data:
                 result.extracted_data = await self._extract_structured_data(soup)
-            
+
             # Download files if requested
             if config.download_files:
                 await self._download_found_files(result, config)
-            
-            logger.info(f"✅ Harvest completed for: {url}")
-            logger.info(f"📊 Found: {len(result.images)} images, {len(result.documents)} documents, {len(result.downloadable_files)} files")
+
+            logger.info(
+                f"✅ Harvest completed for: {url}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool",
+                data={"url": url}
+            )
+            logger.info(
+                f"📊 Found: {len(result.images)} images, {len(result.documents)} documents, {len(result.downloadable_files)} files",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool",
+                data={"images": len(result.images), "documents": len(result.documents), "files": len(result.downloadable_files)}
+            )
             
             return result
-            
+
         except Exception as e:
-            logger.error(f"❌ Harvest failed for {url}: {str(e)}")
+            logger.error(
+                f"❌ Harvest failed for {url}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool",
+                data={"url": url},
+                error=e
+            )
             return HarvestResult(
                 url=url,
                 title="",
@@ -1233,7 +1448,12 @@ class AdvancedWebHarvesterTool(BaseTool):
         
         # Execute downloads
         if download_tasks:
-            logger.info(f"📥 Starting {len(download_tasks)} downloads...")
+            logger.info(
+                f"📥 Starting {len(download_tasks)} downloads...",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool",
+                data={"download_count": len(download_tasks)}
+            )
             await asyncio.gather(*download_tasks, return_exceptions=True)
 
     async def _run(self, **kwargs) -> str:
@@ -1272,10 +1492,19 @@ class AdvancedWebHarvesterTool(BaseTool):
 
                 # If meme harvesting operation, discover additional URLs via search engines
                 if any(keyword in str(config.urls).lower() for keyword in ['meme', 'viral', 'funny', 'reddit', '9gag']):
-                    logger.info("🎯 MEME HARVESTING DETECTED - Activating search engine discovery...")
+                    logger.info(
+                        "🎯 MEME HARVESTING DETECTED - Activating search engine discovery...",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.advanced_web_harvester_tool"
+                    )
                     discovered_urls = await self._discover_meme_content()
                     all_urls.extend(discovered_urls)
-                    logger.info(f"🔍 Discovered {len(discovered_urls)} additional meme URLs via search engines!")
+                    logger.info(
+                        f"🔍 Discovered {len(discovered_urls)} additional meme URLs via search engines!",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.advanced_web_harvester_tool",
+                        data={"discovered_count": len(discovered_urls)}
+                    )
 
                 # Remove duplicates while preserving order
                 seen = set()
@@ -1285,7 +1514,12 @@ class AdvancedWebHarvesterTool(BaseTool):
                         seen.add(url)
                         unique_urls.append(url)
 
-                logger.info(f"🚀 Starting revolutionary bulk harvest of {len(unique_urls)} websites (including {len(unique_urls) - len(config.urls)} discovered)...")
+                logger.info(
+                    f"🚀 Starting revolutionary bulk harvest of {len(unique_urls)} websites (including {len(unique_urls) - len(config.urls)} discovered)...",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.advanced_web_harvester_tool",
+                    data={"total_urls": len(unique_urls), "discovered": len(unique_urls) - len(config.urls)}
+                )
 
                 # Process URLs in batches to avoid overwhelming servers
                 batch_size = 5
@@ -1382,14 +1616,29 @@ class AdvancedWebHarvesterTool(BaseTool):
                     for r in results
                 ]
             }
-            
-            logger.info("🎉 HARVEST OPERATION COMPLETED!")
-            logger.info(f"📊 FINAL STATS: {len(successful_harvests)} sites, {total_links} links, {self.download_stats['successful_downloads']} downloads")
-            
+
+            logger.info(
+                "🎉 HARVEST OPERATION COMPLETED!",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool"
+            )
+            logger.info(
+                f"📊 FINAL STATS: {len(successful_harvests)} sites, {total_links} links, {self.download_stats['successful_downloads']} downloads",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool",
+                data={"sites": len(successful_harvests), "links": total_links, "downloads": self.download_stats['successful_downloads']}
+            )
+
             return json.dumps(final_result, indent=2)
-            
+
         except Exception as e:
-            logger.error(f"❌ Advanced Web Harvester operation failed: {str(e)}")
+            logger.error(
+                "❌ Advanced Web Harvester operation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_web_harvester_tool",
+                data={"operation": kwargs.get('operation', 'unknown')},
+                error=e
+            )
             return json.dumps({
                 'success': False,
                 'error': str(e),
@@ -1406,7 +1655,7 @@ def get_tool():
 # Tool metadata for the unified repository
 TOOL_METADATA = {
     "name": "advanced_web_harvester",
-    "category": ToolCategory.BUSINESS,
+    "category": ToolCategoryEnum.BUSINESS,
     "description": "Revolutionary web harvesting tool for complete internet data collection",
     "complexity": "advanced",
     "tags": ["web", "scraping", "download", "harvest", "data collection", "internet", "revolutionary"]

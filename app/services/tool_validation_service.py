@@ -1,7 +1,7 @@
 """
 Tool Validation Service for Custom Tool Upload System.
 
-This service provides comprehensive validation, security checking, and 
+This service provides comprehensive validation, security checking, and
 safe execution capabilities for user-uploaded custom tools.
 """
 
@@ -16,10 +16,12 @@ import re
 import hashlib
 from datetime import datetime
 
-import structlog
 from pydantic import BaseModel, Field
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+
+logger = get_logger()
 
 
 class ValidationResult(BaseModel):
@@ -82,10 +84,20 @@ class ToolValidationService:
             # Create cache key
             code_hash = hashlib.sha256(code.encode()).hexdigest()
             if code_hash in self.validation_cache:
-                logger.info("Using cached validation result", hash=code_hash[:8])
+                logger.info(
+                    "Using cached validation result",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.tool_validation_service",
+                    data={"hash": code_hash[:8]}
+                )
                 return self.validation_cache[code_hash]
-            
-            logger.info("Starting tool validation", filename=filename)
+
+            logger.info(
+                "Starting tool validation",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.tool_validation_service",
+                data={"filename": filename}
+            )
             
             result = ValidationResult(
                 is_valid=True,
@@ -130,20 +142,29 @@ class ToolValidationService:
             
             # Cache result
             self.validation_cache[code_hash] = result
-            
+
             logger.info(
                 "Tool validation completed",
-                filename=filename,
-                is_valid=result.is_valid,
-                security_score=result.security_score,
-                issues_count=len(result.issues),
-                warnings_count=len(result.warnings)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.tool_validation_service",
+                data={
+                    "filename": filename,
+                    "is_valid": result.is_valid,
+                    "security_score": result.security_score,
+                    "issues_count": len(result.issues),
+                    "warnings_count": len(result.warnings)
+                }
             )
-            
+
             return result
-            
+
         except Exception as e:
-            logger.error("Tool validation failed", error=str(e))
+            logger.error(
+                "Tool validation failed",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.tool_validation_service",
+                error=e
+            )
             return ValidationResult(
                 is_valid=False,
                 security_score=0.0,
@@ -328,9 +349,14 @@ class ToolValidationService:
                 'missing_dependencies': missing_deps,
                 'all_safe': len(unsafe_deps) == 0 and len(missing_deps) == 0
             }
-            
+
         except Exception as e:
-            logger.error("Dependency validation failed", error=str(e))
+            logger.error(
+                "Dependency validation failed",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.tool_validation_service",
+                error=e
+            )
             return {
                 'safe_dependencies': [],
                 'unsafe_dependencies': dependencies,
@@ -388,11 +414,16 @@ class ToolValidationService:
             
             visitor = MetadataVisitor()
             visitor.visit(tree)
-            
+
             return metadata
-            
+
         except Exception as e:
-            logger.error("Metadata extraction failed", error=str(e))
+            logger.error(
+                "Metadata extraction failed",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.tool_validation_service",
+                error=e
+            )
             return {}
 
 

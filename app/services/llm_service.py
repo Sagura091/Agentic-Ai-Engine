@@ -7,9 +7,10 @@ access to multiple LLM providers.
 """
 
 from typing import Dict, List, Optional, Any, Union
-import structlog
 from langchain_core.language_models import BaseLanguageModel
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from app.config.settings import get_settings
 from app.llm.manager import get_llm_manager, initialize_llm_manager
 from app.llm.models import (
@@ -20,7 +21,7 @@ from app.llm.models import (
     ProviderStatus
 )
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class LLMService:
@@ -40,12 +41,21 @@ class LLMService:
             # Initialize the LLM manager
             self._manager = await initialize_llm_manager(credentials)
             self._is_initialized = True
-            
-            logger.info("LLM Service initialized", 
-                       enabled_providers=self.settings.get_enabled_providers())
-            
+
+            logger.info(
+                "LLM Service initialized",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.llm_service",
+                data={"enabled_providers": self.settings.get_enabled_providers()}
+            )
+
         except Exception as e:
-            logger.error("Failed to initialize LLM Service", error=str(e))
+            logger.error(
+                "Failed to initialize LLM Service",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.llm_service",
+                error=e
+            )
             raise
     
     def _ensure_initialized(self) -> None:
@@ -108,18 +118,28 @@ class LLMService:
                 for model in models
             ]
         except ValueError:
-            logger.error("Invalid provider type", provider=provider)
+            logger.error(
+                "Invalid provider type",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.llm_service",
+                data={"provider": provider}
+            )
             return []
-    
+
     async def validate_model_config(self, provider: str, model_id: str) -> bool:
         """Validate if a model configuration is valid."""
         self._ensure_initialized()
-        
+
         try:
             provider_type = ProviderType(provider)
             return await self._manager.validate_model(provider_type, model_id)
         except ValueError:
-            logger.error("Invalid provider type", provider=provider)
+            logger.error(
+                "Invalid provider type",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.llm_service",
+                data={"provider": provider}
+            )
             return False
     
     async def create_llm_instance(self, config: Union[Dict[str, Any], "LLMConfig"]) -> BaseLanguageModel:
@@ -149,7 +169,13 @@ class LLMService:
             return await self._manager.create_llm_instance(llm_config)
 
         except Exception as e:
-            logger.error("Failed to create LLM instance", config=str(config), error=str(e))
+            logger.error(
+                "Failed to create LLM instance",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.llm_service",
+                data={"config": str(config)},
+                error=e
+            )
             raise
     
     async def test_provider_connection(self, provider: str) -> Dict[str, Any]:
@@ -219,9 +245,14 @@ class LLMService:
             )
             
             return await self._manager.register_provider(provider_type, provider_credentials)
-            
+
         except ValueError:
-            logger.error("Invalid provider type", provider=provider)
+            logger.error(
+                "Invalid provider type",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.llm_service",
+                data={"provider": provider}
+            )
             return False
     
     async def get_default_model_config(self) -> Dict[str, Any]:
@@ -260,7 +291,11 @@ class LLMService:
         if self._manager:
             await self._manager.cleanup()
         self._is_initialized = False
-        logger.info("LLM Service cleaned up")
+        logger.info(
+            "LLM Service cleaned up",
+            LogCategory.LLM_OPERATIONS,
+            "app.services.llm_service"
+        )
 
 
 # Global service instance

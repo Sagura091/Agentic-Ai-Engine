@@ -12,15 +12,16 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
-import structlog
 from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from app.models.database.base import get_database_session
 from app.models.admin_settings import AdminSetting, AdminSettingHistory, SystemConfigurationCache
 from app.config.settings import get_settings
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class AdminSettingsService:
@@ -44,9 +45,18 @@ class AdminSettingsService:
         """Initialize the settings service and load cache."""
         try:
             await self._load_settings_cache()
-            logger.info("Admin settings service initialized")
+            logger.info(
+                "Admin settings service initialized",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.admin_settings_service"
+            )
         except Exception as e:
-            logger.error("Failed to initialize admin settings service", error=str(e))
+            logger.error(
+                "Failed to initialize admin settings service",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.admin_settings_service",
+                error=e
+            )
             raise
     
     async def get_setting(
@@ -80,9 +90,15 @@ class AdminSettingsService:
                 if setting:
                     return setting.value
                 return default
-                
+
         except Exception as e:
-            logger.error("Failed to get setting", category=category, key=key, error=str(e))
+            logger.error(
+                "Failed to get setting",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.admin_settings_service",
+                data={"category": category, "key": key},
+                error=e
+            )
             return default
     
     async def set_setting(
@@ -178,21 +194,31 @@ class AdminSettingsService:
                 
                 # Apply setting to running system
                 await self._apply_setting_to_system(category, key, value)
-                
+
                 logger.info(
                     "Setting updated successfully",
-                    category=category,
-                    key=key,
-                    old_value=old_value,
-                    new_value=value,
-                    user_id=str(user_id),
-                    requires_restart=requires_restart
+                    LogCategory.CONFIGURATION_MANAGEMENT,
+                    "app.services.admin_settings_service",
+                    data={
+                        "category": category,
+                        "key": key,
+                        "old_value": old_value,
+                        "new_value": value,
+                        "user_id": str(user_id),
+                        "requires_restart": requires_restart
+                    }
                 )
-                
+
                 return True, None
-                
+
         except Exception as e:
-            logger.error("Failed to set setting", category=category, key=key, error=str(e))
+            logger.error(
+                "Failed to set setting",
+                LogCategory.CONFIGURATION_MANAGEMENT,
+                "app.services.admin_settings_service",
+                data={"category": category, "key": key},
+                error=e
+            )
             return False, str(e)
     
     async def get_category_settings(self, category: str) -> Dict[str, Any]:
@@ -228,9 +254,15 @@ class AdminSettingsService:
                     }
                     for setting in settings
                 }
-                
+
         except Exception as e:
-            logger.error("Failed to get category settings", category=category, error=str(e))
+            logger.error(
+                "Failed to get category settings",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.admin_settings_service",
+                data={"category": category},
+                error=e
+            )
             return {}
     
     async def _load_settings_cache(self) -> None:
@@ -247,12 +279,22 @@ class AdminSettingsService:
                     if setting.category not in self._cache:
                         self._cache[setting.category] = {}
                     self._cache[setting.category][setting.key] = setting.value
-                
+
                 self._cache_loaded = True
-                logger.info("Settings cache loaded", categories=len(self._cache))
-                
+                logger.info(
+                    "Settings cache loaded",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.admin_settings_service",
+                    data={"categories": len(self._cache)}
+                )
+
         except Exception as e:
-            logger.error("Failed to load settings cache", error=str(e))
+            logger.error(
+                "Failed to load settings cache",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.admin_settings_service",
+                error=e
+            )
             raise
     
     async def _update_configuration_cache(self, category: str) -> None:
@@ -289,20 +331,31 @@ class AdminSettingsService:
                     session.add(cache_entry)
                 
                 await session.commit()
-                
-                logger.info("Configuration cache updated", category=category, hash=config_hash[:8])
-                
+
+                logger.info(
+                    "Configuration cache updated",
+                    LogCategory.CONFIGURATION_MANAGEMENT,
+                    "app.services.admin_settings_service",
+                    data={"category": category, "hash": config_hash[:8]}
+                )
+
         except Exception as e:
-            logger.error("Failed to update configuration cache", category=category, error=str(e))
+            logger.error(
+                "Failed to update configuration cache",
+                LogCategory.CONFIGURATION_MANAGEMENT,
+                "app.services.admin_settings_service",
+                data={"category": category},
+                error=e
+            )
     
     async def _apply_setting_to_system(self, category: str, key: str, value: Any) -> None:
         """Apply a setting change to the running system."""
         try:
             logger.info(
                 "Applying setting to system",
-                category=category,
-                key=key,
-                value=value
+                LogCategory.CONFIGURATION_MANAGEMENT,
+                "app.services.admin_settings_service",
+                data={"category": category, "key": key, "value": value}
             )
 
             # Apply settings based on category
@@ -315,10 +368,21 @@ class AdminSettingsService:
             elif category == "system_configuration":
                 await self._apply_system_setting(key, value)
             else:
-                logger.info("No specific application handler for category", category=category)
+                logger.info(
+                    "No specific application handler for category",
+                    LogCategory.CONFIGURATION_MANAGEMENT,
+                    "app.services.admin_settings_service",
+                    data={"category": category}
+                )
 
         except Exception as e:
-            logger.error("Failed to apply setting to system", category=category, key=key, error=str(e))
+            logger.error(
+                "Failed to apply setting to system",
+                LogCategory.CONFIGURATION_MANAGEMENT,
+                "app.services.admin_settings_service",
+                data={"category": category, "key": key},
+                error=e
+            )
 
     async def _apply_rag_setting(self, key: str, value: Any) -> None:
         """Apply RAG-specific settings to the RAG system."""
@@ -333,36 +397,85 @@ class AdminSettingsService:
             success = await applicator.apply_rag_settings(rag_settings)
 
             if success:
-                logger.info("RAG setting applied successfully", key=key, value=value)
+                logger.info(
+                    "RAG setting applied successfully",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.services.admin_settings_service",
+                    data={"key": key, "value": value}
+                )
             else:
-                logger.error("Failed to apply RAG setting", key=key, value=value)
+                logger.error(
+                    "Failed to apply RAG setting",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.services.admin_settings_service",
+                    data={"key": key, "value": value}
+                )
 
         except Exception as e:
-            logger.error("Failed to apply RAG setting", key=key, error=str(e))
+            logger.error(
+                "Failed to apply RAG setting",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.admin_settings_service",
+                data={"key": key},
+                error=e
+            )
 
     async def _apply_agent_setting(self, key: str, value: Any) -> None:
         """Apply agent management settings."""
         try:
             # TODO: Implement agent setting application
-            logger.info("Agent setting would be applied", key=key, value=value)
+            logger.info(
+                "Agent setting would be applied",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.admin_settings_service",
+                data={"key": key, "value": value}
+            )
         except Exception as e:
-            logger.error("Failed to apply agent setting", key=key, error=str(e))
+            logger.error(
+                "Failed to apply agent setting",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.admin_settings_service",
+                data={"key": key},
+                error=e
+            )
 
     async def _apply_llm_setting(self, key: str, value: Any) -> None:
         """Apply LLM provider settings."""
         try:
             # TODO: Implement LLM setting application
-            logger.info("LLM setting would be applied", key=key, value=value)
+            logger.info(
+                "LLM setting would be applied",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.admin_settings_service",
+                data={"key": key, "value": value}
+            )
         except Exception as e:
-            logger.error("Failed to apply LLM setting", key=key, error=str(e))
+            logger.error(
+                "Failed to apply LLM setting",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.admin_settings_service",
+                data={"key": key},
+                error=e
+            )
 
     async def _apply_system_setting(self, key: str, value: Any) -> None:
         """Apply system configuration settings."""
         try:
             # TODO: Implement system setting application
-            logger.info("System setting would be applied", key=key, value=value)
+            logger.info(
+                "System setting would be applied",
+                LogCategory.CONFIGURATION_MANAGEMENT,
+                "app.services.admin_settings_service",
+                data={"key": key, "value": value}
+            )
         except Exception as e:
-            logger.error("Failed to apply system setting", key=key, error=str(e))
+            logger.error(
+                "Failed to apply system setting",
+                LogCategory.CONFIGURATION_MANAGEMENT,
+                "app.services.admin_settings_service",
+                data={"key": key},
+                error=e
+            )
 
 
 # Global service instance

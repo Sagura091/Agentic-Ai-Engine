@@ -12,11 +12,12 @@ import shutil
 from pathlib import Path
 from typing import Any, Callable, Optional, Union, List, Dict
 from functools import wraps
-import structlog
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from .error_handlers import FileOperationError, ValidationError
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 # Global temp file registry for cleanup
@@ -77,7 +78,12 @@ def sanitize_path(
         # Normalize path (resolve .., ., etc.)
         p = p.resolve()
         
-        logger.debug("Path sanitized", original=str(path), sanitized=str(p))
+        logger.debug(
+            "Path sanitized",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.universal.shared.utils",
+            data={"original": str(path), "sanitized": str(p)}
+        )
         return p
         
     except Exception as e:
@@ -183,7 +189,12 @@ def create_temp_file(
         if not delete:
             _TEMP_FILES_REGISTRY.append(path)
         
-        logger.debug("Temporary file created", path=str(path))
+        logger.debug(
+            "Temporary file created",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.universal.shared.utils",
+            data={"path": str(path)}
+        )
         return path
         
     except Exception as e:
@@ -220,7 +231,12 @@ def create_temp_dir(
         path = Path(temp_dir)
         _TEMP_FILES_REGISTRY.append(path)
         
-        logger.debug("Temporary directory created", path=str(path))
+        logger.debug(
+            "Temporary directory created",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.universal.shared.utils",
+            data={"path": str(path)}
+        )
         return path
         
     except Exception as e:
@@ -245,23 +261,40 @@ def cleanup_temp_files() -> int:
             if path.exists():
                 if path.is_file():
                     path.unlink()
-                    logger.debug("Temporary file deleted", path=str(path))
+                    logger.debug(
+                        "Temporary file deleted",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.universal.shared.utils",
+                        data={"path": str(path)}
+                    )
                 elif path.is_dir():
                     shutil.rmtree(path)
-                    logger.debug("Temporary directory deleted", path=str(path))
+                    logger.debug(
+                        "Temporary directory deleted",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.universal.shared.utils",
+                        data={"path": str(path)}
+                    )
                 cleaned += 1
             
             _TEMP_FILES_REGISTRY.remove(path)
             
         except Exception as e:
-            logger.warning(
+            logger.warn(
                 "Failed to clean up temporary file",
-                path=str(path),
-                error=str(e)
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.universal.shared.utils",
+                data={"path": str(path)},
+                error=e
             )
     
     if cleaned > 0:
-        logger.info(f"Cleaned up {cleaned} temporary files/directories")
+        logger.info(
+            f"Cleaned up {cleaned} temporary files/directories",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.universal.shared.utils",
+            data={"cleaned_count": cleaned}
+        )
     
     return cleaned
 
@@ -289,7 +322,12 @@ def ensure_directory_exists(
         if create:
             try:
                 path.mkdir(parents=True, exist_ok=True)
-                logger.debug("Directory created", path=str(path))
+                logger.debug(
+                    "Directory created",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.universal.shared.utils",
+                    data={"path": str(path)}
+                )
             except Exception as e:
                 raise FileOperationError(
                     f"Failed to create directory: {str(e)}",
@@ -356,7 +394,12 @@ def safe_file_copy(
         
         # Copy file
         shutil.copy2(src, dst)
-        logger.debug("File copied", source=str(src), destination=str(dst))
+        logger.debug(
+            "File copied",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.universal.shared.utils",
+            data={"source": str(src), "destination": str(dst)}
+        )
         
         return dst
         

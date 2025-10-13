@@ -26,25 +26,34 @@ from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from collections import defaultdict
 
-import structlog
 from bs4 import BeautifulSoup, Comment
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 # Import required modules - Using new HTTPClient with connection pooling
 from app.http_client import HTTPClient, ClientConfig, ConnectionPoolConfig
-from app.tools.unified_tool_repository import ToolCategory
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 # JavaScript execution capabilities
 try:
     from playwright.async_api import async_playwright, Browser, BrowserContext, Page
     PLAYWRIGHT_AVAILABLE = True
-    logger.info("✅ Playwright available for JavaScript execution")
+    logger.info(
+        "✅ Playwright available for JavaScript execution",
+        LogCategory.TOOL_OPERATIONS,
+        "app.tools.web_research_tool"
+    )
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
-    logger.warning("⚠️ Playwright not available - JavaScript execution disabled")
+    logger.warn(
+        "⚠️ Playwright not available - JavaScript execution disabled",
+        LogCategory.TOOL_OPERATIONS,
+        "app.tools.web_research_tool"
+    )
 
 
 @dataclass
@@ -459,7 +468,12 @@ class RevolutionaryWebResearchTool(BaseTool):
         time_since_last = now - last_request
         if time_since_last < final_delay:
             sleep_time = final_delay - time_since_last
-            logger.debug(f"Human-like rate limiting {domain}: sleeping {sleep_time:.2f}s (type: {request_type})")
+            logger.debug(
+                f"Human-like rate limiting {domain}: sleeping {sleep_time:.2f}s (type: {request_type})",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"domain": domain, "sleep_time": sleep_time, "request_type": request_type}
+            )
             await asyncio.sleep(sleep_time)
 
         self._rate_limiter[domain] = time.time()
@@ -481,7 +495,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                         jitter = random.uniform(0, backoff_delay * 0.1)  # 10% jitter
                         total_delay = backoff_delay + jitter
 
-                        logger.info(f"🔄 Rate limited (429), retrying in {total_delay:.1f}s (attempt {attempt + 1}/{max_retries})")
+                        logger.info(
+                            f"🔄 Rate limited (429), retrying in {total_delay:.1f}s (attempt {attempt + 1}/{max_retries})",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.web_research_tool",
+                            data={"total_delay": total_delay, "attempt": attempt + 1, "max_retries": max_retries}
+                        )
                         await asyncio.sleep(total_delay)
                         continue
 
@@ -495,7 +514,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                     jitter = random.uniform(0, backoff_delay * 0.1)
                     total_delay = backoff_delay + jitter
 
-                    logger.info(f"🔄 Rate limited (exception), retrying in {total_delay:.1f}s (attempt {attempt + 1}/{max_retries})")
+                    logger.info(
+                        f"🔄 Rate limited (exception), retrying in {total_delay:.1f}s (attempt {attempt + 1}/{max_retries})",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"total_delay": total_delay, "attempt": attempt + 1, "max_retries": max_retries}
+                    )
                     await asyncio.sleep(total_delay)
                     continue
                 else:
@@ -550,7 +574,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 'previous_close': info.get('previousClose')
             }
         except Exception as e:
-            logger.debug(f"Yahoo Finance data failed: {e}")
+            logger.debug(
+                "Yahoo Finance data failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return None
 
     async def _get_alpha_vantage_data(self, symbol: str) -> Dict[str, Any]:
@@ -566,7 +595,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 'sma_200': '145.2'
             }
         except Exception as e:
-            logger.debug(f"Alpha Vantage data failed: {e}")
+            logger.debug(
+                "Alpha Vantage data failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return None
 
     async def _get_finnhub_data(self, symbol: str) -> Dict[str, Any]:
@@ -582,7 +616,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 'pc': '149.20'  # previous close
             }
         except Exception as e:
-            logger.debug(f"Finnhub data failed: {e}")
+            logger.debug(
+                "Finnhub data failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return None
 
     async def _search_financial_data(self, query: str, num_results: int = 5) -> Dict[str, Any]:
@@ -627,7 +666,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                             }
                         })
             except Exception as e:
-                logger.debug(f"Yahoo Finance API failed: {e}")
+                logger.debug(
+                    "Yahoo Finance API failed",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    error=e
+                )
 
             # Method 2: Alpha Vantage API (FREE, 5 calls/minute, 500/day)
             try:
@@ -656,7 +700,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                             }
                         })
             except Exception as e:
-                logger.debug(f"Alpha Vantage API failed: {e}")
+                logger.debug(
+                    "Alpha Vantage API failed",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    error=e
+                )
 
             # Method 3: Finnhub API (FREE, 60 calls/minute)
             try:
@@ -685,7 +734,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                             }
                         })
             except Exception as e:
-                logger.debug(f"Finnhub API failed: {e}")
+                logger.debug(
+                    "Finnhub API failed",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    error=e
+                )
 
             # Method 4: Yahoo Finance RSS Feed (fallback)
             try:
@@ -715,9 +769,19 @@ class RevolutionaryWebResearchTool(BaseTool):
                                         'credibility_score': 0.95
                                     })
                         except Exception as e:
-                            logger.debug(f"RSS parsing failed: {e}")
+                            logger.debug(
+                                "RSS parsing failed",
+                                LogCategory.TOOL_OPERATIONS,
+                                "app.tools.web_research_tool",
+                                error=e
+                            )
             except Exception as e:
-                logger.debug(f"Yahoo RSS failed: {e}")
+                logger.debug(
+                    "Yahoo RSS failed",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    error=e
+                )
 
             # Method 2: Financial news aggregator APIs
             try:
@@ -754,10 +818,21 @@ class RevolutionaryWebResearchTool(BaseTool):
                                         })
                                 break  # Success, don't try other APIs
                     except Exception as e:
-                        logger.debug(f"Financial API {api_url} failed: {e}")
+                        logger.debug(
+                            f"Financial API {api_url} failed",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.web_research_tool",
+                            data={"api_url": api_url},
+                            error=e
+                        )
                         continue
             except Exception as e:
-                logger.debug(f"Financial APIs failed: {e}")
+                logger.debug(
+                    "Financial APIs failed",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    error=e
+                )
 
             if results:
                 return {
@@ -772,13 +847,22 @@ class RevolutionaryWebResearchTool(BaseTool):
                 return {"success": False, "error": "No financial data found", "results": []}
 
         except Exception as e:
-            logger.error(f"Financial data search failed: {str(e)}")
+            logger.error(
+                "Financial data search failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return {"success": False, "error": str(e), "results": []}
 
     async def _get_browser_page(self) -> Optional[Tuple[Browser, BrowserContext, Page]]:
         """REVOLUTIONARY stealth browser with maximum anti-detection capabilities."""
         if not PLAYWRIGHT_AVAILABLE:
-            logger.warning("Playwright not available - falling back to HTTP client")
+            logger.warn(
+                "Playwright not available - falling back to HTTP client",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool"
+            )
             return None
 
         try:
@@ -965,13 +1049,22 @@ class RevolutionaryWebResearchTool(BaseTool):
             return browser, context, page
 
         except Exception as e:
-            logger.error(f"Failed to create browser page: {e}")
+            logger.error(
+                "Failed to create browser page",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return None
 
     async def _search_with_javascript(self, search_engine: str, query: str) -> Dict[str, Any]:
         """Perform search using JavaScript execution for dynamic content."""
         if not PLAYWRIGHT_AVAILABLE:
-            logger.warning("JavaScript execution not available - falling back to HTTP client")
+            logger.warn(
+                "JavaScript execution not available - falling back to HTTP client",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool"
+            )
             return {"success": False, "error": "JavaScript execution not available", "results": []}
 
         browser_data = await self._get_browser_page()
@@ -997,19 +1090,35 @@ class RevolutionaryWebResearchTool(BaseTool):
                 return {"success": False, "error": f"JavaScript search not implemented for {search_engine}", "results": []}
 
         except Exception as e:
-            logger.error(f"JavaScript search failed for {search_engine}: {e}")
+            logger.error(
+                f"JavaScript search failed for {search_engine}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"search_engine": search_engine},
+                error=e
+            )
             return {"success": False, "error": f"JavaScript search error: {str(e)}", "results": []}
         finally:
             try:
                 await context.close()
                 await browser.close()
             except Exception as e:
-                logger.warning(f"Error closing browser: {e}")
+                logger.warn(
+                    "Error closing browser",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    error=e
+                )
 
     async def _search_google_js(self, page: Page, query: str) -> Dict[str, Any]:
         """Search Google using JavaScript execution."""
         try:
-            logger.info(f"🔍 JavaScript Google search: {query}")
+            logger.info(
+                f"🔍 JavaScript Google search: {query}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"query": query}
+            )
 
             # Navigate to Google
             await page.goto("https://www.google.com", wait_until="networkidle")
@@ -1032,7 +1141,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 await search_box.fill(query)
                 await search_box.press('Enter')
             except Exception as e:
-                logger.error(f"Failed to find Google search box: {e}")
+                logger.error(
+                    "Failed to find Google search box",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    error=e
+                )
                 return {"success": False, "error": f"Search box not found: {str(e)}", "results": []}
 
             # Wait for search results to load with timeout
@@ -1040,7 +1154,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 await page.wait_for_load_state("networkidle", timeout=10000)
                 await asyncio.sleep(2)  # Reduced wait time
             except Exception as e:
-                logger.warning(f"Page load timeout, proceeding anyway: {e}")
+                logger.warn(
+                    "Page load timeout, proceeding anyway",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    error=e
+                )
                 # Continue anyway, sometimes results are available even if not fully loaded
 
             # Extract search results using JavaScript
@@ -1084,24 +1203,44 @@ class RevolutionaryWebResearchTool(BaseTool):
                 }
             """)
 
-            logger.info(f"✅ JavaScript Google search found {len(results)} results")
+            logger.info(
+                f"✅ JavaScript Google search found {len(results)} results",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"results_count": len(results)}
+            )
             return {"success": True, "results": results, "engine": "google"}
 
         except Exception as e:
-            logger.error(f"JavaScript Google search failed: {e}")
+            logger.error(
+                "JavaScript Google search failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return {"success": False, "error": f"Google JS search error: {str(e)}", "results": []}
 
     async def _search_bing_js(self, page: Page, query: str) -> Dict[str, Any]:
         """Search Bing using JavaScript execution."""
         try:
-            logger.info(f"🔍 JavaScript Bing search: {query}")
+            logger.info(
+                f"🔍 JavaScript Bing search: {query}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"query": query}
+            )
 
             # Navigate to Bing with timeout
             try:
                 await page.goto("https://www.bing.com", wait_until="networkidle", timeout=15000)
                 await asyncio.sleep(1)  # Reduced wait time
             except Exception as e:
-                logger.error(f"Failed to load Bing homepage: {e}")
+                logger.error(
+                    "Failed to load Bing homepage",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    error=e
+                )
                 return {"success": False, "error": f"Bing homepage load failed: {str(e)}", "results": []}
 
             # Handle cookie consent if present
@@ -1117,7 +1256,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 await search_box.fill(query)
                 await search_box.press('Enter')
             except Exception as e:
-                logger.error(f"Failed to find Bing search box: {e}")
+                logger.error(
+                    "Failed to find Bing search box",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    error=e
+                )
                 return {"success": False, "error": f"Bing search box not found: {str(e)}", "results": []}
 
             # Wait for search results to load with timeout
@@ -1125,7 +1269,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 await page.wait_for_load_state("networkidle", timeout=10000)
                 await asyncio.sleep(1)  # Reduced wait time
             except Exception as e:
-                logger.warning(f"Bing page load timeout, proceeding anyway: {e}")
+                logger.warn(
+                    "Bing page load timeout, proceeding anyway",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    error=e
+                )
                 # Continue anyway, sometimes results are available even if not fully loaded
 
             # Extract search results using JavaScript
@@ -1169,17 +1318,32 @@ class RevolutionaryWebResearchTool(BaseTool):
                 }
             """)
 
-            logger.info(f"✅ JavaScript Bing search found {len(results)} results")
+            logger.info(
+                f"✅ JavaScript Bing search found {len(results)} results",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"results_count": len(results)}
+            )
             return {"success": True, "results": results, "engine": "bing"}
 
         except Exception as e:
-            logger.error(f"JavaScript Bing search failed: {e}")
+            logger.error(
+                "JavaScript Bing search failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return {"success": False, "error": f"Bing JS search error: {str(e)}", "results": []}
 
     async def _search_duckduckgo_js(self, page: Page, query: str) -> Dict[str, Any]:
         """Search DuckDuckGo using JavaScript execution."""
         try:
-            logger.info(f"🔍 JavaScript DuckDuckGo search: {query}")
+            logger.info(
+                f"🔍 JavaScript DuckDuckGo search: {query}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"query": query}
+            )
 
             # Navigate to DuckDuckGo
             await page.goto("https://duckduckgo.com", wait_until="networkidle")
@@ -1221,17 +1385,32 @@ class RevolutionaryWebResearchTool(BaseTool):
                 }
             """)
 
-            logger.info(f"✅ JavaScript DuckDuckGo search found {len(results)} results")
+            logger.info(
+                f"✅ JavaScript DuckDuckGo search found {len(results)} results",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"results_count": len(results)}
+            )
             return {"success": True, "results": results, "engine": "duckduckgo"}
 
         except Exception as e:
-            logger.error(f"JavaScript DuckDuckGo search failed: {e}")
+            logger.error(
+                "JavaScript DuckDuckGo search failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return {"success": False, "error": f"DuckDuckGo JS search error: {str(e)}", "results": []}
 
     async def _search_startpage_js(self, page: Page, query: str) -> Dict[str, Any]:
         """Search Startpage using JavaScript execution."""
         try:
-            logger.info(f"🔍 JavaScript Startpage search: {query}")
+            logger.info(
+                f"🔍 JavaScript Startpage search: {query}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"query": query}
+            )
 
             # Navigate to Startpage
             await page.goto("https://www.startpage.com", wait_until="networkidle")
@@ -1273,17 +1452,32 @@ class RevolutionaryWebResearchTool(BaseTool):
                 }
             """)
 
-            logger.info(f"✅ JavaScript Startpage search found {len(results)} results")
+            logger.info(
+                f"✅ JavaScript Startpage search found {len(results)} results",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"results_count": len(results)}
+            )
             return {"success": True, "results": results, "engine": "startpage"}
 
         except Exception as e:
-            logger.error(f"JavaScript Startpage search failed: {e}")
+            logger.error(
+                "JavaScript Startpage search failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return {"success": False, "error": f"Startpage JS search error: {str(e)}", "results": []}
 
     async def _search_yandex_js(self, page: Page, query: str) -> Dict[str, Any]:
         """Search Yandex using JavaScript execution."""
         try:
-            logger.info(f"🔍 JavaScript Yandex search: {query}")
+            logger.info(
+                f"🔍 JavaScript Yandex search: {query}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"query": query}
+            )
 
             # Navigate to Yandex
             await page.goto("https://yandex.com", wait_until="networkidle")
@@ -1325,17 +1519,32 @@ class RevolutionaryWebResearchTool(BaseTool):
                 }
             """)
 
-            logger.info(f"✅ JavaScript Yandex search found {len(results)} results")
+            logger.info(
+                f"✅ JavaScript Yandex search found {len(results)} results",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"results_count": len(results)}
+            )
             return {"success": True, "results": results, "engine": "yandex"}
 
         except Exception as e:
-            logger.error(f"JavaScript Yandex search failed: {e}")
+            logger.error(
+                "JavaScript Yandex search failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return {"success": False, "error": f"Yandex JS search error: {str(e)}", "results": []}
 
     async def _search_brave_js(self, page: Page, query: str) -> Dict[str, Any]:
         """Search Brave using JavaScript execution."""
         try:
-            logger.info(f"🔍 JavaScript Brave search: {query}")
+            logger.info(
+                f"🔍 JavaScript Brave search: {query}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"query": query}
+            )
 
             # Navigate to Brave Search
             await page.goto("https://search.brave.com", wait_until="networkidle")
@@ -1377,11 +1586,21 @@ class RevolutionaryWebResearchTool(BaseTool):
                 }
             """)
 
-            logger.info(f"✅ JavaScript Brave search found {len(results)} results")
+            logger.info(
+                f"✅ JavaScript Brave search found {len(results)} results",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"results_count": len(results)}
+            )
             return {"success": True, "results": results, "engine": "brave"}
 
         except Exception as e:
-            logger.error(f"JavaScript Brave search failed: {e}")
+            logger.error(
+                "JavaScript Brave search failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return {"success": False, "error": f"Brave JS search error: {str(e)}", "results": []}
 
     def _calculate_content_hash(self, content: str) -> str:
@@ -1469,14 +1688,23 @@ class RevolutionaryWebResearchTool(BaseTool):
         - Adaptable to any search topic or domain
         """
         try:
-            logger.info(f"🔍 Universal search initiated: {request.query}")
+            logger.info(
+                f"🔍 Universal search initiated: {request.query}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"query": request.query}
+            )
 
             # Check cache first
             cache_key = self._calculate_content_hash(f"{request.query}_{request.search_type}_{request.num_results}")
             if cache_key in self._search_cache:
                 cached_result = self._search_cache[cache_key]
                 if (datetime.now(timezone.utc) - datetime.fromisoformat(cached_result['timestamp'])).seconds < 3600:  # 1 hour cache
-                    logger.info("📋 Returning cached search results")
+                    logger.info(
+                        "📋 Returning cached search results",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool"
+                    )
                     return cached_result
 
             # Smart fallback chain - try engines in order until we get results
@@ -1489,14 +1717,28 @@ class RevolutionaryWebResearchTool(BaseTool):
 
             if is_stock_query:
                 try:
-                    logger.info("💰 Trying financial data sources first")
+                    logger.info(
+                        "💰 Trying financial data sources first",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool"
+                    )
                     financial_result = await self._search_financial_data(request.query, request.num_results)
                     if financial_result.get('success') and financial_result.get('results'):
                         all_results.extend(financial_result['results'])
                         successful_engines.append('financial_data')
-                        logger.info(f"✅ Financial data returned {len(financial_result['results'])} results")
+                        logger.info(
+                            f"✅ Financial data returned {len(financial_result['results'])} results",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.web_research_tool",
+                            data={"results_count": len(financial_result['results'])}
+                        )
                 except Exception as e:
-                    logger.debug(f"Financial data search failed: {e}")
+                    logger.debug(
+                        "Financial data search failed",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        error=e
+                    )
 
             # REVOLUTIONARY search engine priority order (most bot-friendly first)
             # Prioritize engines with less aggressive anti-bot measures
@@ -1516,7 +1758,12 @@ class RevolutionaryWebResearchTool(BaseTool):
             # Try each engine until we get good results
             for engine in engines_to_try:
                 try:
-                    logger.info(f"🔍 Trying search engine: {engine}")
+                    logger.info(
+                        f"🔍 Trying search engine: {engine}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"engine": engine}
+                    )
 
                     if engine == "duckduckgo":
                         engine_result = await self._search_duckduckgo_advanced(request)
@@ -1538,7 +1785,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                     if isinstance(engine_result, dict) and engine_result.get('success'):
                         results = engine_result.get('results', [])
                         if results:  # Only use if we got actual results
-                            logger.info(f"✅ {engine} returned {len(results)} results")
+                            logger.info(
+                                f"✅ {engine} returned {len(results)} results",
+                                LogCategory.TOOL_OPERATIONS,
+                                "app.tools.web_research_tool",
+                                data={"engine": engine, "results_count": len(results)}
+                            )
                             successful_engines.append(engine)
 
                             # Deduplicate results
@@ -1552,20 +1804,40 @@ class RevolutionaryWebResearchTool(BaseTool):
                             if len(all_results) >= request.num_results:
                                 break
                         else:
-                            logger.warning(f"⚠️ {engine} returned no results")
+                            logger.warn(
+                                f"⚠️ {engine} returned no results",
+                                LogCategory.TOOL_OPERATIONS,
+                                "app.tools.web_research_tool",
+                                data={"engine": engine}
+                            )
                     else:
                         error_msg = engine_result.get('error', 'Unknown error') if isinstance(engine_result, dict) else str(engine_result)
-                        logger.warning(f"⚠️ {engine} search failed: {error_msg}")
+                        logger.warn(
+                            f"⚠️ {engine} search failed: {error_msg}",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.web_research_tool",
+                            data={"engine": engine, "error_msg": error_msg}
+                        )
 
                 except Exception as e:
-                    logger.error(f"❌ {engine} search error: {str(e)}")
+                    logger.error(
+                        f"❌ {engine} search error",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"engine": engine},
+                        error=e
+                    )
                     # Add a small delay before trying next engine to avoid overwhelming servers
                     await asyncio.sleep(1)
                     continue
 
             # If no engines worked, try one last desperate fallback
             if not all_results:
-                logger.warning("🚨 All primary search engines failed, trying emergency fallback")
+                logger.warn(
+                    "🚨 All primary search engines failed, trying emergency fallback",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool"
+                )
 
                 # Emergency fallback: Try a simple DuckDuckGo instant answer
                 try:
@@ -1583,9 +1855,18 @@ class RevolutionaryWebResearchTool(BaseTool):
                                     'type': 'instant_answer',
                                     'source': 'DuckDuckGo Emergency Fallback'
                                 })
-                                logger.info("✅ Emergency fallback provided 1 result")
+                                logger.info(
+                                    "✅ Emergency fallback provided 1 result",
+                                    LogCategory.TOOL_OPERATIONS,
+                                    "app.tools.web_research_tool"
+                                )
                 except Exception as e:
-                    logger.debug(f"Emergency fallback also failed: {e}")
+                    logger.debug(
+                        "Emergency fallback also failed",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        error=e
+                    )
 
                 # If still no results, return informative error
                 if not all_results:
@@ -1642,11 +1923,21 @@ class RevolutionaryWebResearchTool(BaseTool):
             # Cache the result
             self._search_cache[cache_key] = result
 
-            logger.info(f"✅ Revolutionary search completed: {len(all_results)} results")
+            logger.info(
+                f"✅ Revolutionary search completed: {len(all_results)} results",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"results_count": len(all_results)}
+            )
             return result
 
         except Exception as e:
-            logger.error(f"Revolutionary search failed: {str(e)}")
+            logger.error(
+                "Revolutionary search failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -1663,7 +1954,12 @@ class RevolutionaryWebResearchTool(BaseTool):
             try:
                 return await self._search_duckduckgo_html_fallback(request)
             except Exception as e:
-                logger.debug(f"DuckDuckGo HTML method failed: {e}")
+                logger.debug(
+                    "DuckDuckGo HTML method failed",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    error=e
+                )
 
             # Method 2: Enhanced instant answer API with retry logic
             try:
@@ -1691,7 +1987,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 response_result = await self._retry_with_backoff(duckduckgo_api_search, max_retries=2)
 
                 if hasattr(response_result, 'get') and response_result.get('error'):
-                    logger.debug(f"DuckDuckGo API failed: {response_result.get('error')}")
+                    logger.debug(
+                        f"DuckDuckGo API failed: {response_result.get('error')}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"error": response_result.get('error')}
+                    )
                 else:
                     response = response_result
                     data = response.json()
@@ -1747,7 +2048,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                                 "timestamp": datetime.now(timezone.utc).isoformat()
                             }
             except Exception as e:
-                logger.debug(f"DuckDuckGo API method failed: {e}")
+                logger.debug(
+                    "DuckDuckGo API method failed",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    error=e
+                )
 
             # Method 3: Try direct search with BeautifulSoup
             try:
@@ -1773,7 +2079,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                         for selector in result_selectors:
                             result_divs = soup.select(selector)
                             if result_divs:
-                                logger.debug(f"Found {len(result_divs)} results with selector: {selector}")
+                                logger.debug(
+                                    f"Found {len(result_divs)} results with selector: {selector}",
+                                    LogCategory.TOOL_OPERATIONS,
+                                    "app.tools.web_research_tool",
+                                    data={"results_count": len(result_divs), "selector": selector}
+                                )
                                 break
 
                         for div in result_divs[:request.num_results]:
@@ -1803,7 +2114,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                                             'source': 'DuckDuckGo Web'
                                         })
                             except Exception as e:
-                                logger.debug(f"Error parsing result: {e}")
+                                logger.debug(
+                                    "Error parsing result",
+                                    LogCategory.TOOL_OPERATIONS,
+                                    "app.tools.web_research_tool",
+                                    error=e
+                                )
                                 continue
 
                         if results:
@@ -1816,7 +2132,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                                 "timestamp": datetime.now(timezone.utc).isoformat()
                             }
             except Exception as e:
-                logger.debug(f"DuckDuckGo BeautifulSoup method failed: {e}")
+                logger.debug(
+                    "DuckDuckGo BeautifulSoup method failed",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    error=e
+                )
 
             # If all methods fail, return empty results
             return {
@@ -1825,7 +2146,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 "results": []
             }
         except Exception as e:
-            logger.error(f"DuckDuckGo search failed: {str(e)}")
+            logger.error(
+                "DuckDuckGo search failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -1896,15 +2222,29 @@ class RevolutionaryWebResearchTool(BaseTool):
                         results.append(result)
 
                     except Exception as e:
-                        logger.debug(f"Error parsing result: {e}")
+                        logger.debug(
+                            "Error parsing result",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.web_research_tool",
+                            error=e
+                        )
                         continue
 
                 # If no results found, try JavaScript fallback
                 if not results:
-                    logger.info("🚀 Falling back to JavaScript execution for DuckDuckGo search")
+                    logger.info(
+                        "🚀 Falling back to JavaScript execution for DuckDuckGo search",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool"
+                    )
                     js_result = await self._search_with_javascript("duckduckgo", request.query)
                     if js_result["success"] and js_result["results"]:
-                        logger.info(f"✅ JavaScript fallback successful: {len(js_result['results'])} results")
+                        logger.info(
+                            f"✅ JavaScript fallback successful: {len(js_result['results'])} results",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.web_research_tool",
+                            data={"results_count": len(js_result['results'])}
+                        )
                         # Convert JavaScript results to the expected format
                         converted_results = []
                         for result in js_result["results"][:request.num_results]:
@@ -1930,7 +2270,11 @@ class RevolutionaryWebResearchTool(BaseTool):
                             "execution_time": time.time() - start_time
                         }
                     else:
-                        logger.warning("JavaScript fallback also failed")
+                        logger.warn(
+                            "JavaScript fallback also failed",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.web_research_tool"
+                        )
                         return {"success": False, "error": "No search results found in DuckDuckGo response (HTTP and JS failed)", "results": []}
 
                 return {
@@ -1943,7 +2287,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 }
 
         except Exception as e:
-            logger.error(f"DuckDuckGo HTML search failed: {str(e)}")
+            logger.error(
+                "DuckDuckGo HTML search failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -1984,11 +2333,21 @@ class RevolutionaryWebResearchTool(BaseTool):
                         results.append(result)
 
                     except Exception as e:
-                        logger.debug(f"Error parsing JSON result: {e}")
+                        logger.debug(
+                            "Error parsing JSON result",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.web_research_tool",
+                            error=e
+                        )
                         continue
 
         except Exception as e:
-            logger.debug(f"Error parsing JSON data: {e}")
+            logger.debug(
+                "Error parsing JSON data",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
 
         return results
 
@@ -2030,9 +2389,24 @@ class RevolutionaryWebResearchTool(BaseTool):
                 response = await client.get("/search", params=params)
 
                 if response.status_code != 200:
-                    logger.warning(f"Google search failed with status {response.status_code}")
-                    logger.debug(f"Response headers: {dict(response.headers)}")
-                    logger.debug(f"Response content preview: {response.text[:500]}")
+                    logger.warn(
+                        f"Google search failed with status {response.status_code}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"status_code": response.status_code}
+                    )
+                    logger.debug(
+                        f"Response headers: {dict(response.headers)}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"headers": dict(response.headers)}
+                    )
+                    logger.debug(
+                        f"Response content preview: {response.text[:500]}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"content_preview": response.text[:500]}
+                    )
                     return {"success": False, "error": f"HTTP {response.status_code}", "results": []}
 
                 soup = BeautifulSoup(response.text, 'html.parser')
@@ -2040,13 +2414,32 @@ class RevolutionaryWebResearchTool(BaseTool):
 
                 # Debug: Check if we got blocked
                 if "unusual traffic" in response.text.lower() or "captcha" in response.text.lower():
-                    logger.warning("Google detected unusual traffic - likely blocked")
+                    logger.warn(
+                        "Google detected unusual traffic - likely blocked",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool"
+                    )
                     return {"success": False, "error": "Blocked by Google anti-bot", "results": []}
 
                 # Enhanced debugging: Log response details
-                logger.debug(f"Google response status: {response.status_code}")
-                logger.debug(f"Google response length: {len(response.text)} characters")
-                logger.debug(f"Google response headers: {dict(response.headers)}")
+                logger.debug(
+                    f"Google response status: {response.status_code}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    data={"status_code": response.status_code}
+                )
+                logger.debug(
+                    f"Google response length: {len(response.text)} characters",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    data={"response_length": len(response.text)}
+                )
+                logger.debug(
+                    f"Google response headers: {dict(response.headers)}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    data={"headers": dict(response.headers)}
+                )
 
                 # Check for common blocking indicators
                 response_lower = response.text.lower()
@@ -2058,42 +2451,95 @@ class RevolutionaryWebResearchTool(BaseTool):
 
                 found_indicators = [indicator for indicator in blocking_indicators if indicator in response_lower]
                 if found_indicators:
-                    logger.warning(f"Google blocking indicators found: {found_indicators}")
+                    logger.warn(
+                        f"Google blocking indicators found: {found_indicators}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"indicators": found_indicators}
+                    )
                     # Log a sample of the response to see what we're getting
-                    logger.debug(f"Google response sample (first 500 chars): {response.text[:500]}")
+                    logger.debug(
+                        f"Google response sample (first 500 chars): {response.text[:500]}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"response_sample": response.text[:500]}
+                    )
                     return {"success": False, "error": f"Blocked by Google: {found_indicators}", "results": []}
 
                 # Parse Google search results - try multiple selectors
                 result_divs = soup.find_all('div', class_='g')
-                logger.debug(f"Google primary selector 'div.g' found {len(result_divs)} results")
+                logger.debug(
+                    f"Google primary selector 'div.g' found {len(result_divs)} results",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    data={"results_count": len(result_divs)}
+                )
 
                 if not result_divs:
                     # Try alternative selectors
                     result_divs = soup.find_all('div', {'data-ved': True})
-                    logger.debug(f"Google alternative selector 'div[data-ved]' found {len(result_divs)} results")
+                    logger.debug(
+                        f"Google alternative selector 'div[data-ved]' found {len(result_divs)} results",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"results_count": len(result_divs)}
+                    )
 
                     if not result_divs:
                         # Try even more selectors
                         result_divs = soup.find_all('div', class_='tF2Cxc')  # New Google result class
-                        logger.debug(f"Google newer selector 'div.tF2Cxc' found {len(result_divs)} results")
+                        logger.debug(
+                            f"Google newer selector 'div.tF2Cxc' found {len(result_divs)} results",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.web_research_tool",
+                            data={"results_count": len(result_divs)}
+                        )
 
                         if not result_divs:
                             # Log the page structure to understand what we're getting
-                            logger.warning("No Google results found with any selector")
-                            logger.debug(f"Google page title: {soup.title.string if soup.title else 'No title'}")
+                            logger.warn(
+                                "No Google results found with any selector",
+                                LogCategory.TOOL_OPERATIONS,
+                                "app.tools.web_research_tool"
+                            )
+                            logger.debug(
+                                f"Google page title: {soup.title.string if soup.title else 'No title'}",
+                                LogCategory.TOOL_OPERATIONS,
+                                "app.tools.web_research_tool",
+                                data={"page_title": soup.title.string if soup.title else 'No title'}
+                            )
 
                             # Log some of the page structure
                             all_divs = soup.find_all('div')[:10]  # First 10 divs
-                            logger.debug(f"Google page has {len(soup.find_all('div'))} total divs")
+                            logger.debug(
+                                f"Google page has {len(soup.find_all('div'))} total divs",
+                                LogCategory.TOOL_OPERATIONS,
+                                "app.tools.web_research_tool",
+                                data={"total_divs": len(soup.find_all('div'))}
+                            )
                             for i, div in enumerate(all_divs):
                                 classes = div.get('class', [])
-                                logger.debug(f"Div {i}: classes={classes}")
+                                logger.debug(
+                                    f"Div {i}: classes={classes}",
+                                    LogCategory.TOOL_OPERATIONS,
+                                    "app.tools.web_research_tool",
+                                    data={"div_index": i, "classes": classes}
+                                )
 
                             # Fallback to JavaScript execution
-                            logger.info("🚀 Falling back to JavaScript execution for Google search")
+                            logger.info(
+                                "🚀 Falling back to JavaScript execution for Google search",
+                                LogCategory.TOOL_OPERATIONS,
+                                "app.tools.web_research_tool"
+                            )
                             js_result = await self._search_with_javascript("google", request.query)
                             if js_result["success"] and js_result["results"]:
-                                logger.info(f"✅ JavaScript fallback successful: {len(js_result['results'])} results")
+                                logger.info(
+                                    f"✅ JavaScript fallback successful: {len(js_result['results'])} results",
+                                    LogCategory.TOOL_OPERATIONS,
+                                    "app.tools.web_research_tool",
+                                    data={"results_count": len(js_result['results'])}
+                                )
                                 # Convert JavaScript results to the expected format
                                 converted_results = []
                                 for result in js_result["results"][:request.num_results]:
@@ -2119,7 +2565,11 @@ class RevolutionaryWebResearchTool(BaseTool):
                                     "execution_time": time.time() - start_time
                                 }
                             else:
-                                logger.warning("JavaScript fallback also failed")
+                                logger.warn(
+                                    "JavaScript fallback also failed",
+                                    LogCategory.TOOL_OPERATIONS,
+                                    "app.tools.web_research_tool"
+                                )
                                 return {"success": False, "error": "No search results found in Google response (HTTP and JS failed)", "results": []}
 
                 for div in result_divs[:request.num_results]:
@@ -2171,7 +2621,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                         results.append(result)
 
                     except Exception as e:
-                        logger.debug(f"Error parsing Google result: {e}")
+                        logger.debug(
+                            "Error parsing Google result",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.web_research_tool",
+                            error=e
+                        )
                         continue
 
                 return {
@@ -2184,7 +2639,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 }
 
         except Exception as e:
-            logger.error(f"Google search failed: {str(e)}")
+            logger.error(
+                "Google search failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -2216,18 +2676,48 @@ class RevolutionaryWebResearchTool(BaseTool):
                 response = await client.get("/search", params=params)
 
                 if response.status_code != 200:
-                    logger.warning(f"Bing search failed with status {response.status_code}")
-                    logger.debug(f"Response headers: {dict(response.headers)}")
-                    logger.debug(f"Response content preview: {response.text[:500]}")
+                    logger.warn(
+                        f"Bing search failed with status {response.status_code}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"status_code": response.status_code}
+                    )
+                    logger.debug(
+                        f"Response headers: {dict(response.headers)}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"headers": dict(response.headers)}
+                    )
+                    logger.debug(
+                        f"Response content preview: {response.text[:500]}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"content_preview": response.text[:500]}
+                    )
                     return {"success": False, "error": f"HTTP {response.status_code}", "results": []}
 
                 soup = BeautifulSoup(response.text, 'html.parser')
                 results = []
 
                 # Enhanced debugging: Log response details
-                logger.debug(f"Bing response status: {response.status_code}")
-                logger.debug(f"Bing response length: {len(response.text)} characters")
-                logger.debug(f"Bing response headers: {dict(response.headers)}")
+                logger.debug(
+                    f"Bing response status: {response.status_code}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    data={"status_code": response.status_code}
+                )
+                logger.debug(
+                    f"Bing response length: {len(response.text)} characters",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    data={"response_length": len(response.text)}
+                )
+                logger.debug(
+                    f"Bing response headers: {dict(response.headers)}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    data={"headers": dict(response.headers)}
+                )
 
                 # Check for common blocking indicators
                 response_lower = response.text.lower()
@@ -2239,46 +2729,104 @@ class RevolutionaryWebResearchTool(BaseTool):
 
                 found_indicators = [indicator for indicator in blocking_indicators if indicator in response_lower]
                 if found_indicators:
-                    logger.warning(f"Bing blocking indicators found: {found_indicators}")
+                    logger.warn(
+                        f"Bing blocking indicators found: {found_indicators}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"indicators": found_indicators}
+                    )
                     # Log a sample of the response to see what we're getting
-                    logger.debug(f"Bing response sample (first 500 chars): {response.text[:500]}")
+                    logger.debug(
+                        f"Bing response sample (first 500 chars): {response.text[:500]}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"response_sample": response.text[:500]}
+                    )
                     return {"success": False, "error": f"Blocked by Bing: {found_indicators}", "results": []}
 
                 # Parse Bing search results - try multiple selectors
                 result_divs = soup.find_all('li', class_='b_algo')
-                logger.debug(f"Bing primary selector 'li.b_algo' found {len(result_divs)} results")
+                logger.debug(
+                    f"Bing primary selector 'li.b_algo' found {len(result_divs)} results",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    data={"results_count": len(result_divs)}
+                )
 
                 if not result_divs:
                     # Try alternative selectors
                     result_divs = soup.find_all('div', class_='b_title')
-                    logger.debug(f"Bing alternative selector 'div.b_title' found {len(result_divs)} results")
+                    logger.debug(
+                        f"Bing alternative selector 'div.b_title' found {len(result_divs)} results",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"results_count": len(result_divs)}
+                    )
 
                     if not result_divs:
                         # Try more selectors
                         result_divs = soup.find_all('div', class_='b_algo')  # Sometimes it's div instead of li
-                        logger.debug(f"Bing div selector 'div.b_algo' found {len(result_divs)} results")
+                        logger.debug(
+                            f"Bing div selector 'div.b_algo' found {len(result_divs)} results",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.web_research_tool",
+                            data={"results_count": len(result_divs)}
+                        )
 
                         if not result_divs:
                             # Log the page structure to understand what we're getting
-                            logger.warning("No Bing results found with any selector")
-                            logger.debug(f"Bing page title: {soup.title.string if soup.title else 'No title'}")
+                            logger.warn(
+                                "No Bing results found with any selector",
+                                LogCategory.TOOL_OPERATIONS,
+                                "app.tools.web_research_tool"
+                            )
+                            logger.debug(
+                                f"Bing page title: {soup.title.string if soup.title else 'No title'}",
+                                LogCategory.TOOL_OPERATIONS,
+                                "app.tools.web_research_tool",
+                                data={"page_title": soup.title.string if soup.title else 'No title'}
+                            )
 
                             # Log some of the page structure
                             all_divs = soup.find_all('div')[:10]  # First 10 divs
                             all_lis = soup.find_all('li')[:10]   # First 10 lis
-                            logger.debug(f"Bing page has {len(soup.find_all('div'))} total divs, {len(soup.find_all('li'))} total lis")
+                            logger.debug(
+                                f"Bing page has {len(soup.find_all('div'))} total divs, {len(soup.find_all('li'))} total lis",
+                                LogCategory.TOOL_OPERATIONS,
+                                "app.tools.web_research_tool",
+                                data={"total_divs": len(soup.find_all('div')), "total_lis": len(soup.find_all('li'))}
+                            )
                             for i, div in enumerate(all_divs):
                                 classes = div.get('class', [])
-                                logger.debug(f"Div {i}: classes={classes}")
+                                logger.debug(
+                                    f"Div {i}: classes={classes}",
+                                    LogCategory.TOOL_OPERATIONS,
+                                    "app.tools.web_research_tool",
+                                    data={"div_index": i, "classes": classes}
+                                )
                             for i, li in enumerate(all_lis):
                                 classes = li.get('class', [])
-                                logger.debug(f"Li {i}: classes={classes}")
+                                logger.debug(
+                                    f"Li {i}: classes={classes}",
+                                    LogCategory.TOOL_OPERATIONS,
+                                    "app.tools.web_research_tool",
+                                    data={"li_index": i, "classes": classes}
+                                )
 
                             # Fallback to JavaScript execution
-                            logger.info("🚀 Falling back to JavaScript execution for Bing search")
+                            logger.info(
+                                "🚀 Falling back to JavaScript execution for Bing search",
+                                LogCategory.TOOL_OPERATIONS,
+                                "app.tools.web_research_tool"
+                            )
                             js_result = await self._search_with_javascript("bing", request.query)
                             if js_result["success"] and js_result["results"]:
-                                logger.info(f"✅ JavaScript fallback successful: {len(js_result['results'])} results")
+                                logger.info(
+                                    f"✅ JavaScript fallback successful: {len(js_result['results'])} results",
+                                    LogCategory.TOOL_OPERATIONS,
+                                    "app.tools.web_research_tool",
+                                    data={"results_count": len(js_result['results'])}
+                                )
                                 # Convert JavaScript results to the expected format
                                 converted_results = []
                                 for result in js_result["results"][:request.num_results]:
@@ -2304,7 +2852,11 @@ class RevolutionaryWebResearchTool(BaseTool):
                                     "execution_time": time.time() - start_time
                                 }
                             else:
-                                logger.warning("JavaScript fallback also failed")
+                                logger.warn(
+                                    "JavaScript fallback also failed",
+                                    LogCategory.TOOL_OPERATIONS,
+                                    "app.tools.web_research_tool"
+                                )
                                 return {"success": False, "error": "No search results found in Bing response (HTTP and JS failed)", "results": []}
 
                 for div in result_divs[:request.num_results]:
@@ -2350,7 +2902,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                         results.append(result)
 
                     except Exception as e:
-                        logger.debug(f"Error parsing Bing result: {e}")
+                        logger.debug(
+                            "Error parsing Bing result",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.web_research_tool",
+                            error=e
+                        )
                         continue
 
                 return {
@@ -2363,7 +2920,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 }
 
         except Exception as e:
-            logger.error(f"Bing search failed: {str(e)}")
+            logger.error(
+                "Bing search failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -2391,7 +2953,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 response = await client.get("/sp/search", params=params)
 
                 if response.status_code != 200:
-                    logger.warning(f"Startpage search failed with status {response.status_code}")
+                    logger.warn(
+                        f"Startpage search failed with status {response.status_code}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"status_code": response.status_code}
+                    )
                     return {"success": False, "error": f"HTTP {response.status_code}", "results": []}
 
                 soup = BeautifulSoup(response.text, 'html.parser')
@@ -2399,7 +2966,12 @@ class RevolutionaryWebResearchTool(BaseTool):
 
                 # Parse Startpage search results
                 result_divs = soup.find_all('div', class_='w-gl__result')
-                logger.debug(f"Startpage found {len(result_divs)} results")
+                logger.debug(
+                    f"Startpage found {len(result_divs)} results",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    data={"results_count": len(result_divs)}
+                )
 
                 for div in result_divs[:request.num_results]:
                     try:
@@ -2434,7 +3006,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                         results.append(result)
 
                     except Exception as e:
-                        logger.debug(f"Error parsing Startpage result: {e}")
+                        logger.debug(
+                            "Error parsing Startpage result",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.web_research_tool",
+                            error=e
+                        )
                         continue
 
                 return {
@@ -2447,7 +3024,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 }
 
         except Exception as e:
-            logger.error(f"Startpage search failed: {str(e)}")
+            logger.error(
+                "Startpage search failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -2471,7 +3053,12 @@ class RevolutionaryWebResearchTool(BaseTool):
 
             for instance_url in searx_instances:
                 try:
-                    logger.debug(f"Trying SearX instance: {instance_url}")
+                    logger.debug(
+                        f"Trying SearX instance: {instance_url}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"instance_url": instance_url}
+                    )
 
                     # Use retry mechanism for rate-limited instances
                     async def search_instance():
@@ -2493,7 +3080,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                             if response.status_code == 429:
                                 return {"error": "HTTP 429", "status_code": 429}
                             elif response.status_code != 200:
-                                logger.debug(f"SearX instance {instance_url} failed with status {response.status_code}")
+                                logger.debug(
+                                    f"SearX instance {instance_url} failed with status {response.status_code}",
+                                    LogCategory.TOOL_OPERATIONS,
+                                    "app.tools.web_research_tool",
+                                    data={"instance_url": instance_url, "status_code": response.status_code}
+                                )
                                 return {"error": f"HTTP {response.status_code}", "status_code": response.status_code}
 
                             return response
@@ -2526,7 +3118,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                             results.append(result)
 
                         if results:
-                            logger.info(f"✅ SearX instance {instance_url} returned {len(results)} results")
+                            logger.info(
+                                f"✅ SearX instance {instance_url} returned {len(results)} results",
+                                LogCategory.TOOL_OPERATIONS,
+                                "app.tools.web_research_tool",
+                                data={"instance_url": instance_url, "results_count": len(results)}
+                            )
                             return {
                                 "success": True,
                                 "query": request.query,
@@ -2537,17 +3134,34 @@ class RevolutionaryWebResearchTool(BaseTool):
                             }
 
                     except Exception as json_error:
-                        logger.debug(f"SearX JSON parsing failed for {instance_url}: {json_error}")
+                        logger.debug(
+                            f"SearX JSON parsing failed for {instance_url}",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.web_research_tool",
+                            data={"instance_url": instance_url},
+                            error=json_error
+                        )
                         continue
 
                 except Exception as instance_error:
-                    logger.debug(f"SearX instance {instance_url} failed: {instance_error}")
+                    logger.debug(
+                        f"SearX instance {instance_url} failed",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"instance_url": instance_url},
+                        error=instance_error
+                    )
                     continue
 
             return {"success": False, "error": "All SearX instances failed", "results": []}
 
         except Exception as e:
-            logger.error(f"SearX search failed: {str(e)}")
+            logger.error(
+                "SearX search failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -2573,7 +3187,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 response = await client.get("/search/", params=params)
 
                 if response.status_code != 200:
-                    logger.warning(f"Yandex search failed with status {response.status_code}")
+                    logger.warn(
+                        f"Yandex search failed with status {response.status_code}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"status_code": response.status_code}
+                    )
                     return {"success": False, "error": f"HTTP {response.status_code}", "results": []}
 
                 soup = BeautifulSoup(response.text, 'html.parser')
@@ -2581,7 +3200,12 @@ class RevolutionaryWebResearchTool(BaseTool):
 
                 # Parse Yandex search results
                 result_divs = soup.find_all('div', class_='organic')
-                logger.debug(f"Yandex found {len(result_divs)} results")
+                logger.debug(
+                    f"Yandex found {len(result_divs)} results",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    data={"results_count": len(result_divs)}
+                )
 
                 for div in result_divs[:request.num_results]:
                     try:
@@ -2616,7 +3240,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                         results.append(result)
 
                     except Exception as e:
-                        logger.debug(f"Error parsing Yandex result: {e}")
+                        logger.debug(
+                            "Error parsing Yandex result",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.web_research_tool",
+                            error=e
+                        )
                         continue
 
                 return {
@@ -2629,7 +3258,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 }
 
         except Exception as e:
-            logger.error(f"Yandex search failed: {str(e)}")
+            logger.error(
+                "Yandex search failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -2657,7 +3291,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 response = await client.get("/search", params=params)
 
                 if response.status_code != 200:
-                    logger.warning(f"Brave search failed with status {response.status_code}")
+                    logger.warn(
+                        f"Brave search failed with status {response.status_code}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool",
+                        data={"status_code": response.status_code}
+                    )
                     return {"success": False, "error": f"HTTP {response.status_code}", "results": []}
 
                 soup = BeautifulSoup(response.text, 'html.parser')
@@ -2677,7 +3316,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 for selector in result_selectors:
                     result_divs = soup.select(selector)
                     if result_divs:
-                        logger.debug(f"Brave found {len(result_divs)} results with selector: {selector}")
+                        logger.debug(
+                            f"Brave found {len(result_divs)} results with selector: {selector}",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.web_research_tool",
+                            data={"results_count": len(result_divs), "selector": selector}
+                        )
                         break
 
                 for div in result_divs[:request.num_results]:
@@ -2726,12 +3370,21 @@ class RevolutionaryWebResearchTool(BaseTool):
                             results.append(result)
 
                     except Exception as e:
-                        logger.debug(f"Error parsing Brave result: {e}")
+                        logger.debug(
+                            "Error parsing Brave result",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.web_research_tool",
+                            error=e
+                        )
                         continue
 
                 # If no results found, try JavaScript fallback
                 if not results and PLAYWRIGHT_AVAILABLE:
-                    logger.info("🚀 Trying Brave JavaScript fallback")
+                    logger.info(
+                        "🚀 Trying Brave JavaScript fallback",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool"
+                    )
                     try:
                         browser_data = await self._get_browser_page()
                         if browser_data:
@@ -2739,7 +3392,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                             if js_result.get('success') and js_result.get('results'):
                                 results = js_result['results'][:request.num_results]
                     except Exception as e:
-                        logger.debug(f"Brave JavaScript fallback failed: {e}")
+                        logger.debug(
+                            "Brave JavaScript fallback failed",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.web_research_tool",
+                            error=e
+                        )
 
                 return {
                     "success": True if results else False,
@@ -2751,7 +3409,12 @@ class RevolutionaryWebResearchTool(BaseTool):
                 }
 
         except Exception as e:
-            logger.error(f"Brave search failed: {str(e)}")
+            logger.error(
+                "Brave search failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -2781,7 +3444,12 @@ class RevolutionaryWebResearchTool(BaseTool):
             return results
 
         except Exception as e:
-            logger.error(f"AI ranking failed: {str(e)}")
+            logger.error(
+                "AI ranking failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return results
 
     async def _enhance_search_results(self, results: List[Dict], request: AdvancedWebSearchRequest) -> List[Dict]:
@@ -2806,7 +3474,12 @@ class RevolutionaryWebResearchTool(BaseTool):
             return results
 
         except Exception as e:
-            logger.error(f"Result enhancement failed: {str(e)}")
+            logger.error(
+                "Result enhancement failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return results
 
     def _extract_entities(self, text: str) -> Dict[str, List[str]]:
@@ -2880,7 +3553,12 @@ class RevolutionaryWebResearchTool(BaseTool):
             return summary or "Multiple sources provide information about the search topic."
 
         except Exception as e:
-            logger.error(f"Summary generation failed: {str(e)}")
+            logger.error(
+                "Summary generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return "Summary generation failed."
 
     async def revolutionary_scrape(self, request: RevolutionaryScrapingRequest) -> Dict[str, Any]:
@@ -2895,14 +3573,23 @@ class RevolutionaryWebResearchTool(BaseTool):
         - Multi-format content support for any site type
         """
         try:
-            logger.info(f"🕷️ Universal scraping initiated: {request.url}")
+            logger.info(
+                f"🕷️ Universal scraping initiated: {request.url}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"url": request.url}
+            )
 
             # Check cache first
             cache_key = self._calculate_content_hash(f"{request.url}_{request.scraping_mode}")
             if cache_key in self._content_cache:
                 cached_result = self._content_cache[cache_key]
                 if (datetime.now(timezone.utc) - datetime.fromisoformat(cached_result['timestamp'])).seconds < 1800:  # 30 min cache
-                    logger.info("📋 Returning cached scraping results")
+                    logger.info(
+                        "📋 Returning cached scraping results",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.web_research_tool"
+                    )
                     return cached_result
 
             # Parse domain for intelligent rate limiting
@@ -3096,18 +3783,29 @@ class RevolutionaryWebResearchTool(BaseTool):
                 # Cache the result
                 self._content_cache[cache_key] = result
 
-                logger.info(f"✅ Revolutionary scraping completed: {request.url}")
+                logger.info(
+                    f"✅ Revolutionary scraping completed: {request.url}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.web_research_tool",
+                    data={"url": request.url}
+                )
                 return result
 
         except Exception as e:
-            logger.error(f"Revolutionary scraping failed for {request.url}: {str(e)}")
+            logger.error(
+                f"Revolutionary scraping failed for {request.url}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"url": request.url},
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
                 "url": request.url,
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
-    
+
     def _run(self, query: str = None, url: str = None, action: str = "search", **kwargs) -> str:
         """Synchronous wrapper for revolutionary web research operations."""
         return asyncio.run(self._arun(query=query, url=url, action=action, **kwargs))
@@ -3126,7 +3824,12 @@ class RevolutionaryWebResearchTool(BaseTool):
             JSON string with comprehensive results for any search type
         """
         try:
-            logger.info(f"🌐 Universal Web Search Tool - Action: {action}")
+            logger.info(
+                f"🌐 Universal Web Search Tool - Action: {action}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"action": action}
+            )
 
             if action == "search" or action == "revolutionary_search":
                 if not query:
@@ -3224,7 +3927,13 @@ class RevolutionaryWebResearchTool(BaseTool):
             return json.dumps(result, indent=2, default=str)
 
         except Exception as e:
-            logger.error(f"Revolutionary web research tool error: {str(e)}")
+            logger.error(
+                "Revolutionary web research tool error",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                data={"action": action},
+                error=e
+            )
             return json.dumps({
                 "success": False,
                 "error": str(e),
@@ -3235,7 +3944,11 @@ class RevolutionaryWebResearchTool(BaseTool):
     async def intelligent_analysis(self, request: IntelligentAnalysisRequest) -> Dict[str, Any]:
         """AI-powered content analysis with multiple insights."""
         try:
-            logger.info("🧠 Performing intelligent content analysis")
+            logger.info(
+                "🧠 Performing intelligent content analysis",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool"
+            )
 
             result = {
                 "success": True,
@@ -3279,13 +3992,18 @@ class RevolutionaryWebResearchTool(BaseTool):
             return result
 
         except Exception as e:
-            logger.error(f"Intelligent analysis failed: {str(e)}")
+            logger.error(
+                "Intelligent analysis failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
-    
+
     async def cleanup(self):
         """Clean up resources and caches."""
         try:
@@ -3295,9 +4013,18 @@ class RevolutionaryWebResearchTool(BaseTool):
             self._analysis_cache.clear()
             self._rate_limiter.clear()
 
-            logger.info("🧹 Universal Web Search Tool cleaned up successfully")
+            logger.info(
+                "🧹 Universal Web Search Tool cleaned up successfully",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool"
+            )
         except Exception as e:
-            logger.error(f"Cleanup failed: {str(e)}")
+            logger.error(
+                "Cleanup failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.web_research_tool",
+                error=e
+            )
 
 
 # Create the universal tool instance

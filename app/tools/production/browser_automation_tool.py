@@ -30,9 +30,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
-import structlog
 from pydantic import BaseModel, Field
 from langchain.tools import BaseTool
+
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
 # Import screenshot analysis capabilities
@@ -48,7 +50,7 @@ from .screenshot_analysis_tool import (
 from app.llm.manager import get_enhanced_llm_manager
 from app.llm.models import LLMConfig, ProviderType
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class BrowserAction(str, Enum):
@@ -158,32 +160,53 @@ class RevolutionaryBrowserAutomator:
         try:
             if self.is_initialized:
                 return True
-                
-            logger.info("🚀 Initializing Revolutionary Browser Automator...")
-            
+
+            logger.info(
+                "🚀 Initializing Revolutionary Browser Automator...",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool"
+            )
+
             # Initialize screenshot analyzer
             screenshot_config = self.config.screenshot_analysis_config or ScreenshotAnalysisConfig()
             self.screenshot_analyzer = RevolutionaryScreenshotAnalyzer(screenshot_config)
             await self.screenshot_analyzer.initialize()
-            logger.info("✅ Screenshot analyzer initialized")
-            
+            logger.info(
+                "✅ Screenshot analyzer initialized",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool"
+            )
+
             # Initialize LLM manager
             self.llm_manager = get_enhanced_llm_manager()
             if self.llm_manager:
                 await self.llm_manager.initialize()
-                logger.info("✅ LLM manager initialized")
-            
+                logger.info(
+                    "✅ LLM manager initialized",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.browser_automation_tool"
+                )
+
             # Initialize browser (Playwright)
             await self._initialize_browser()
-            
+
             self.session_id = f"browser_session_{int(time.time())}"
             self.is_initialized = True
-            
-            logger.info("🎯 Revolutionary Browser Automator ready!")
+
+            logger.info(
+                "🎯 Revolutionary Browser Automator ready!",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool"
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to initialize browser automator: {e}")
+            logger.error(
+                "Failed to initialize browser automator",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                error=e
+            )
             return False
     
     async def _initialize_browser(self) -> None:
@@ -193,12 +216,16 @@ class RevolutionaryBrowserAutomator:
             try:
                 from playwright.async_api import async_playwright
             except ImportError:
-                logger.warning("Playwright not installed. Browser automation will use fallback methods.")
+                logger.warn(
+                    "Playwright not installed. Browser automation will use fallback methods.",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.browser_automation_tool"
+                )
                 return
-            
+
             # Launch browser
             self.playwright = await async_playwright().start()
-            
+
             if self.config.browser_engine == BrowserEngine.CHROMIUM:
                 self.browser = await self.playwright.chromium.launch(
                     headless=self.config.headless,
@@ -214,19 +241,29 @@ class RevolutionaryBrowserAutomator:
                     headless=self.config.headless,
                     args=['--no-sandbox', '--disable-dev-shm-usage']
                 )
-            
+
             # Create context and page
             self.context = await self.browser.new_context(
                 viewport={'width': self.config.window_width, 'height': self.config.window_height},
                 user_agent=self.config.user_agent
             )
-            
+
             self.page = await self.context.new_page()
-            
-            logger.info(f"✅ Browser initialized: {self.config.browser_engine.value}")
-            
+
+            logger.info(
+                f"✅ Browser initialized: {self.config.browser_engine.value}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                data={"browser_engine": self.config.browser_engine.value}
+            )
+
         except Exception as e:
-            logger.error(f"Browser initialization failed: {e}")
+            logger.error(
+                "Browser initialization failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                error=e
+            )
             raise
     
     async def navigate_to_url(self, url: str) -> BrowserActionResult:
@@ -245,20 +282,25 @@ class RevolutionaryBrowserAutomator:
                     execution_time=time.time() - start_time
                 )
             
-            logger.info(f"🌐 Navigating to: {url}")
-            
+            logger.info(
+                f"🌐 Navigating to: {url}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                data={"url": url}
+            )
+
             # Navigate to URL
             await self.page.goto(url, timeout=self.config.default_timeout * 1000)
-            
+
             # Wait for page to load
             await self.page.wait_for_load_state('networkidle', timeout=self.config.default_timeout * 1000)
-            
+
             # Take screenshot for visual analysis
             screenshot_path = await self._take_screenshot("navigation")
-            
+
             # Record action
             self._record_action("navigate", {"url": url}, True)
-            
+
             return BrowserActionResult(
                 action=BrowserAction.NAVIGATE,
                 success=True,
@@ -266,9 +308,15 @@ class RevolutionaryBrowserAutomator:
                 screenshot_path=screenshot_path,
                 execution_time=time.time() - start_time
             )
-            
+
         except Exception as e:
-            logger.error(f"Navigation failed: {e}")
+            logger.error(
+                "Navigation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                data={"url": url},
+                error=e
+            )
             screenshot_path = await self._take_screenshot("navigation_error") if self.config.screenshot_on_error else None
             
             return BrowserActionResult(
@@ -327,9 +375,14 @@ class RevolutionaryBrowserAutomator:
                 "coordinates": (click_x, click_y),
                 "element_type": target_element.element_type.value
             }, True)
-            
-            logger.info(f"✅ Visual click successful: {target_description} at ({click_x}, {click_y})")
-            
+
+            logger.info(
+                f"✅ Visual click successful: {target_description} at ({click_x}, {click_y})",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                data={"target": target_description, "coordinates": (click_x, click_y)}
+            )
+
             return BrowserActionResult(
                 action=BrowserAction.CLICK,
                 success=True,
@@ -337,9 +390,15 @@ class RevolutionaryBrowserAutomator:
                 screenshot_path=after_screenshot,
                 execution_time=time.time() - start_time
             )
-            
+
         except Exception as e:
-            logger.error(f"Visual click failed: {e}")
+            logger.error(
+                "Visual click failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                data={"target": target_description},
+                error=e
+            )
             error_screenshot = await self._take_screenshot("visual_click_error") if self.config.screenshot_on_error else None
             
             return BrowserActionResult(
@@ -410,7 +469,12 @@ class RevolutionaryBrowserAutomator:
                 "coordinates": (click_x, click_y)
             }, True)
 
-            logger.info(f"✅ Visual typing successful: '{text}' into {target_description}")
+            logger.info(
+                f"✅ Visual typing successful: '{text}' into {target_description}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                data={"text": text, "target": target_description}
+            )
 
             return BrowserActionResult(
                 action=BrowserAction.TYPE,
@@ -421,7 +485,13 @@ class RevolutionaryBrowserAutomator:
             )
 
         except Exception as e:
-            logger.error(f"Visual typing failed: {e}")
+            logger.error(
+                "Visual typing failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                data={"text": text, "target": target_description},
+                error=e
+            )
             error_screenshot = await self._take_screenshot("visual_type_error") if self.config.screenshot_on_error else None
 
             return BrowserActionResult(
@@ -438,7 +508,12 @@ class RevolutionaryBrowserAutomator:
         start_time = time.time()
 
         try:
-            logger.info(f"📜 Scrolling {direction} by {amount} units")
+            logger.info(
+                f"📜 Scrolling {direction} by {amount} units",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                data={"direction": direction, "amount": amount}
+            )
 
             # Take before screenshot
             before_screenshot = await self._take_screenshot("before_scroll")
@@ -476,7 +551,13 @@ class RevolutionaryBrowserAutomator:
             )
 
         except Exception as e:
-            logger.error(f"Scroll failed: {e}")
+            logger.error(
+                "Scroll failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                data={"direction": direction, "amount": amount},
+                error=e
+            )
 
             return BrowserActionResult(
                 action=BrowserAction.SCROLL,
@@ -491,7 +572,12 @@ class RevolutionaryBrowserAutomator:
         start_time = time.time()
 
         try:
-            logger.info(f"📊 Extracting data: {data_description}")
+            logger.info(
+                f"📊 Extracting data: {data_description}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                data={"description": data_description}
+            )
 
             # Take screenshot for analysis
             screenshot_path = await self._take_screenshot("data_extraction")
@@ -535,12 +621,22 @@ class RevolutionaryBrowserAutomator:
                         "timestamp": datetime.now().isoformat()
                     })
                 except Exception as e:
-                    logger.warning(f"Could not extract additional page data: {e}")
+                    logger.warn(
+                        "Could not extract additional page data",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.browser_automation_tool",
+                        error=e
+                    )
 
             # Record action
             self._record_action("extract_data", {"description": data_description}, True)
 
-            logger.info(f"✅ Data extraction successful: {len(extracted_data)} data points")
+            logger.info(
+                f"✅ Data extraction successful: {len(extracted_data)} data points",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                data={"description": data_description, "data_points": len(extracted_data)}
+            )
 
             return BrowserActionResult(
                 action=BrowserAction.EXTRACT_DATA,
@@ -552,7 +648,13 @@ class RevolutionaryBrowserAutomator:
             )
 
         except Exception as e:
-            logger.error(f"Data extraction failed: {e}")
+            logger.error(
+                "Data extraction failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                data={"description": data_description},
+                error=e
+            )
 
             return BrowserActionResult(
                 action=BrowserAction.EXTRACT_DATA,
@@ -589,7 +691,13 @@ class RevolutionaryBrowserAutomator:
             return screenshot_path
 
         except Exception as e:
-            logger.error(f"Screenshot failed: {e}")
+            logger.error(
+                "Screenshot failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                data={"purpose": purpose},
+                error=e
+            )
             return None
 
     async def _find_target_element(
@@ -651,7 +759,13 @@ class RevolutionaryBrowserAutomator:
             return None
 
         except Exception as e:
-            logger.error(f"Element matching failed: {e}")
+            logger.error(
+                "Element matching failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                data={"target": target_description},
+                error=e
+            )
             return None
 
     def _record_action(self, action_type: str, parameters: Dict[str, Any], success: bool) -> None:
@@ -672,7 +786,13 @@ class RevolutionaryBrowserAutomator:
                 self.action_history = self.action_history[-500:]  # Keep last 500 actions
 
         except Exception as e:
-            logger.warning(f"Failed to record action: {e}")
+            logger.warn(
+                "Failed to record action",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                data={"action_type": action_type},
+                error=e
+            )
 
     async def close(self) -> None:
         """Close the browser and cleanup resources."""
@@ -686,10 +806,19 @@ class RevolutionaryBrowserAutomator:
             if hasattr(self, 'playwright'):
                 await self.playwright.stop()
 
-            logger.info("🔒 Browser automation session closed")
+            logger.info(
+                "🔒 Browser automation session closed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool"
+            )
 
         except Exception as e:
-            logger.error(f"Browser cleanup failed: {e}")
+            logger.error(
+                "Browser cleanup failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                error=e
+            )
 
 
 class BrowserAutomationInput(BaseModel):
@@ -794,7 +923,13 @@ class BrowserAutomationTool(BaseTool, MetadataCapableToolMixin):
             return self._format_result(result)
 
         except Exception as e:
-            logger.error(f"Browser automation error: {e}")
+            logger.error(
+                "Browser automation error",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                data={"action": action},
+                error=e
+            )
             return f"❌ Browser automation error: {str(e)}"
 
     def _run(
@@ -848,7 +983,12 @@ class BrowserAutomationTool(BaseTool, MetadataCapableToolMixin):
             if hasattr(self, 'automator'):
                 await self.automator.close()
         except Exception as e:
-            logger.error(f"Browser cleanup error: {e}")
+            logger.error(
+                "Browser cleanup error",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.browser_automation_tool",
+                error=e
+            )
 
     def _create_metadata(self) -> MetadataToolMetadata:
         """Create metadata for browser automation tool."""

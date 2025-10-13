@@ -46,13 +46,15 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 import aiohttp
-import structlog
 from pydantic import BaseModel, Field, validator
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 
-logger = structlog.get_logger(__name__)
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
+
+logger = get_logger()
 
 
 class TikTokActionType(str, Enum):
@@ -269,15 +271,24 @@ class TikTokViralTool(BaseTool):
             
             logger.info(
                 "TikTok viral action completed",
-                action=input_data.action,
-                success=result.get("success", False),
-                viral_score=result.get("viral_score", 0)
+                LogCategory.TOOL_OPERATIONS,
+                "TikTokViralTool",
+                data={
+                    "action": input_data.action,
+                    "success": result.get("success", False),
+                    "viral_score": result.get("viral_score", 0)
+                }
             )
             
             return result
             
         except Exception as e:
-            logger.error(f"TikTok viral tool error: {str(e)}")
+            logger.error(
+                f"TikTok viral tool error: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "TikTokViralTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -304,7 +315,11 @@ class TikTokViralTool(BaseTool):
             connector=aiohttp.TCPConnector(limit=100)
         )
 
-        logger.info("TikTok viral session initialized")
+        logger.info(
+            "TikTok viral session initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "TikTokViralTool"
+        )
 
     async def _post_video(self, input_data: TikTokViralInput) -> Dict[str, Any]:
         """Post a video to TikTok with viral optimization."""
@@ -396,7 +411,12 @@ class TikTokViralTool(BaseTool):
                 raise Exception(f"Failed to post TikTok video: {response}")
 
         except Exception as e:
-            logger.error(f"Error posting video: {str(e)}")
+            logger.error(
+                f"Error posting video: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "TikTokViralTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -460,7 +480,12 @@ class TikTokViralTool(BaseTool):
                 raise Exception(f"Failed to create duet: {response}")
 
         except Exception as e:
-            logger.error(f"Error creating duet: {str(e)}")
+            logger.error(
+                f"Error creating duet: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "TikTokViralTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -515,7 +540,12 @@ class TikTokViralTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Error analyzing trends: {str(e)}")
+            logger.error(
+                f"Error analyzing trends: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "TikTokViralTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -582,7 +612,12 @@ class TikTokViralTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Error growing followers: {str(e)}")
+            logger.error(
+                f"Error growing followers: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "TikTokViralTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -654,7 +689,12 @@ class TikTokViralTool(BaseTool):
                 raise Exception(f"Failed to create challenge: {response}")
 
         except Exception as e:
-            logger.error(f"Error creating challenge: {str(e)}")
+            logger.error(
+                f"Error creating challenge: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "TikTokViralTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -683,7 +723,12 @@ class TikTokViralTool(BaseTool):
                 async with self.session.post(url, headers=headers, json=data) as response:
                     return await response.json()
         except Exception as e:
-            logger.error(f"TikTok API request failed: {str(e)}")
+            logger.error(
+                f"TikTok API request failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "TikTokViralTool",
+                error=e
+            )
             return {"error": str(e)}
 
     async def _optimize_video_for_tiktok(self, video_url: str, content_type: TikTokContentType) -> str:
@@ -767,7 +812,7 @@ TIKTOK_VIRAL_TOOL_METADATA = ToolMetadata(
     tool_id="tiktok_viral",
     name="TikTok Viral Tool",
     description="Revolutionary TikTok management and viral content creation tool",
-    category=ToolCategory.COMMUNICATION,
+    category=ToolCategoryEnum.COMMUNICATION,
     access_level=ToolAccessLevel.PRIVATE,
     requires_rag=False,
     use_cases={"social_media", "viral_content", "short_form_video", "entertainment"}

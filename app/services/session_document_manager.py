@@ -20,9 +20,11 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple, Union
 from pathlib import Path
 
-import structlog
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 
 # Import our components
 from app.config.session_document_config import session_document_config
@@ -70,7 +72,7 @@ try:
 except ImportError:
     RAG_INFRASTRUCTURE_AVAILABLE = False
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class SessionDocumentManager:
@@ -123,7 +125,11 @@ class SessionDocumentManager:
         }
 
         self.is_initialized = False
-        logger.info("🔥 Revolutionary Hybrid Session Document Manager initializing...")
+        logger.info(
+            "🔥 Revolutionary Hybrid Session Document Manager initializing...",
+            LogCategory.SERVICE_OPERATIONS,
+            "app.services.session_document_manager"
+        )
     
     async def initialize(self):
         """Initialize the session document manager."""
@@ -140,7 +146,11 @@ class SessionDocumentManager:
             # Initialize Revolutionary Document Intelligence Tool
             if INTELLIGENCE_TOOL_AVAILABLE and self.config.integration.enable_document_intelligence:
                 self.intelligence_tool = RevolutionaryDocumentIntelligenceTool()
-                logger.info("🧠 Revolutionary Document Intelligence Tool integrated")
+                logger.info(
+                    "🧠 Revolutionary Document Intelligence Tool integrated",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.session_document_manager"
+                )
 
             # Initialize existing RAG infrastructure integration
             if RAG_INFRASTRUCTURE_AVAILABLE:
@@ -151,10 +161,19 @@ class SessionDocumentManager:
                 asyncio.create_task(self._background_cleanup_task())
 
             self.is_initialized = True
-            logger.info("✅ Revolutionary Hybrid Session Document Manager initialized")
-            
+            logger.info(
+                "✅ Revolutionary Hybrid Session Document Manager initialized",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager"
+            )
+
         except Exception as e:
-            logger.error(f"❌ Failed to initialize Session Document Manager: {e}")
+            logger.error(
+                "❌ Failed to initialize Session Document Manager",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                error=e
+            )
             raise SessionDocumentError(f"Initialization failed: {str(e)}")
 
     async def _initialize_rag_integration(self):
@@ -166,7 +185,12 @@ class SessionDocumentManager:
                 if hasattr(self.ingestion_pipeline, 'initialize'):
                     await self.ingestion_pipeline.initialize()
             except Exception as e:
-                logger.warning(f"Ingestion pipeline initialization failed: {e}")
+                logger.warn(
+                    "Ingestion pipeline initialization failed",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.services.session_document_manager",
+                    error=e
+                )
                 self.ingestion_pipeline = None
 
             # Initialize processor registry for multi-modal processing
@@ -175,7 +199,12 @@ class SessionDocumentManager:
                 if hasattr(self.processor_registry, 'initialize'):
                     await self.processor_registry.initialize()
             except Exception as e:
-                logger.warning(f"Processor registry initialization failed: {e}")
+                logger.warn(
+                    "Processor registry initialization failed",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.services.session_document_manager",
+                    error=e
+                )
                 self.processor_registry = None
 
             # Initialize unified RAG system (for potential future integration)
@@ -184,16 +213,32 @@ class SessionDocumentManager:
                 if hasattr(self.unified_rag, 'initialize'):
                     await self.unified_rag.initialize()
             except Exception as e:
-                logger.warning(f"Unified RAG initialization failed: {e}")
+                logger.warn(
+                    "Unified RAG initialization failed",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.services.session_document_manager",
+                    error=e
+                )
                 self.unified_rag = None
 
-            logger.info("🔗 RAG infrastructure integration attempted")
-            logger.info(f"   - Ingestion Pipeline: {self.ingestion_pipeline is not None}")
-            logger.info(f"   - Processor Registry: {self.processor_registry is not None}")
-            logger.info(f"   - Unified RAG: {self.unified_rag is not None}")
+            logger.info(
+                "🔗 RAG infrastructure integration attempted",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.session_document_manager",
+                data={
+                    "ingestion_pipeline": self.ingestion_pipeline is not None,
+                    "processor_registry": self.processor_registry is not None,
+                    "unified_rag": self.unified_rag is not None
+                }
+            )
 
         except Exception as e:
-            logger.warning(f"RAG integration failed, continuing without: {e}")
+            logger.warn(
+                "RAG integration failed, continuing without",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.session_document_manager",
+                error=e
+            )
             self.ingestion_pipeline = None
             self.processor_registry = None
             self.unified_rag = None
@@ -235,21 +280,27 @@ class SessionDocumentManager:
                 await self._store_workspace_in_db(workspace)
             
             self.stats["total_workspaces"] += 1
-            
+
             logger.info(
                 "📁 Session workspace created",
-                session_id=session_id,
-                max_documents=workspace.max_documents,
-                max_size=workspace.max_size
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                data={
+                    "session_id": session_id,
+                    "max_documents": workspace.max_documents,
+                    "max_size": workspace.max_size
+                }
             )
-            
+
             return workspace
-            
+
         except Exception as e:
             logger.error(
                 "❌ Failed to create workspace",
-                session_id=session_id,
-                error=str(e)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                data={"session_id": session_id},
+                error=e
             )
             raise SessionDocumentError(f"Failed to create workspace: {str(e)}")
     
@@ -327,17 +378,21 @@ class SessionDocumentManager:
             
             self.stats["total_documents"] += 1
             self.stats["successful_operations"] += 1
-            
+
             logger.info(
                 "📤 Document uploaded successfully",
-                session_id=session_id,
-                document_id=document_id,
-                filename=filename,
-                size=len(file_content)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                data={
+                    "session_id": session_id,
+                    "document_id": document_id,
+                    "filename": filename,
+                    "size": len(file_content)
+                }
             )
-            
+
             return document.to_response_model()
-            
+
         except (SessionDocumentError, SessionWorkspaceFullError):
             self.stats["failed_operations"] += 1
             raise
@@ -345,9 +400,10 @@ class SessionDocumentManager:
             self.stats["failed_operations"] += 1
             logger.error(
                 "❌ Failed to upload document",
-                session_id=session_id,
-                filename=filename,
-                error=str(e)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                data={"session_id": session_id, "filename": filename},
+                error=e
             )
             raise SessionDocumentError(f"Failed to upload document: {str(e)}")
     
@@ -382,12 +438,14 @@ class SessionDocumentManager:
                     return workspace
             
             return None
-            
+
         except Exception as e:
             logger.error(
                 "❌ Failed to get workspace",
-                session_id=session_id,
-                error=str(e)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                data={"session_id": session_id},
+                error=e
             )
             return None
     
@@ -423,20 +481,23 @@ class SessionDocumentManager:
             
             # Sort by upload time (newest first)
             documents.sort(key=lambda x: x.uploaded_at, reverse=True)
-            
+
             logger.debug(
                 "📋 Listed session documents",
-                session_id=session_id,
-                count=len(documents)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                data={"session_id": session_id, "count": len(documents)}
             )
-            
+
             return documents
-            
+
         except Exception as e:
             logger.error(
                 "❌ Failed to list session documents",
-                session_id=session_id,
-                error=str(e)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                data={"session_id": session_id},
+                error=e
             )
             return []
     
@@ -490,9 +551,10 @@ class SessionDocumentManager:
         except Exception as e:
             logger.error(
                 "❌ Failed to get document",
-                session_id=session_id,
-                document_id=document_id,
-                error=str(e)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                data={"session_id": session_id, "document_id": document_id},
+                error=e
             )
             return None
     
@@ -549,21 +611,27 @@ class SessionDocumentManager:
             
             # Update workspace access time
             workspace.last_accessed = datetime.utcnow()
-            
+
             logger.info(
                 "🔍 Session document query completed",
-                session_id=session_id,
-                query_length=len(query),
-                results_count=len(enhanced_results)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                data={
+                    "session_id": session_id,
+                    "query_length": len(query),
+                    "results_count": len(enhanced_results)
+                }
             )
-            
+
             return enhanced_results
-            
+
         except Exception as e:
             logger.error(
                 "❌ Failed to query session documents",
-                session_id=session_id,
-                error=str(e)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                data={"session_id": session_id},
+                error=e
             )
             return []
     
@@ -629,24 +697,29 @@ class SessionDocumentManager:
             # Update in database if available
             if DATABASE_AVAILABLE:
                 await self._update_document_in_db(document)
-            
+
             logger.info(
                 "🧠 Document analysis completed",
-                session_id=session_id,
-                document_id=document_id,
-                analysis_success=analysis_result.get("success", False)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                data={
+                    "session_id": session_id,
+                    "document_id": document_id,
+                    "analysis_success": analysis_result.get("success", False)
+                }
             )
-            
+
             return analysis_result
-            
+
         except (SessionDocumentError, SessionDocumentNotFoundError, SessionDocumentExpiredError):
             raise
         except Exception as e:
             logger.error(
                 "❌ Document analysis failed",
-                session_id=session_id,
-                document_id=document_id,
-                error=str(e)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                data={"session_id": session_id, "document_id": document_id},
+                error=e
             )
             raise SessionDocumentError(f"Analysis failed: {str(e)}")
     
@@ -682,22 +755,24 @@ class SessionDocumentManager:
                 await self._delete_document_from_db(session_id, document_id)
             
             self.stats["successful_operations"] += 1
-            
+
             logger.info(
                 "🗑️ Document deleted successfully",
-                session_id=session_id,
-                document_id=document_id
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                data={"session_id": session_id, "document_id": document_id}
             )
-            
+
             return True
-            
+
         except Exception as e:
             self.stats["failed_operations"] += 1
             logger.error(
                 "❌ Failed to delete document",
-                session_id=session_id,
-                document_id=document_id,
-                error=str(e)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                data={"session_id": session_id, "document_id": document_id},
+                error=e
             )
             return False
     
@@ -730,19 +805,23 @@ class SessionDocumentManager:
                 await self._delete_workspace_from_db(session_id)
             
             self.stats["total_workspaces"] -= 1
-            
+
             logger.info(
                 "🧹 Workspace cleaned up successfully",
-                session_id=session_id
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                data={"session_id": session_id}
             )
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(
                 "❌ Failed to cleanup workspace",
-                session_id=session_id,
-                error=str(e)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                data={"session_id": session_id},
+                error=e
             )
             return False
 
@@ -756,7 +835,13 @@ class SessionDocumentManager:
             return workspace.to_stats_model()
 
         except Exception as e:
-            logger.error(f"Failed to get workspace stats: {e}")
+            logger.error(
+                "Failed to get workspace stats",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                data={"session_id": session_id},
+                error=e
+            )
             return None
 
     async def _background_cleanup_task(self):
@@ -766,7 +851,12 @@ class SessionDocumentManager:
                 await asyncio.sleep(self.config.expiration.cleanup_interval.total_seconds())
                 await self.cleanup_expired_workspaces()
             except Exception as e:
-                logger.error(f"Background cleanup task failed: {e}")
+                logger.error(
+                    "Background cleanup task failed",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.session_document_manager",
+                    error=e
+                )
 
     async def cleanup_expired_workspaces(self) -> Dict[str, int]:
         """Clean up all expired workspaces."""
@@ -798,7 +888,13 @@ class SessionDocumentManager:
 
                 except Exception as e:
                     cleanup_stats["errors"] += 1
-                    logger.error(f"Failed to cleanup workspace {session_id}: {e}")
+                    logger.error(
+                        f"Failed to cleanup workspace {session_id}",
+                        LogCategory.SERVICE_OPERATIONS,
+                        "app.services.session_document_manager",
+                        data={"session_id": session_id},
+                        error=e
+                    )
 
             # Clean up storage and vector store
             storage_cleanup = await self.storage.cleanup_expired_documents()
@@ -807,11 +903,21 @@ class SessionDocumentManager:
             self.stats["cleanup_runs"] += 1
             self.stats["last_cleanup"] = current_time
 
-            logger.info("🧹 Expired workspaces cleanup completed", **cleanup_stats)
+            logger.info(
+                "🧹 Expired workspaces cleanup completed",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                data=cleanup_stats
+            )
             return cleanup_stats
 
         except Exception as e:
-            logger.error(f"❌ Expired workspaces cleanup failed: {e}")
+            logger.error(
+                "❌ Expired workspaces cleanup failed",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.session_document_manager",
+                error=e
+            )
             return {"error": str(e)}
 
     # Database integration methods (if available)
@@ -837,7 +943,12 @@ class SessionDocumentManager:
                 await session.commit()
 
         except Exception as e:
-            logger.error(f"Failed to store workspace in database: {e}")
+            logger.error(
+                "Failed to store workspace in database",
+                LogCategory.DATABASE_LAYER,
+                "app.services.session_document_manager",
+                error=e
+            )
 
     async def _store_document_in_db(self, document: SessionDocument):
         """Store document in database."""
@@ -866,7 +977,12 @@ class SessionDocumentManager:
                 await session.commit()
 
         except Exception as e:
-            logger.error(f"Failed to store document in database: {e}")
+            logger.error(
+                "Failed to store document in database",
+                LogCategory.DATABASE_LAYER,
+                "app.services.session_document_manager",
+                error=e
+            )
 
     async def _update_document_in_db(self, document: SessionDocument):
         """Update document in database."""
@@ -891,7 +1007,12 @@ class SessionDocumentManager:
                     await session.commit()
 
         except Exception as e:
-            logger.error(f"Failed to update document in database: {e}")
+            logger.error(
+                "Failed to update document in database",
+                LogCategory.DATABASE_LAYER,
+                "app.services.session_document_manager",
+                error=e
+            )
 
     async def _load_workspace_from_db(self, session_id: str) -> Optional[SessionDocumentWorkspace]:
         """Load workspace from database."""
@@ -957,7 +1078,13 @@ class SessionDocumentManager:
                 return workspace
 
         except Exception as e:
-            logger.error(f"Failed to load workspace from database: {e}")
+            logger.error(
+                "Failed to load workspace from database",
+                LogCategory.DATABASE_LAYER,
+                "app.services.session_document_manager",
+                data={"session_id": session_id},
+                error=e
+            )
             return None
 
     async def _delete_document_from_db(self, session_id: str, document_id: str):
@@ -982,7 +1109,13 @@ class SessionDocumentManager:
                     await session.commit()
 
         except Exception as e:
-            logger.error(f"Failed to delete document from database: {e}")
+            logger.error(
+                "Failed to delete document from database",
+                LogCategory.DATABASE_LAYER,
+                "app.services.session_document_manager",
+                data={"session_id": session_id, "document_id": document_id},
+                error=e
+            )
 
     async def _delete_workspace_from_db(self, session_id: str):
         """Delete workspace from database."""
@@ -1012,7 +1145,13 @@ class SessionDocumentManager:
                 await session.commit()
 
         except Exception as e:
-            logger.error(f"Failed to delete workspace from database: {e}")
+            logger.error(
+                "Failed to delete workspace from database",
+                LogCategory.DATABASE_LAYER,
+                "app.services.session_document_manager",
+                data={"session_id": session_id},
+                error=e
+            )
 
     def get_global_stats(self) -> Dict[str, Any]:
         """Get global hybrid manager statistics."""
@@ -1039,4 +1178,8 @@ class SessionDocumentManager:
 # Global hybrid session document manager instance
 session_document_manager = SessionDocumentManager()
 
-logger.info("🔥 Revolutionary Hybrid Session Document Manager ready - leveraging existing RAG infrastructure!")
+logger.info(
+    "🔥 Revolutionary Hybrid Session Document Manager ready - leveraging existing RAG infrastructure!",
+    LogCategory.SERVICE_OPERATIONS,
+    "app.services.session_document_manager"
+)

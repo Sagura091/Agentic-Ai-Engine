@@ -16,14 +16,15 @@ import jwt
 from sqlalchemy import select, update, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-import structlog
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from app.config.settings import get_settings
 from app.models.auth import UserDB, UserCreate, UserLogin, TokenResponse, UserResponse
 from app.models.enhanced_user import UserSession
 from app.models.database.base import get_database_session
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class AuthService:
@@ -52,12 +53,26 @@ class AuthService:
                     select(func.count(UserDB.id))
                 )
                 user_count = result.scalar()
-                logger.info("First-time setup check", user_count=user_count)
+                logger.info(
+                    "First-time setup check",
+                    LogCategory.SECURITY_EVENTS,
+                    "app.services.auth_service",
+                    data={"user_count": user_count}
+                )
                 return user_count == 0
             except Exception as e:
-                logger.error("Error checking first-time setup status", error=str(e))
+                logger.error(
+                    "Error checking first-time setup status",
+                    LogCategory.SECURITY_EVENTS,
+                    "app.services.auth_service",
+                    error=e
+                )
                 # If users table doesn't exist or there's a DB error, it's likely first-time setup
-                logger.info("Assuming first-time setup due to database error")
+                logger.info(
+                    "Assuming first-time setup due to database error",
+                    LogCategory.SECURITY_EVENTS,
+                    "app.services.auth_service"
+                )
                 return True
 
     async def register_user(self, user_data: UserCreate) -> Tuple[UserResponse, TokenResponse]:
@@ -112,13 +127,22 @@ class AuthService:
                 if is_first_user:
                     logger.info(
                         "First admin user created successfully",
-                        user_id=str(user.id),
-                        username=user.username,
-                        is_admin=True,
-                        first_time_setup=True
+                        LogCategory.SECURITY_EVENTS,
+                        "app.services.auth_service",
+                        data={
+                            "user_id": str(user.id),
+                            "username": user.username,
+                            "is_admin": True,
+                            "first_time_setup": True
+                        }
                     )
                 else:
-                    logger.info("User registered successfully", user_id=str(user.id), username=user.username)
+                    logger.info(
+                        "User registered successfully",
+                        LogCategory.SECURITY_EVENTS,
+                        "app.services.auth_service",
+                        data={"user_id": str(user.id), "username": user.username}
+                    )
                 
                 # Refresh user object to ensure all attributes are loaded
                 await session.refresh(user)
@@ -142,7 +166,12 @@ class AuthService:
                 
             except Exception as e:
                 await session.rollback()
-                logger.error("User registration failed", error=str(e))
+                logger.error(
+                    "User registration failed",
+                    LogCategory.SECURITY_EVENTS,
+                    "app.services.auth_service",
+                    error=e
+                )
                 raise
 
     async def authenticate_user(self, login_data: UserLogin, ip_address: str = None, user_agent: str = None) -> TokenResponse:
@@ -197,14 +226,24 @@ class AuthService:
                 
                 # Create session
                 tokens = await self._create_user_session(session, user, ip_address, user_agent)
-                
-                logger.info("User authenticated successfully", user_id=str(user.id), username=user.username)
-                
+
+                logger.info(
+                    "User authenticated successfully",
+                    LogCategory.SECURITY_EVENTS,
+                    "app.services.auth_service",
+                    data={"user_id": str(user.id), "username": user.username}
+                )
+
                 return tokens
                 
             except Exception as e:
                 await session.rollback()
-                logger.error("User authentication failed", error=str(e))
+                logger.error(
+                    "User authentication failed",
+                    LogCategory.SECURITY_EVENTS,
+                    "app.services.auth_service",
+                    error=e
+                )
                 raise
 
     async def refresh_token(self, refresh_token: str) -> TokenResponse:
@@ -246,14 +285,24 @@ class AuthService:
                 # Deactivate old session
                 user_session.is_active = False
                 await session.commit()
-                
-                logger.info("Token refreshed successfully", user_id=str(user_session.user.id))
-                
+
+                logger.info(
+                    "Token refreshed successfully",
+                    LogCategory.SECURITY_EVENTS,
+                    "app.services.auth_service",
+                    data={"user_id": str(user_session.user.id)}
+                )
+
                 return tokens
                 
             except Exception as e:
                 await session.rollback()
-                logger.error("Token refresh failed", error=str(e))
+                logger.error(
+                    "Token refresh failed",
+                    LogCategory.SECURITY_EVENTS,
+                    "app.services.auth_service",
+                    error=e
+                )
                 raise
 
     async def logout_user(self, access_token: str) -> bool:
@@ -280,13 +329,23 @@ class AuthService:
                     
                     await session.execute(stmt)
                     await session.commit()
-                    
-                    logger.info("User logged out successfully", session_id=session_id)
-                
+
+                    logger.info(
+                        "User logged out successfully",
+                        LogCategory.SECURITY_EVENTS,
+                        "app.services.auth_service",
+                        data={"session_id": session_id}
+                    )
+
                 return True
                 
             except Exception as e:
-                logger.error("Logout failed", error=str(e))
+                logger.error(
+                    "Logout failed",
+                    LogCategory.SECURITY_EVENTS,
+                    "app.services.auth_service",
+                    error=e
+                )
                 return False
 
     async def get_current_user(self, access_token: str) -> Optional[UserResponse]:
@@ -343,13 +402,26 @@ class AuthService:
                 )
                 
         except jwt.ExpiredSignatureError:
-            logger.warning("Access token expired")
+            logger.warn(
+                "Access token expired",
+                LogCategory.SECURITY_EVENTS,
+                "app.services.auth_service"
+            )
             return None
         except jwt.InvalidTokenError:
-            logger.warning("Invalid access token")
+            logger.warn(
+                "Invalid access token",
+                LogCategory.SECURITY_EVENTS,
+                "app.services.auth_service"
+            )
             return None
         except Exception as e:
-            logger.error("Error getting current user", error=str(e))
+            logger.error(
+                "Error getting current user",
+                LogCategory.SECURITY_EVENTS,
+                "app.services.auth_service",
+                error=e
+            )
             return None
 
     def _hash_password(self, password: str, salt: str) -> str:
@@ -379,7 +451,12 @@ class AuthService:
         
         if user.failed_login_attempts >= self.max_failed_attempts:
             user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=self.lockout_duration_minutes)
-            logger.warning("User account locked due to failed attempts", user_id=str(user.id))
+            logger.warn(
+                "User account locked due to failed attempts",
+                LogCategory.SECURITY_EVENTS,
+                "app.services.auth_service",
+                data={"user_id": str(user.id)}
+            )
         
         await session.commit()
 

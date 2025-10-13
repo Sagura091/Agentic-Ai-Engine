@@ -16,9 +16,11 @@ for all agents at configurable intervals.
 import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
-import structlog
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+
+logger = get_logger()
 
 
 class MemoryConsolidationService:
@@ -68,36 +70,46 @@ class MemoryConsolidationService:
     async def start(self):
         """Start the consolidation service."""
         if self.is_running:
-            logger.warning("Memory consolidation service already running")
+            logger.warn(
+                "Memory consolidation service already running",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.services.memory_consolidation_service"
+            )
             return
-        
+
         self.is_running = True
         self._task = asyncio.create_task(self._consolidation_loop())
-        
+
         logger.info(
             "Memory consolidation service started",
-            interval_hours=self.interval_hours,
-            consolidation_threshold=self.consolidation_threshold,
-            max_agents_per_cycle=self.max_agents_per_cycle
+            LogCategory.MEMORY_OPERATIONS,
+            "app.services.memory_consolidation_service",
+            data={
+                "interval_hours": self.interval_hours,
+                "consolidation_threshold": self.consolidation_threshold,
+                "max_agents_per_cycle": self.max_agents_per_cycle
+            }
         )
-    
+
     async def stop(self):
         """Stop the consolidation service."""
         if not self.is_running:
             return
-        
+
         self.is_running = False
-        
+
         if self._task:
             self._task.cancel()
             try:
                 await self._task
             except asyncio.CancelledError:
                 pass
-        
+
         logger.info(
             "Memory consolidation service stopped",
-            stats=self._consolidation_stats
+            LogCategory.MEMORY_OPERATIONS,
+            "app.services.memory_consolidation_service",
+            data={"stats": self._consolidation_stats}
         )
     
     async def _consolidation_loop(self):
@@ -111,10 +123,19 @@ class MemoryConsolidationService:
                 await self._run_consolidation_cycle()
                 
             except asyncio.CancelledError:
-                logger.info("Consolidation loop cancelled")
+                logger.info(
+                    "Consolidation loop cancelled",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.services.memory_consolidation_service"
+                )
                 break
             except Exception as e:
-                logger.error(f"Consolidation loop error: {e}", exc_info=True)
+                logger.error(
+                    f"Consolidation loop error: {e}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.services.memory_consolidation_service",
+                    error=e
+                )
                 # Continue running despite errors
                 await asyncio.sleep(60)  # Wait 1 minute before retrying
     
@@ -127,13 +148,21 @@ class MemoryConsolidationService:
             agent_ids = list(self.memory_system.agent_memories.keys())
             
             if not agent_ids:
-                logger.debug("No agents with memories to consolidate")
+                logger.debug(
+                    "No agents with memories to consolidate",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.services.memory_consolidation_service"
+                )
                 return
-            
+
             logger.info(
-                f"Starting memory consolidation cycle",
-                total_agents=len(agent_ids),
-                max_agents_per_cycle=self.max_agents_per_cycle
+                "Starting memory consolidation cycle",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.services.memory_consolidation_service",
+                data={
+                    "total_agents": len(agent_ids),
+                    "max_agents_per_cycle": self.max_agents_per_cycle
+                }
             )
             
             # Limit agents per cycle to avoid overload
@@ -159,33 +188,43 @@ class MemoryConsolidationService:
                     if total_memories < self.consolidation_threshold:
                         logger.debug(
                             f"Agent {agent_id} has insufficient memories for consolidation",
-                            total_memories=total_memories,
-                            threshold=self.consolidation_threshold
+                            LogCategory.MEMORY_OPERATIONS,
+                            "app.services.memory_consolidation_service",
+                            data={
+                                "agent_id": agent_id,
+                                "total_memories": total_memories,
+                                "threshold": self.consolidation_threshold
+                            }
                         )
                         continue
-                    
+
                     # Run consolidation for this agent
                     result = await self.memory_system.run_consolidation_for_agent(agent_id)
-                    
+
                     # Update stats
                     cycle_stats["agents_processed"] += 1
                     cycle_stats["memories_consolidated"] += result.get("memories_processed", 0)
                     cycle_stats["memories_promoted"] += result.get("memories_promoted", 0)
                     cycle_stats["memories_forgotten"] += result.get("memories_forgotten", 0)
-                    
+
                     logger.info(
                         f"Consolidation completed for agent {agent_id}",
-                        agent_id=agent_id,
-                        result=result
+                        LogCategory.MEMORY_OPERATIONS,
+                        "app.services.memory_consolidation_service",
+                        data={
+                            "agent_id": agent_id,
+                            "result": result
+                        }
                     )
-                    
+
                 except Exception as e:
                     cycle_stats["errors"] += 1
                     logger.error(
                         f"Consolidation failed for agent {agent_id}: {e}",
-                        agent_id=agent_id,
-                        error=str(e),
-                        exc_info=True
+                        LogCategory.MEMORY_OPERATIONS,
+                        "app.services.memory_consolidation_service",
+                        data={"agent_id": agent_id},
+                        error=e
                     )
                     continue
             
@@ -203,13 +242,22 @@ class MemoryConsolidationService:
             
             logger.info(
                 "Memory consolidation cycle completed",
-                cycle_stats=cycle_stats,
-                duration_ms=cycle_duration,
-                total_stats=self._consolidation_stats
+                LogCategory.MEMORY_OPERATIONS,
+                "app.services.memory_consolidation_service",
+                data={
+                    "cycle_stats": cycle_stats,
+                    "duration_ms": cycle_duration,
+                    "total_stats": self._consolidation_stats
+                }
             )
-            
+
         except Exception as e:
-            logger.error(f"Failed to run consolidation cycle: {e}", exc_info=True)
+            logger.error(
+                f"Failed to run consolidation cycle: {e}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.services.memory_consolidation_service",
+                error=e
+            )
     
     async def trigger_consolidation(self, agent_id: Optional[str] = None):
         """
@@ -224,18 +272,31 @@ class MemoryConsolidationService:
                 result = await self.memory_system.run_consolidation_for_agent(agent_id)
                 logger.info(
                     f"Manual consolidation completed for agent {agent_id}",
-                    agent_id=agent_id,
-                    result=result
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.services.memory_consolidation_service",
+                    data={
+                        "agent_id": agent_id,
+                        "result": result
+                    }
                 )
                 return result
             else:
                 # Consolidate all agents
                 await self._run_consolidation_cycle()
-                logger.info("Manual consolidation cycle completed")
+                logger.info(
+                    "Manual consolidation cycle completed",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.services.memory_consolidation_service"
+                )
                 return self._consolidation_stats
-                
+
         except Exception as e:
-            logger.error(f"Manual consolidation failed: {e}", exc_info=True)
+            logger.error(
+                "Manual consolidation failed",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.services.memory_consolidation_service",
+                error=e
+            )
             raise
     
     def get_stats(self) -> Dict[str, Any]:

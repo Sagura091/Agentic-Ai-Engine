@@ -46,13 +46,15 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 import aiohttp
-import structlog
 from pydantic import BaseModel, Field, validator
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 
-logger = structlog.get_logger(__name__)
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
+
+logger = get_logger()
 
 
 class DiscordActionType(str, Enum):
@@ -267,15 +269,24 @@ class DiscordCommunityTool(BaseTool):
             
             logger.info(
                 "Discord community action completed",
-                action=input_data.action,
-                success=result.get("success", False),
-                server_id=input_data.server_id
+                LogCategory.TOOL_OPERATIONS,
+                "DiscordCommunityTool",
+                data={
+                    "action": input_data.action,
+                    "success": result.get("success", False),
+                    "server_id": input_data.server_id
+                }
             )
             
             return result
             
         except Exception as e:
-            logger.error(f"Discord community tool error: {str(e)}")
+            logger.error(
+                f"Discord community tool error: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "DiscordCommunityTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -302,7 +313,11 @@ class DiscordCommunityTool(BaseTool):
             connector=aiohttp.TCPConnector(limit=100)
         )
 
-        logger.info("Discord community session initialized")
+        logger.info(
+            "Discord community session initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "DiscordCommunityTool"
+        )
 
     async def _send_message(self, input_data: DiscordCommunityInput) -> Dict[str, Any]:
         """Send a message to a Discord channel."""
@@ -351,7 +366,12 @@ class DiscordCommunityTool(BaseTool):
                 raise Exception(f"Failed to send Discord message: {response}")
 
         except Exception as e:
-            logger.error(f"Error sending message: {str(e)}")
+            logger.error(
+                f"Error sending message: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "DiscordCommunityTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -430,7 +450,12 @@ class DiscordCommunityTool(BaseTool):
                 raise Exception(f"Failed to create Discord event: {response}")
 
         except Exception as e:
-            logger.error(f"Error planning event: {str(e)}")
+            logger.error(
+                f"Error planning event: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "DiscordCommunityTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -500,7 +525,12 @@ class DiscordCommunityTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Error growing community: {str(e)}")
+            logger.error(
+                f"Error growing community: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "DiscordCommunityTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -561,7 +591,12 @@ class DiscordCommunityTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Error setting up automation: {str(e)}")
+            logger.error(
+                f"Error setting up automation: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "DiscordCommunityTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -591,7 +626,12 @@ class DiscordCommunityTool(BaseTool):
                 async with self.session.patch(url, headers=headers, json=data) as response:
                     return await response.json()
         except Exception as e:
-            logger.error(f"Discord API request failed: {str(e)}")
+            logger.error(
+                f"Discord API request failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "DiscordCommunityTool",
+                error=e
+            )
             return {"error": str(e)}
 
     async def _optimize_message_for_engagement(self, message: str, server_id: str) -> str:
@@ -742,7 +782,7 @@ DISCORD_COMMUNITY_TOOL_METADATA = ToolMetadata(
     tool_id="discord_community",
     name="Discord Community Tool",
     description="Revolutionary Discord server management and community building tool",
-    category=ToolCategory.COMMUNICATION,
+    category=ToolCategoryEnum.COMMUNICATION,
     access_level=ToolAccessLevel.PRIVATE,
     requires_rag=False,
     use_cases={"community_management", "social_media", "gaming", "education"}

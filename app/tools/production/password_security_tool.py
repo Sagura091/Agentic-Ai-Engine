@@ -20,13 +20,13 @@ from enum import Enum
 import re
 from urllib.parse import quote, unquote
 
-import structlog
 from pydantic import BaseModel, Field, validator, SecretStr
 from langchain_core.tools import BaseTool
 
+from app.backend_logging import get_logger
 from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class SecurityOperation(str, Enum):

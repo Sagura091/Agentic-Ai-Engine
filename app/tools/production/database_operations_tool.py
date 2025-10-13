@@ -18,13 +18,14 @@ from urllib.parse import urlparse
 import sqlite3
 from contextlib import asynccontextmanager
 
-import structlog
 from pydantic import BaseModel, Field, validator, SecretStr
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class DatabaseType(str, Enum):
@@ -221,8 +222,12 @@ class DatabaseOperationsTool(BaseTool):
             DatabaseType.ORACLE: {"default_port": 1521, "driver": "cx_oracle"},
             DatabaseType.CASSANDRA: {"default_port": 9042, "driver": "cassandra-driver"}
         }
-        
-        logger.info("Database Operations Tool initialized")
+
+        logger.info(
+            "Database Operations Tool initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.database_operations_tool"
+        )
 
     def _get_connection_key(self, input_data: DatabaseOperationsInput) -> str:
         """Generate unique connection key."""
@@ -262,9 +267,14 @@ class DatabaseOperationsTool(BaseTool):
         query_lower = query.lower()
         for pattern in dangerous_patterns:
             if re.search(pattern, query_lower):
-                logger.warning("Dangerous SQL pattern detected", pattern=pattern, query=query[:100])
+                logger.warn(
+                    "Dangerous SQL pattern detected",
+                    LogCategory.SECURITY_EVENTS,
+                    "app.tools.production.database_operations_tool",
+                    data={"pattern": pattern, "query": query[:100]}
+                )
                 return False
-        
+
         return True
 
     async def _get_connection(self, input_data: DatabaseOperationsInput):
@@ -301,11 +311,21 @@ class DatabaseOperationsTool(BaseTool):
             connection_key = self._get_connection_key(input_data)
             self._active_connections[connection_key] = conn
 
-            logger.info("SQLite connection created", database=input_data.database)
+            logger.info(
+                "SQLite connection created",
+                LogCategory.DATABASE_LAYER,
+                "app.tools.production.database_operations_tool",
+                data={"database": input_data.database}
+            )
             return conn
 
         except Exception as e:
-            logger.error("Failed to create SQLite connection", error=str(e))
+            logger.error(
+                "Failed to create SQLite connection",
+                LogCategory.DATABASE_LAYER,
+                "app.tools.production.database_operations_tool",
+                error=e
+            )
             raise
 
     async def _create_postgresql_connection(self, input_data: DatabaseOperationsInput):
@@ -328,12 +348,21 @@ class DatabaseOperationsTool(BaseTool):
             connection_key = self._get_connection_key(input_data)
             self._active_connections[connection_key] = conn
 
-            logger.info("PostgreSQL connection created",
-                       host=input_data.host, database=input_data.database)
+            logger.info(
+                "PostgreSQL connection created",
+                LogCategory.DATABASE_LAYER,
+                "app.tools.production.database_operations_tool",
+                data={"host": input_data.host, "database": input_data.database}
+            )
             return conn
 
         except Exception as e:
-            logger.error("Failed to create PostgreSQL connection", error=str(e))
+            logger.error(
+                "Failed to create PostgreSQL connection",
+                LogCategory.DATABASE_LAYER,
+                "app.tools.production.database_operations_tool",
+                error=e
+            )
             raise
 
     async def _create_mysql_connection(self, input_data: DatabaseOperationsInput):
@@ -356,12 +385,21 @@ class DatabaseOperationsTool(BaseTool):
             connection_key = self._get_connection_key(input_data)
             self._active_connections[connection_key] = conn
 
-            logger.info("MySQL connection created",
-                       host=input_data.host, database=input_data.database)
+            logger.info(
+                "MySQL connection created",
+                LogCategory.DATABASE_LAYER,
+                "app.tools.production.database_operations_tool",
+                data={"host": input_data.host, "database": input_data.database}
+            )
             return conn
 
         except Exception as e:
-            logger.error("Failed to create MySQL connection", error=str(e))
+            logger.error(
+                "Failed to create MySQL connection",
+                LogCategory.DATABASE_LAYER,
+                "app.tools.production.database_operations_tool",
+                error=e
+            )
             raise
 
     async def _create_mongodb_connection(self, input_data: DatabaseOperationsInput):
@@ -383,12 +421,21 @@ class DatabaseOperationsTool(BaseTool):
             connection_key = self._get_connection_key(input_data)
             self._active_connections[connection_key] = db
 
-            logger.info("MongoDB connection created",
-                       host=input_data.host, database=input_data.database)
+            logger.info(
+                "MongoDB connection created",
+                LogCategory.DATABASE_LAYER,
+                "app.tools.production.database_operations_tool",
+                data={"host": input_data.host, "database": input_data.database}
+            )
             return db
 
         except Exception as e:
-            logger.error("Failed to create MongoDB connection", error=str(e))
+            logger.error(
+                "Failed to create MongoDB connection",
+                LogCategory.DATABASE_LAYER,
+                "app.tools.production.database_operations_tool",
+                error=e
+            )
             raise
 
     async def _create_redis_connection(self, input_data: DatabaseOperationsInput):
@@ -409,12 +456,21 @@ class DatabaseOperationsTool(BaseTool):
             connection_key = self._get_connection_key(input_data)
             self._active_connections[connection_key] = redis
 
-            logger.info("Redis connection created",
-                       host=input_data.host, database=input_data.database)
+            logger.info(
+                "Redis connection created",
+                LogCategory.DATABASE_LAYER,
+                "app.tools.production.database_operations_tool",
+                data={"host": input_data.host, "database": input_data.database}
+            )
             return redis
 
         except Exception as e:
-            logger.error("Failed to create Redis connection", error=str(e))
+            logger.error(
+                "Failed to create Redis connection",
+                LogCategory.DATABASE_LAYER,
+                "app.tools.production.database_operations_tool",
+                error=e
+            )
             raise
 
     async def _execute_query(self, connection, query: str, params: Optional[Dict] = None,
@@ -438,8 +494,13 @@ class DatabaseOperationsTool(BaseTool):
 
         except Exception as e:
             execution_time = time.time() - start_time
-            logger.error("Query execution failed",
-                        query=query[:100], error=str(e), execution_time=execution_time)
+            logger.error(
+                "Query execution failed",
+                LogCategory.DATABASE_LAYER,
+                "app.tools.production.database_operations_tool",
+                data={"query": query[:100], "execution_time": execution_time},
+                error=e
+            )
 
             return QueryResult(
                 success=False,
@@ -691,12 +752,18 @@ class DatabaseOperationsTool(BaseTool):
                 self._failed_queries += 1
 
             # Log operation
-            logger.info("Database operation completed",
-                       operation=input_data.operation,
-                       db_type=input_data.db_type,
-                       execution_time=execution_time,
-                       affected_rows=result.affected_rows,
-                       success=result.success)
+            logger.info(
+                "Database operation completed",
+                LogCategory.DATABASE_LAYER,
+                "app.tools.production.database_operations_tool",
+                data={
+                    "operation": input_data.operation,
+                    "db_type": input_data.db_type,
+                    "execution_time": execution_time,
+                    "affected_rows": result.affected_rows,
+                    "success": result.success
+                }
+            )
 
             # Return formatted result
             return json.dumps({
@@ -719,10 +786,16 @@ class DatabaseOperationsTool(BaseTool):
             self._failed_queries += 1
             execution_time = time.time() - start_time if 'start_time' in locals() else 0
 
-            logger.error("Database operation failed",
-                        operation=kwargs.get('operation'),
-                        error=str(e),
-                        execution_time=execution_time)
+            logger.error(
+                "Database operation failed",
+                LogCategory.DATABASE_LAYER,
+                "app.tools.production.database_operations_tool",
+                data={
+                    "operation": kwargs.get('operation'),
+                    "execution_time": execution_time
+                },
+                error=e
+            )
 
             return json.dumps({
                 "success": False,

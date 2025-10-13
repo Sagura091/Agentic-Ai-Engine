@@ -27,15 +27,16 @@ from pathlib import Path
 from dataclasses import dataclass
 from enum import Enum
 
-import structlog
 from PIL import Image, ImageDraw, ImageFont
 import pyautogui
 from pydantic import BaseModel, Field
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 class RoastIntensity(str, Enum):
     """Roast intensity levels."""
@@ -198,15 +199,26 @@ class ScreenshotRoastingTool(BaseTool):
                 "roast_targets": roast_result.activity_analysis.roast_targets
             }
             
-            logger.info("🔥 Screenshot roast generated", 
-                       activity=analysis.activity_type.value,
-                       intensity=roast_result.intensity.value,
-                       superiority=roast_result.superiority_level)
+            logger.info(
+                "🔥 Screenshot roast generated",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotRoastingTool",
+                data={
+                    "activity": analysis.activity_type.value,
+                    "intensity": roast_result.intensity.value,
+                    "superiority": roast_result.superiority_level
+                }
+            )
             
             return json.dumps(response, indent=2)
             
         except Exception as e:
-            logger.error(f"Screenshot roasting failed: {str(e)}")
+            logger.error(
+                f"Screenshot roasting failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotRoastingTool",
+                error=e
+            )
             return json.dumps({
                 "status": "error",
                 "error": str(e),
@@ -224,11 +236,21 @@ class ScreenshotRoastingTool(BaseTool):
             screenshot = pyautogui.screenshot()
             screenshot.save(screenshot_path)
             
-            logger.info(f"📸 Screenshot captured: {screenshot_path}")
+            logger.info(
+                f"📸 Screenshot captured: {screenshot_path}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotRoastingTool",
+                data={"screenshot_path": str(screenshot_path)}
+            )
             return screenshot_path
             
         except Exception as e:
-            logger.error(f"Screenshot capture failed: {str(e)}")
+            logger.error(
+                f"Screenshot capture failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotRoastingTool",
+                error=e
+            )
             raise
 
     async def _analyze_screenshot(self, screenshot_path: Path) -> ScreenAnalysis:
@@ -282,7 +304,12 @@ class ScreenshotRoastingTool(BaseTool):
                 )
                 
         except Exception as e:
-            logger.error(f"Screenshot analysis failed: {str(e)}")
+            logger.error(
+                f"Screenshot analysis failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotRoastingTool",
+                error=e
+            )
             # Return default analysis
             return ScreenAnalysis(
                 activity_type=ActivityType.UNKNOWN,
@@ -374,7 +401,12 @@ class ScreenshotRoastingTool(BaseTool):
             )
 
         except Exception as e:
-            logger.error(f"Roast generation failed: {str(e)}")
+            logger.error(
+                f"Roast generation failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotRoastingTool",
+                error=e
+            )
             # Return fallback roast
             return RoastResult(
                 roast_text="I'm too sophisticated to comment on whatever this is.",
@@ -438,7 +470,12 @@ class ScreenshotRoastingTool(BaseTool):
             return roast
 
         except Exception as e:
-            logger.error(f"Roast text creation failed: {str(e)}")
+            logger.error(
+                f"Roast text creation failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotRoastingTool",
+                error=e
+            )
             return "I'm experiencing technical difficulties, but I'm still more competent than you."
 
     def _calculate_superiority_level(self, analysis: ScreenAnalysis, intensity: RoastIntensity) -> int:
@@ -517,11 +554,21 @@ class ScreenshotRoastingTool(BaseTool):
             image_path = self.roasts_dir / f"roast_{timestamp}.png"
             img.save(image_path)
 
-            logger.info(f"🎨 Roast image created: {image_path}")
+            logger.info(
+                f"🎨 Roast image created: {image_path}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotRoastingTool",
+                data={"image_path": str(image_path)}
+            )
             return str(image_path)
 
         except Exception as e:
-            logger.error(f"Roast image creation failed: {str(e)}")
+            logger.error(
+                f"Roast image creation failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotRoastingTool",
+                error=e
+            )
             return None
 
     def get_roast_history(self) -> List[Dict[str, Any]]:
@@ -541,7 +588,11 @@ class ScreenshotRoastingTool(BaseTool):
     def clear_history(self):
         """Clear roast history."""
         self.roast_history.clear()
-        logger.info("🧹 Roast history cleared")
+        logger.info(
+            "🧹 Roast history cleared",
+            LogCategory.TOOL_OPERATIONS,
+            "ScreenshotRoastingTool"
+        )
 
 
 # Tool metadata for registration

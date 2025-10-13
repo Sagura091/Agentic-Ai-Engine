@@ -9,11 +9,12 @@ import asyncio
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Type, List
 from datetime import datetime
-import structlog
 from pydantic import BaseModel
 from langchain_core.tools import BaseTool
 from langchain_core.callbacks import CallbackManagerForToolRun
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from app.tools.unified_tool_repository import (
     ToolMetadata as UnifiedToolMetadata,
     ToolCategory,
@@ -36,7 +37,7 @@ from .error_handlers import UniversalToolError, ValidationError
 from .validators import UniversalToolValidator
 from .utils import cleanup_temp_files
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class BaseUniversalTool(BaseTool, ABC):
@@ -79,9 +80,13 @@ class BaseUniversalTool(BaseTool, ABC):
 
         logger.info(
             "Universal Tool initialized",
-            tool_id=self.tool_id,
-            tool_name=self.name,
-            version=self.tool_version,
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.universal.shared.base_universal_tool",
+            data={
+                "tool_id": self.tool_id,
+                "tool_name": self.name,
+                "version": self.tool_version,
+            }
         )
     
     def _run(
@@ -112,9 +117,13 @@ class BaseUniversalTool(BaseTool, ABC):
         except Exception as e:
             logger.error(
                 "Tool execution failed (sync)",
-                tool_id=self.tool_id,
-                error=str(e),
-                error_type=type(e).__name__,
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.universal.shared.base_universal_tool",
+                data={
+                    "tool_id": self.tool_id,
+                    "error_type": type(e).__name__,
+                },
+                error=e
             )
             raise
     
@@ -141,8 +150,12 @@ class BaseUniversalTool(BaseTool, ABC):
         try:
             logger.info(
                 "Tool execution started",
-                tool_id=self.tool_id,
-                execution_number=self._execution_count,
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.universal.shared.base_universal_tool",
+                data={
+                    "tool_id": self.tool_id,
+                    "execution_number": self._execution_count,
+                }
             )
 
             # Call the actual implementation
@@ -151,9 +164,13 @@ class BaseUniversalTool(BaseTool, ABC):
             execution_time = (datetime.now() - start_time).total_seconds()
             logger.info(
                 "Tool execution completed",
-                tool_id=self.tool_id,
-                execution_number=self._execution_count,
-                execution_time=execution_time,
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.universal.shared.base_universal_tool",
+                data={
+                    "tool_id": self.tool_id,
+                    "execution_number": self._execution_count,
+                    "execution_time": execution_time,
+                }
             )
 
             return result
@@ -167,10 +184,14 @@ class BaseUniversalTool(BaseTool, ABC):
             object.__setattr__(self, '_error_count', self._error_count + 1)
             logger.error(
                 "Tool execution failed",
-                tool_id=self.tool_id,
-                execution_number=self._execution_count,
-                error=str(e),
-                error_type=type(e).__name__,
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.universal.shared.base_universal_tool",
+                data={
+                    "tool_id": self.tool_id,
+                    "execution_number": self._execution_count,
+                    "error_type": type(e).__name__,
+                },
+                error=e
             )
             raise UniversalToolError(
                 f"Tool execution failed: {str(e)}",
@@ -182,10 +203,14 @@ class BaseUniversalTool(BaseTool, ABC):
             try:
                 cleanup_temp_files()
             except Exception as e:
-                logger.warning(
+                logger.warn(
                     "Failed to cleanup temporary files",
-                    tool_id=self.tool_id,
-                    error=str(e),
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.universal.shared.base_universal_tool",
+                    data={
+                        "tool_id": self.tool_id,
+                    },
+                    error=e
                 )
     
     @abstractmethod

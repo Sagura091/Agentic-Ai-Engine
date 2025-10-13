@@ -25,11 +25,12 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
-import structlog
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from ..core.admin_model_manager import admin_model_manager
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class PerformanceMetric(str, Enum):
@@ -141,7 +142,12 @@ class ModelPerformanceComparator:
             ModelComparison with detailed analysis
         """
         try:
-            logger.info(f"🔍 Comparing models: {model_a} vs {model_b}")
+            logger.info(
+                f"🔍 Comparing models: {model_a} vs {model_b}",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.model_performance_comparator",
+                data={"model_a": model_a, "model_b": model_b}
+            )
             
             # Get performance scores for both models
             scores_a = await self._get_model_performance_scores(model_a, include_live_benchmarks)
@@ -210,18 +216,39 @@ class ModelPerformanceComparator:
                 timestamp=datetime.utcnow()
             )
             
-            logger.info(f"✅ Model comparison completed: {overall_winner} wins with {confidence:.1%} confidence")
-            
+            logger.info(
+                f"✅ Model comparison completed: {overall_winner} wins with {confidence:.1%} confidence",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.model_performance_comparator",
+                data={
+                    "overall_winner": overall_winner,
+                    "confidence": confidence,
+                    "model_a": model_a,
+                    "model_b": model_b
+                }
+            )
+
             return comparison
-            
+
         except Exception as e:
-            logger.error(f"❌ Model comparison failed: {str(e)}")
+            logger.error(
+                "❌ Model comparison failed",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.model_performance_comparator",
+                data={"model_a": model_a, "model_b": model_b},
+                error=e
+            )
             raise
-    
+
     async def get_model_performance_profile(self, model_name: str) -> Dict[str, Any]:
         """Get comprehensive performance profile for a model."""
         try:
-            logger.info(f"📊 Getting performance profile for: {model_name}")
+            logger.info(
+                f"📊 Getting performance profile for: {model_name}",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.model_performance_comparator",
+                data={"model_name": model_name}
+            )
             
             # Get performance scores
             scores = await self._get_model_performance_scores(model_name, include_live_benchmarks=True)
@@ -265,9 +292,15 @@ class ModelPerformanceComparator:
             }
             
             return profile
-            
+
         except Exception as e:
-            logger.error(f"❌ Failed to get performance profile: {str(e)}")
+            logger.error(
+                "❌ Failed to get performance profile",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.model_performance_comparator",
+                data={"model_name": model_name},
+                error=e
+            )
             return {}
     
     async def get_performance_trends(self, model_name: str, days: int = 30) -> Dict[str, Any]:
@@ -297,9 +330,15 @@ class ModelPerformanceComparator:
                 }
             
             return trends
-            
+
         except Exception as e:
-            logger.error(f"❌ Failed to get performance trends: {str(e)}")
+            logger.error(
+                "❌ Failed to get performance trends",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.model_performance_comparator",
+                data={"model_name": model_name, "days": days},
+                error=e
+            )
             return {}
     
     async def _get_model_performance_scores(self, model_name: str, include_live_benchmarks: bool = False) -> Dict[str, float]:
@@ -339,36 +378,62 @@ class ModelPerformanceComparator:
             return varied_scores
             
         except Exception as e:
-            logger.error(f"❌ Failed to get performance scores for {model_name}: {str(e)}")
+            logger.error(
+                f"❌ Failed to get performance scores for {model_name}",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.model_performance_comparator",
+                data={"model_name": model_name},
+                error=e
+            )
             return {metric: 50 for metric in PerformanceMetric}
-    
+
     async def _run_live_benchmarks(self, model_name: str) -> Dict[str, float]:
         """Run live benchmarks for a model."""
         try:
-            logger.info(f"🏃 Running live benchmarks for: {model_name}")
-            
+            logger.info(
+                f"🏃 Running live benchmarks for: {model_name}",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.model_performance_comparator",
+                data={"model_name": model_name}
+            )
+
             # Simulate benchmark execution
             await asyncio.sleep(2)  # Simulate benchmark time
-            
+
             # Return simulated live benchmark results
             return {
                 f"{PerformanceMetric.SPEED}_live": 75.0,
                 f"{PerformanceMetric.QUALITY}_live": 80.0,
                 f"{PerformanceMetric.RELIABILITY}_live": 85.0
             }
-            
+
         except Exception as e:
-            logger.error(f"❌ Live benchmarks failed for {model_name}: {str(e)}")
+            logger.error(
+                f"❌ Live benchmarks failed for {model_name}",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.model_performance_comparator",
+                data={"model_name": model_name},
+                error=e
+            )
             return {}
     
     async def _run_benchmark_comparison(self, model_a: str, model_b: str, benchmark_type: BenchmarkType) -> Dict[str, Any]:
         """Run specific benchmark comparison between two models."""
         try:
-            logger.info(f"🏁 Running {benchmark_type.value} benchmark: {model_a} vs {model_b}")
-            
+            logger.info(
+                f"🏁 Running {benchmark_type.value} benchmark: {model_a} vs {model_b}",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.model_performance_comparator",
+                data={
+                    "benchmark_type": benchmark_type.value,
+                    "model_a": model_a,
+                    "model_b": model_b
+                }
+            )
+
             # Simulate benchmark execution
             await asyncio.sleep(1)
-            
+
             # Return simulated benchmark results
             return {
                 "benchmark_type": benchmark_type.value,
@@ -378,9 +443,19 @@ class ModelPerformanceComparator:
                 "execution_time": 1.0,
                 "details": f"Benchmark {benchmark_type.value} completed successfully"
             }
-            
+
         except Exception as e:
-            logger.error(f"❌ Benchmark comparison failed: {str(e)}")
+            logger.error(
+                "❌ Benchmark comparison failed",
+                LogCategory.LLM_OPERATIONS,
+                "app.services.model_performance_comparator",
+                data={
+                    "benchmark_type": benchmark_type.value,
+                    "model_a": model_a,
+                    "model_b": model_b
+                },
+                error=e
+            )
             return {}
     
     def _get_metric_unit(self, metric: PerformanceMetric) -> str:

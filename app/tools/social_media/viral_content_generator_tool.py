@@ -44,9 +44,11 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from enum import Enum
 
-import structlog
 from pydantic import BaseModel, Field
 from langchain_core.tools import BaseTool
+
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 
 from app.tools.metadata import (
     ToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType,
@@ -54,9 +56,9 @@ from app.tools.metadata import (
     BehavioralHint, MetadataCapableToolMixin
 )
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata as UnifiedToolMetadata
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata as UnifiedToolMetadata
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class ContentFormat(str, Enum):
@@ -247,15 +249,24 @@ class ViralContentGeneratorTool(BaseTool, MetadataCapableToolMixin):
             
             logger.info(
                 "Viral content generation completed",
-                content_count=len(optimized_content),
-                average_viral_score=result["viral_score_average"],
-                total_expected_reach=result["total_expected_reach"]
+                LogCategory.TOOL_OPERATIONS,
+                "ViralContentGeneratorTool",
+                data={
+                    "content_count": len(optimized_content),
+                    "average_viral_score": result["viral_score_average"],
+                    "total_expected_reach": result["total_expected_reach"]
+                }
             )
             
             return result
             
         except Exception as e:
-            logger.error(f"Viral content generator error: {str(e)}")
+            logger.error(
+                f"Viral content generator error: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "ViralContentGeneratorTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -667,7 +678,7 @@ VIRAL_CONTENT_GENERATOR_TOOL_METADATA = UnifiedToolMetadata(
     tool_id="viral_content_generator",
     name="Viral Content Generator Tool",
     description="Revolutionary AI-powered viral content creation and optimization tool",
-    category=ToolCategory.COMMUNICATION,
+    category=ToolCategoryEnum.COMMUNICATION,
     access_level=ToolAccessLevel.PRIVATE,
     requires_rag=False,
     use_cases={"content_creation", "social_media", "marketing", "viral_marketing"}

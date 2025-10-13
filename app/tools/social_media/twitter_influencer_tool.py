@@ -44,13 +44,15 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 import aiohttp
-import structlog
 from pydantic import BaseModel, Field, validator
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 
-logger = structlog.get_logger(__name__)
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
+
+logger = get_logger()
 
 
 class TwitterActionType(str, Enum):
@@ -249,15 +251,24 @@ class TwitterInfluencerTool(BaseTool):
             
             logger.info(
                 "Twitter influencer action completed",
-                action=input_data.action,
-                success=result.get("success", False),
-                metrics=result.get("metrics", {})
+                LogCategory.TOOL_OPERATIONS,
+                "TwitterInfluencerTool",
+                data={
+                    "action": input_data.action,
+                    "success": result.get("success", False),
+                    "metrics": result.get("metrics", {})
+                }
             )
             
             return result
             
         except Exception as e:
-            logger.error(f"Twitter influencer tool error: {str(e)}")
+            logger.error(
+                f"Twitter influencer tool error: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "TwitterInfluencerTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -284,7 +295,11 @@ class TwitterInfluencerTool(BaseTool):
             connector=aiohttp.TCPConnector(limit=100)
         )
 
-        logger.info("Twitter influencer session initialized")
+        logger.info(
+            "Twitter influencer session initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "TwitterInfluencerTool"
+        )
 
     async def _create_tweet(self, input_data: TwitterInfluencerInput) -> Dict[str, Any]:
         """Create and post a tweet with viral optimization."""
@@ -354,7 +369,12 @@ class TwitterInfluencerTool(BaseTool):
                 raise Exception(f"Failed to create tweet: {response}")
 
         except Exception as e:
-            logger.error(f"Error creating tweet: {str(e)}")
+            logger.error(
+                f"Error creating tweet: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "TwitterInfluencerTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -423,7 +443,12 @@ class TwitterInfluencerTool(BaseTool):
                     # Small delay between tweets
                     await asyncio.sleep(2)
                 else:
-                    logger.error(f"Failed to post thread tweet {i+1}: {response}")
+                    logger.error(
+                        f"Failed to post thread tweet {i+1}: {response}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "TwitterInfluencerTool",
+                        data={"tweet_number": i+1, "response": response}
+                    )
                     break
 
             return {
@@ -436,7 +461,12 @@ class TwitterInfluencerTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Error creating thread: {str(e)}")
+            logger.error(
+                f"Error creating thread: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "TwitterInfluencerTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -472,7 +502,12 @@ class TwitterInfluencerTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Error analyzing trends: {str(e)}")
+            logger.error(
+                f"Error analyzing trends: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "TwitterInfluencerTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -548,7 +583,12 @@ class TwitterInfluencerTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Error engaging audience: {str(e)}")
+            logger.error(
+                f"Error engaging audience: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "TwitterInfluencerTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -606,7 +646,12 @@ class TwitterInfluencerTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Error growing followers: {str(e)}")
+            logger.error(
+                f"Error growing followers: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "TwitterInfluencerTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -636,7 +681,12 @@ class TwitterInfluencerTool(BaseTool):
                 async with self.session.post(url, headers=headers, json=data) as response:
                     return await response.json()
         except Exception as e:
-            logger.error(f"Twitter API request failed: {str(e)}")
+            logger.error(
+                f"Twitter API request failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "TwitterInfluencerTool",
+                error=e
+            )
             return {"error": str(e)}
 
     async def _optimize_content_for_virality(self, content: str, hashtags: List[str], audience: str) -> str:
@@ -768,7 +818,7 @@ TWITTER_INFLUENCER_TOOL_METADATA = ToolMetadata(
     tool_id="twitter_influencer",
     name="Twitter Influencer Tool",
     description="Revolutionary Twitter management and influence tool for complete Twitter domination",
-    category=ToolCategory.COMMUNICATION,
+    category=ToolCategoryEnum.COMMUNICATION,
     access_level=ToolAccessLevel.PRIVATE,
     requires_rag=False,
     use_cases={"social_media", "marketing", "community_building", "content_creation"}

@@ -28,7 +28,6 @@ from pathlib import Path
 import base64
 from io import BytesIO
 
-import structlog
 from bs4 import BeautifulSoup
 from PIL import Image, ImageDraw, ImageFont
 import cv2
@@ -44,6 +43,8 @@ except ImportError:
     PRAW_AVAILABLE = False
     praw = None
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 # Use custom HTTP client with connection pooling
 from app.http_client import HTTPClient, ClientConfig, ConnectionPoolConfig
 
@@ -51,7 +52,7 @@ from app.http_client import HTTPClient, ClientConfig, ConnectionPoolConfig
 from app.tools.unified_tool_repository import ToolCategory
 from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 @dataclass
@@ -164,7 +165,11 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
         """Initialize Reddit API client."""
         try:
             if not PRAW_AVAILABLE:
-                logger.warning("PRAW not available - Reddit collection disabled. Install with: pip install praw")
+                logger.warn(
+                    "PRAW not available - Reddit collection disabled. Install with: pip install praw",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.meme_collection_tool"
+                )
                 self._reddit_client = None
                 return
 
@@ -174,16 +179,29 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
                     client_secret=self._config.reddit_client_secret,
                     user_agent=self._config.reddit_user_agent
                 )
-                logger.info("Reddit client initialized successfully")
+                logger.info(
+                    "Reddit client initialized successfully",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.meme_collection_tool"
+                )
             else:
-                logger.warning("Reddit credentials not provided, using read-only mode")
+                logger.warn(
+                    "Reddit credentials not provided, using read-only mode",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.meme_collection_tool"
+                )
                 self._reddit_client = praw.Reddit(
                     client_id="dummy",
                     client_secret="dummy",
                     user_agent=self._config.reddit_user_agent
                 )
         except Exception as e:
-            logger.error(f"Failed to initialize Reddit client: {str(e)}")
+            logger.error(
+                "Failed to initialize Reddit client",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                error=e
+            )
             self._reddit_client = None
     
     async def _run(self, query: str = "", **kwargs) -> str:
@@ -226,9 +244,14 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
             report = self._generate_collection_report(processed_memes)
             
             return json.dumps(report, indent=2)
-            
+
         except Exception as e:
-            logger.error(f"Meme collection failed: {str(e)}")
+            logger.error(
+                "Meme collection failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                error=e
+            )
             return json.dumps({
                 'success': False,
                 'error': str(e),
@@ -265,7 +288,12 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
     async def _collect_direct_memes(self, limit: int) -> List[MemeData]:
         """Collect memes by generating test images locally."""
         try:
-            logger.info(f"Generating test memes locally (limit: {limit})...")
+            logger.info(
+                f"Generating test memes locally (limit: {limit})...",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                data={"limit": limit}
+            )
             collected_memes = []
 
             # Generate test memes locally instead of downloading
@@ -339,17 +367,38 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
                     ).hexdigest()
 
                     collected_memes.append(meme_data)
-                    logger.info(f"Generated test meme: {title} ({color}) -> {file_path}")
+                    logger.info(
+                        f"Generated test meme: {title} ({color}) -> {file_path}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.meme_collection_tool",
+                        data={"title": title, "color": color, "file_path": str(file_path)}
+                    )
 
                 except Exception as e:
-                    logger.error(f"Failed to generate test meme {i+1}: {str(e)}")
+                    logger.error(
+                        f"Failed to generate test meme {i+1}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.meme_collection_tool",
+                        data={"meme_number": i+1},
+                        error=e
+                    )
                     continue
 
-            logger.info(f"Local generation created {len(collected_memes)} test memes")
+            logger.info(
+                f"Local generation created {len(collected_memes)} test memes",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                data={"memes_created": len(collected_memes)}
+            )
             return collected_memes
 
         except Exception as e:
-            logger.error(f"Local meme generation failed: {str(e)}")
+            logger.error(
+                "Local meme generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                error=e
+            )
             return []
 
             # Shuffle and limit the URLs
@@ -389,23 +438,48 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
                     ).hexdigest()
 
                     collected_memes.append(meme_data)
-                    logger.info(f"Added direct meme: {title} from {url}")
+                    logger.info(
+                        f"Added direct meme: {title} from {url}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.meme_collection_tool",
+                        data={"title": title, "url": url}
+                    )
 
                 except Exception as e:
-                    logger.error(f"Failed to process direct URL {url}: {str(e)}")
+                    logger.error(
+                        f"Failed to process direct URL {url}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.meme_collection_tool",
+                        data={"url": url},
+                        error=e
+                    )
                     continue
 
-            logger.info(f"Direct collection found {len(collected_memes)} memes")
+            logger.info(
+                f"Direct collection found {len(collected_memes)} memes",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                data={"memes_found": len(collected_memes)}
+            )
             return collected_memes
 
         except Exception as e:
-            logger.error(f"Direct meme collection failed: {str(e)}")
+            logger.error(
+                "Direct meme collection failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                error=e
+            )
             return []
 
     async def _collect_web_memes(self, limit: int) -> List[MemeData]:
         """🚀 REVOLUTIONARY Google Images Meme Scraper - Scours the entire internet for memes!"""
         try:
-            logger.info("🔥 Starting REVOLUTIONARY Google Images meme collection...")
+            logger.info(
+                "🔥 Starting REVOLUTIONARY Google Images meme collection...",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool"
+            )
             collected_memes = []
 
             # 🎯 Powerful meme search queries for Google Images
@@ -427,23 +501,49 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
                     break
 
                 try:
-                    logger.info(f"🔍 Scraping Google Images for: {query}")
+                    logger.info(
+                        f"🔍 Scraping Google Images for: {query}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.meme_collection_tool",
+                        data={"query": query}
+                    )
 
                     # 🚀 Get memes from Google Images
                     google_memes = await self._scrape_google_images(query, memes_per_query)
                     collected_memes.extend(google_memes)
 
-                    logger.info(f"✅ Found {len(google_memes)} memes from Google Images: {query}")
+                    logger.info(
+                        f"✅ Found {len(google_memes)} memes from Google Images: {query}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.meme_collection_tool",
+                        data={"query": query, "memes_found": len(google_memes)}
+                    )
 
                 except Exception as e:
-                    logger.error(f"❌ Failed Google Images search for '{query}': {str(e)}")
+                    logger.error(
+                        f"❌ Failed Google Images search for '{query}'",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.meme_collection_tool",
+                        data={"query": query},
+                        error=e
+                    )
                     continue
 
-            logger.info(f"🎉 Google Images collected {len(collected_memes)} AMAZING memes!")
+            logger.info(
+                f"🎉 Google Images collected {len(collected_memes)} AMAZING memes!",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                data={"total_memes": len(collected_memes)}
+            )
             return collected_memes[:limit]
 
         except Exception as e:
-            logger.error(f"💥 Google Images meme collection failed: {str(e)}")
+            logger.error(
+                "💥 Google Images meme collection failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                error=e
+            )
             return []
 
     async def _scrape_google_images(self, query: str, limit: int) -> List[MemeData]:
@@ -481,7 +581,12 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
             # 🎯 Extract image URLs from Google Images results
             image_urls = self._extract_google_image_urls(soup)
 
-            logger.info(f"🔥 Found {len(image_urls)} image URLs from Google Images")
+            logger.info(
+                f"🔥 Found {len(image_urls)} image URLs from Google Images",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                data={"urls_found": len(image_urls)}
+            )
 
             # 📥 Download and process images
             for i, img_url in enumerate(image_urls[:limit * 2]):  # Get extra to filter
@@ -493,16 +598,32 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
                     meme_data = await self._download_and_process_meme(img_url, query, i)
                     if meme_data:
                         memes.append(meme_data)
-                        logger.info(f"✅ Successfully downloaded meme {i+1}: {meme_data.title}")
+                        logger.info(
+                            f"✅ Successfully downloaded meme {i+1}: {meme_data.title}",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.meme_collection_tool",
+                            data={"meme_number": i+1, "title": meme_data.title}
+                        )
 
                 except Exception as e:
-                    logger.warning(f"⚠️ Failed to download image {i+1}: {str(e)}")
+                    logger.warn(
+                        f"⚠️ Failed to download image {i+1}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.meme_collection_tool",
+                        data={"image_number": i+1},
+                        error=e
+                    )
                     continue
 
             return memes
 
         except Exception as e:
-            logger.error(f"💥 Google Images scraping failed: {str(e)}")
+            logger.error(
+                "💥 Google Images scraping failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                error=e
+            )
             return []
 
     def _extract_google_image_urls(self, soup: BeautifulSoup) -> List[str]:
@@ -531,11 +652,21 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
             unique_urls = list(dict.fromkeys(image_urls))  # Preserve order while removing duplicates
             filtered_urls = [url for url in unique_urls if self._is_meme_worthy_url(url)]
 
-            logger.info(f"🎯 Extracted {len(filtered_urls)} valid meme image URLs")
+            logger.info(
+                f"🎯 Extracted {len(filtered_urls)} valid meme image URLs",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                data={"urls_extracted": len(filtered_urls)}
+            )
             return filtered_urls[:50]  # Limit to prevent overload
 
         except Exception as e:
-            logger.error(f"💥 Failed to extract image URLs: {str(e)}")
+            logger.error(
+                "💥 Failed to extract image URLs",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                error=e
+            )
             return []
 
     def _is_valid_image_url(self, url: str) -> bool:
@@ -661,7 +792,13 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
             return meme_data
 
         except Exception as e:
-            logger.error(f"💥 Failed to download/process image from {img_url}: {str(e)}")
+            logger.error(
+                f"💥 Failed to download/process image from {img_url}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                data={"img_url": img_url},
+                error=e
+            )
             return None
 
     async def _parse_web_search_results(self, search_result: str, limit: int) -> List[MemeData]:
@@ -748,7 +885,12 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
             return memes
 
         except Exception as e:
-            logger.error(f"Failed to parse web search results: {str(e)}")
+            logger.error(
+                "Failed to parse web search results",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                error=e
+            )
             return []
 
     def _is_likely_meme_url(self, url: str) -> bool:
@@ -774,35 +916,55 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
     async def _collect_reddit_memes(self, subreddits: List[str], limit: int) -> List[MemeData]:
         """Collect memes from Reddit subreddits."""
         collected_memes = []
-        
+
         if not self._reddit_client:
-            logger.error("Reddit client not available")
+            logger.error(
+                "Reddit client not available",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool"
+            )
             return collected_memes
 
         try:
             for subreddit_name in subreddits:
-                logger.info(f"Collecting memes from r/{subreddit_name}")
+                logger.info(
+                    f"Collecting memes from r/{subreddit_name}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.meme_collection_tool",
+                    data={"subreddit": subreddit_name}
+                )
 
                 try:
                     subreddit = self._reddit_client.subreddit(subreddit_name)
-                    
+
                     # Get hot posts from subreddit
                     for submission in subreddit.hot(limit=limit // len(subreddits)):
                         if self._is_image_post(submission):
                             meme_data = await self._extract_meme_data(submission, subreddit_name)
                             if meme_data and self._is_quality_meme(meme_data):
                                 collected_memes.append(meme_data)
-                                
+
                                 if len(collected_memes) >= limit:
                                     break
-                    
+
                 except Exception as e:
-                    logger.error(f"Error collecting from r/{subreddit_name}: {str(e)}")
+                    logger.error(
+                        f"Error collecting from r/{subreddit_name}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.meme_collection_tool",
+                        data={"subreddit": subreddit_name},
+                        error=e
+                    )
                     continue
-        
+
         except Exception as e:
-            logger.error(f"Reddit collection failed: {str(e)}")
-        
+            logger.error(
+                "Reddit collection failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                error=e
+            )
+
         return collected_memes
     
     def _is_image_post(self, submission) -> bool:
@@ -862,9 +1024,14 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
             ).hexdigest()
             
             return meme_data
-            
+
         except Exception as e:
-            logger.error(f"Failed to extract meme data: {str(e)}")
+            logger.error(
+                "Failed to extract meme data",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                error=e
+            )
             return None
     
     def _get_image_url(self, url: str) -> Optional[str]:
@@ -904,15 +1071,30 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
         """Process collected memes (download, analyze, store)."""
         processed_memes = []
 
-        logger.info(f"Starting to process {len(memes)} memes...")
+        logger.info(
+            f"Starting to process {len(memes)} memes...",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.meme_collection_tool",
+            data={"memes_count": len(memes)}
+        )
 
         for i, meme in enumerate(memes):
             try:
-                logger.info(f"Processing meme {i+1}/{len(memes)}: {meme.title} from {meme.image_url}")
+                logger.info(
+                    f"Processing meme {i+1}/{len(memes)}: {meme.title} from {meme.image_url}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.meme_collection_tool",
+                    data={"meme_number": i+1, "total": len(memes), "title": meme.title, "image_url": meme.image_url}
+                )
 
                 # Download image
                 download_success = await self._download_meme_image(meme)
-                logger.info(f"Download result for {meme.title}: {download_success}")
+                logger.info(
+                    f"Download result for {meme.title}: {download_success}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.meme_collection_tool",
+                    data={"title": meme.title, "download_success": download_success}
+                )
 
                 if download_success:
                     # Analyze image
@@ -923,45 +1105,96 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
                     processed_memes.append(meme)
                     self._session_stats['collected'] += 1
 
-                    logger.info(f"✅ Successfully processed meme: {meme.title}")
+                    logger.info(
+                        f"✅ Successfully processed meme: {meme.title}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.meme_collection_tool",
+                        data={"title": meme.title}
+                    )
                 else:
-                    logger.warning(f"❌ Failed to download meme: {meme.title}")
+                    logger.warn(
+                        f"❌ Failed to download meme: {meme.title}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.meme_collection_tool",
+                        data={"title": meme.title}
+                    )
 
             except Exception as e:
-                logger.error(f"Failed to process meme {meme.id}: {str(e)}")
+                logger.error(
+                    f"Failed to process meme {meme.id}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.meme_collection_tool",
+                    data={"meme_id": meme.id},
+                    error=e
+                )
                 self._session_stats['errors'] += 1
                 continue
 
-        logger.info(f"Processing complete: {len(processed_memes)}/{len(memes)} memes processed successfully")
+        logger.info(
+            f"Processing complete: {len(processed_memes)}/{len(memes)} memes processed successfully",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.meme_collection_tool",
+            data={"processed": len(processed_memes), "total": len(memes)}
+        )
         return processed_memes
     
     async def _download_meme_image(self, meme: MemeData) -> bool:
         """Download meme image to local storage."""
         try:
-            logger.info(f"Starting download for {meme.title} from {meme.image_url}")
+            logger.info(
+                f"Starting download for {meme.title} from {meme.image_url}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                data={"title": meme.title, "image_url": meme.image_url}
+            )
 
             # Create filename
             filename = f"{meme.id}_{meme.content_hash[:8]}"
 
             # Download image
             http_client = self._get_http_client(meme.image_url)
-            logger.info(f"Making HTTP request to {meme.image_url}")
+            logger.info(
+                f"Making HTTP request to {meme.image_url}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                data={"image_url": meme.image_url}
+            )
 
             response = await http_client.get(meme.image_url)
-            logger.info(f"HTTP response status: {response.status_code}")
+            logger.info(
+                f"HTTP response status: {response.status_code}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                data={"status_code": response.status_code}
+            )
 
             # Handle redirects (302, 301) by following them
             if response.status_code in [301, 302]:
                 redirect_url = response.headers.get('location')
                 if redirect_url:
-                    logger.info(f"Following redirect to: {redirect_url}")
+                    logger.info(
+                        f"Following redirect to: {redirect_url}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.meme_collection_tool",
+                        data={"redirect_url": redirect_url}
+                    )
                     # Create new client for redirect URL
                     redirect_client = self._get_http_client(redirect_url)
                     response = await redirect_client.get(redirect_url)
-                    logger.info(f"Redirect response status: {response.status_code}")
+                    logger.info(
+                        f"Redirect response status: {response.status_code}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.meme_collection_tool",
+                        data={"status_code": response.status_code}
+                    )
 
             if response.status_code != 200:
-                logger.error(f"HTTP request failed with status {response.status_code}")
+                logger.error(
+                    f"HTTP request failed with status {response.status_code}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.meme_collection_tool",
+                    data={"status_code": response.status_code}
+                )
                 return False
             
             # Always save as PNG as requested by user
@@ -985,10 +1218,20 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
 
                 # Save as PNG
                 image.save(file_path, 'PNG', optimize=True)
-                logger.info(f"Converted and saved meme as PNG: {file_path}")
+                logger.info(
+                    f"Converted and saved meme as PNG: {file_path}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.meme_collection_tool",
+                    data={"file_path": str(file_path)}
+                )
 
             except Exception as e:
-                logger.warning(f"Failed to convert to PNG, saving original: {str(e)}")
+                logger.warn(
+                    "Failed to convert to PNG, saving original",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.meme_collection_tool",
+                    error=e
+                )
                 # Fallback: save original content
                 with open(file_path, 'wb') as f:
                     f.write(response.content)
@@ -1003,38 +1246,48 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
                 return False
             
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to download meme image: {str(e)}")
+            logger.error(
+                "Failed to download meme image",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                error=e
+            )
             return False
-    
+
     async def _analyze_meme_image(self, meme: MemeData):
         """Analyze meme image for dimensions, text, etc."""
         try:
             if not meme.local_path or not os.path.exists(meme.local_path):
                 return
-            
+
             # Load image
             with Image.open(meme.local_path) as img:
                 # Get dimensions
                 meme.dimensions = img.size
-                
+
                 # Basic quality scoring based on dimensions and file size
                 width, height = img.size
                 aspect_ratio = width / height if height > 0 else 1
-                
+
                 # Quality factors
                 size_score = min(1.0, (width * height) / (800 * 600))  # Prefer larger images
                 aspect_score = 1.0 - abs(aspect_ratio - 1.0) * 0.2  # Prefer square-ish images
-                
+
                 meme.quality_score = (size_score + aspect_score) / 2
-            
+
             # TODO: Add text extraction using OCR
             # TODO: Add template recognition
             # TODO: Add content analysis
-            
+
         except Exception as e:
-            logger.error(f"Failed to analyze meme image: {str(e)}")
+            logger.error(
+                "Failed to analyze meme image",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_collection_tool",
+                error=e
+            )
     
     def _generate_collection_report(self, processed_memes: List[MemeData]) -> Dict[str, Any]:
         """Generate collection session report."""

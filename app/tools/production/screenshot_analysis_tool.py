@@ -31,11 +31,14 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-import structlog
 from PIL import Image, ImageDraw, ImageFont
 from pydantic import BaseModel, Field
 from langchain.tools import BaseTool
 from pydantic import BaseModel as LangChainBaseModel
+
+# Import backend logging
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 
 # Import existing OCR capabilities
 from app.rag.ingestion.processors import get_ocr_engine, RevolutionaryOCREngine
@@ -44,7 +47,7 @@ from app.rag.ingestion.processors import get_ocr_engine, RevolutionaryOCREngine
 from app.llm.manager import get_enhanced_llm_manager
 from app.llm.models import LLMConfig, ProviderType, ModelCapability
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class UIElementType(str, Enum):
@@ -168,27 +171,48 @@ class RevolutionaryScreenshotAnalyzer:
             if self.is_initialized:
                 return True
                 
-            logger.info("🚀 Initializing Revolutionary Screenshot Analyzer...")
+            logger.info(
+                "🚀 Initializing Revolutionary Screenshot Analyzer...",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool"
+            )
             
             # Initialize OCR engine
             self.ocr_engine = await get_ocr_engine()
-            logger.info("✅ OCR engine initialized")
+            logger.info(
+                "✅ OCR engine initialized",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool"
+            )
             
             # Initialize LLM manager
             self.llm_manager = get_enhanced_llm_manager()
             if self.llm_manager:
                 await self.llm_manager.initialize()
-                logger.info("✅ LLM manager initialized")
+                logger.info(
+                    "✅ LLM manager initialized",
+                    LogCategory.TOOL_OPERATIONS,
+                    "ScreenshotAnalysisTool"
+                )
             
             # Validate multi-modal capabilities
             await self._validate_multimodal_capabilities()
             
             self.is_initialized = True
-            logger.info("🎯 Revolutionary Screenshot Analyzer ready!")
+            logger.info(
+                "🎯 Revolutionary Screenshot Analyzer ready!",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool"
+            )
             return True
             
         except Exception as e:
-            logger.error(f"Failed to initialize screenshot analyzer: {e}")
+            logger.error(
+                f"Failed to initialize screenshot analyzer: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                error=e
+            )
             return False
     
     async def _validate_multimodal_capabilities(self) -> None:
@@ -207,7 +231,12 @@ class RevolutionaryScreenshotAnalyzer:
                             break
             
             if not primary_available:
-                logger.warning(f"Primary multimodal model {self.config.primary_llm_model} not available")
+                logger.warn(
+                    f"Primary multimodal model {self.config.primary_llm_model} not available",
+                    LogCategory.TOOL_OPERATIONS,
+                    "ScreenshotAnalysisTool",
+                    data={"model": self.config.primary_llm_model}
+                )
                 
             # Check fallback providers
             fallback_available = []
@@ -220,10 +249,20 @@ class RevolutionaryScreenshotAnalyzer:
                             fallback_available.append(provider_type)
                             break
             
-            logger.info(f"✅ Multimodal capabilities: Primary={primary_available}, Fallbacks={fallback_available}")
+            logger.info(
+                f"✅ Multimodal capabilities: Primary={primary_available}, Fallbacks={fallback_available}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                data={"primary_available": primary_available, "fallback_available": fallback_available}
+            )
             
         except Exception as e:
-            logger.warning(f"Could not validate multimodal capabilities: {e}")
+            logger.warn(
+                f"Could not validate multimodal capabilities: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                error=e
+            )
 
     async def capture_screenshot(self, source: ScreenshotSource = ScreenshotSource.DESKTOP) -> Optional[str]:
         """Capture screenshot from specified source."""
@@ -241,11 +280,21 @@ class RevolutionaryScreenshotAnalyzer:
             elif source == ScreenshotSource.APPLICATION:
                 return await self._capture_application_screenshot(screenshot_path)
             else:
-                logger.error(f"Unsupported screenshot source: {source}")
+                logger.error(
+                    f"Unsupported screenshot source: {source}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "ScreenshotAnalysisTool",
+                    data={"source": source}
+                )
                 return None
 
         except Exception as e:
-            logger.error(f"Failed to capture screenshot: {e}")
+            logger.error(
+                f"Failed to capture screenshot: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                error=e
+            )
             return None
 
     async def _capture_desktop_screenshot(self, output_path: str) -> Optional[str]:
@@ -282,21 +331,39 @@ class RevolutionaryScreenshotAnalyzer:
                 subprocess.run(["screencapture", output_path], check=True)
                 return output_path
             else:
-                logger.error(f"Unsupported operating system: {system}")
+                logger.error(
+                    f"Unsupported operating system: {system}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "ScreenshotAnalysisTool",
+                    data={"system": system}
+                )
                 return None
 
         except Exception as e:
-            logger.error(f"Desktop screenshot capture failed: {e}")
+            logger.error(
+                f"Desktop screenshot capture failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                error=e
+            )
             return None
 
     async def _capture_browser_screenshot(self, output_path: str) -> Optional[str]:
         """Capture browser screenshot (placeholder for browser automation integration)."""
-        logger.warning("Browser screenshot capture requires browser automation tool integration")
+        logger.warn(
+            "Browser screenshot capture requires browser automation tool integration",
+            LogCategory.TOOL_OPERATIONS,
+            "ScreenshotAnalysisTool"
+        )
         return None
 
     async def _capture_application_screenshot(self, output_path: str) -> Optional[str]:
         """Capture specific application screenshot (placeholder)."""
-        logger.warning("Application screenshot capture requires window management integration")
+        logger.warn(
+            "Application screenshot capture requires window management integration",
+            LogCategory.TOOL_OPERATIONS,
+            "ScreenshotAnalysisTool"
+        )
         return None
 
     async def analyze_screenshot(self, screenshot_path: str, source: ScreenshotSource = ScreenshotSource.UPLOAD) -> Optional[VisualAnalysisResult]:
@@ -310,14 +377,28 @@ class RevolutionaryScreenshotAnalyzer:
             if self.config.enable_caching and cache_key in self.analysis_cache:
                 cached_result = self.analysis_cache[cache_key]
                 if (datetime.now() - cached_result.timestamp).seconds < self.config.cache_ttl:
-                    logger.info("📋 Using cached analysis result")
+                    logger.info(
+                        "📋 Using cached analysis result",
+                        LogCategory.TOOL_OPERATIONS,
+                        "ScreenshotAnalysisTool"
+                    )
                     return cached_result
 
-            logger.info(f"🔍 Analyzing screenshot: {screenshot_path}")
+            logger.info(
+                f"🔍 Analyzing screenshot: {screenshot_path}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                data={"screenshot_path": str(screenshot_path)}
+            )
 
             # Load and validate image
             if not os.path.exists(screenshot_path):
-                logger.error(f"Screenshot file not found: {screenshot_path}")
+                logger.error(
+                    f"Screenshot file not found: {screenshot_path}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "ScreenshotAnalysisTool",
+                    data={"screenshot_path": str(screenshot_path)}
+                )
                 return None
 
             image = Image.open(screenshot_path)
@@ -364,18 +445,31 @@ class RevolutionaryScreenshotAnalyzer:
             if self.config.enable_caching:
                 self.analysis_cache[cache_key] = result
 
-            logger.info("✅ Screenshot analysis completed")
+            logger.info(
+                "✅ Screenshot analysis completed",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool"
+            )
             return result
 
         except Exception as e:
-            logger.error(f"Screenshot analysis failed: {e}")
+            logger.error(
+                f"Screenshot analysis failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                error=e
+            )
             return None
 
     async def _perform_ocr_analysis(self, image: Image.Image, result: VisualAnalysisResult) -> None:
         """Perform OCR analysis using existing OCR engine."""
         try:
             if not self.ocr_engine:
-                logger.warning("OCR engine not available")
+                logger.warn(
+                    "OCR engine not available",
+                    LogCategory.TOOL_OPERATIONS,
+                    "ScreenshotAnalysisTool"
+                )
                 return
 
             # Convert PIL image to bytes
@@ -394,10 +488,20 @@ class RevolutionaryScreenshotAnalyzer:
             result.ocr_confidence = ocr_result.get('confidence', 0.0)
             result.ocr_language = ocr_result.get('language', 'unknown')
 
-            logger.info(f"📝 OCR extracted {len(result.extracted_text)} characters with {result.ocr_confidence:.2f} confidence")
+            logger.info(
+                f"📝 OCR extracted {len(result.extracted_text)} characters with {result.ocr_confidence:.2f} confidence",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                data={"characters": len(result.extracted_text), "confidence": result.ocr_confidence}
+            )
 
         except Exception as e:
-            logger.error(f"OCR analysis failed: {e}")
+            logger.error(
+                f"OCR analysis failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                error=e
+            )
 
     async def _detect_ui_elements(self, image: Image.Image, result: VisualAnalysisResult) -> None:
         """Detect UI elements using computer vision techniques."""
@@ -422,10 +526,20 @@ class RevolutionaryScreenshotAnalyzer:
             elements = elements[:self.config.max_elements_to_detect]
 
             result.ui_elements = elements
-            logger.info(f"🎯 Detected {len(elements)} UI elements")
+            logger.info(
+                f"🎯 Detected {len(elements)} UI elements",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                data={"elements_count": len(elements)}
+            )
 
         except Exception as e:
-            logger.error(f"UI element detection failed: {e}")
+            logger.error(
+                f"UI element detection failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                error=e
+            )
 
     async def _detect_buttons(self, cv_image: np.ndarray) -> List[UIElement]:
         """Detect button-like elements."""
@@ -456,7 +570,12 @@ class RevolutionaryScreenshotAnalyzer:
                         ))
 
         except Exception as e:
-            logger.error(f"Button detection failed: {e}")
+            logger.error(
+                f"Button detection failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                error=e
+            )
 
         return elements
 
@@ -491,7 +610,12 @@ class RevolutionaryScreenshotAnalyzer:
                         ))
 
         except Exception as e:
-            logger.error(f"Input field detection failed: {e}")
+            logger.error(
+                f"Input field detection failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                error=e
+            )
 
         return elements
 
@@ -532,7 +656,12 @@ class RevolutionaryScreenshotAnalyzer:
                 ))
 
         except Exception as e:
-            logger.error(f"Link detection failed: {e}")
+            logger.error(
+                f"Link detection failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                error=e
+            )
 
         return elements
 
@@ -540,7 +669,11 @@ class RevolutionaryScreenshotAnalyzer:
         """Perform visual reasoning using multi-modal LLMs."""
         try:
             if not self.llm_manager:
-                logger.warning("LLM manager not available for visual reasoning")
+                logger.warn(
+                    "LLM manager not available for visual reasoning",
+                    LogCategory.TOOL_OPERATIONS,
+                    "ScreenshotAnalysisTool"
+                )
                 return
 
             # Convert image to base64 for LLM
@@ -567,13 +700,26 @@ class RevolutionaryScreenshotAnalyzer:
 
             if visual_description:
                 result.visual_description = visual_description
-                logger.info("🧠 Visual reasoning completed")
+                logger.info(
+                    "🧠 Visual reasoning completed",
+                    LogCategory.TOOL_OPERATIONS,
+                    "ScreenshotAnalysisTool"
+                )
             else:
-                logger.warning("Visual reasoning failed with all providers")
+                logger.warn(
+                    "Visual reasoning failed with all providers",
+                    LogCategory.TOOL_OPERATIONS,
+                    "ScreenshotAnalysisTool"
+                )
                 result.visual_description = "Visual analysis not available"
 
         except Exception as e:
-            logger.error(f"Visual reasoning failed: {e}")
+            logger.error(
+                f"Visual reasoning failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                error=e
+            )
             result.visual_description = f"Visual analysis error: {str(e)}"
 
     async def _get_visual_description(self, img_base64: str, provider_type: ProviderType, model: str) -> Optional[str]:
@@ -614,7 +760,13 @@ class RevolutionaryScreenshotAnalyzer:
                 return str(response)
 
         except Exception as e:
-            logger.error(f"Visual description failed for {provider_type}: {e}")
+            logger.error(
+                f"Visual description failed for {provider_type}: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                data={"provider_type": str(provider_type)},
+                error=e
+            )
             return None
 
     async def _analyze_context(self, image: Image.Image, result: VisualAnalysisResult) -> None:
@@ -666,10 +818,20 @@ class RevolutionaryScreenshotAnalyzer:
             else:
                 result.purpose_analysis = "General user interaction interface"
 
-            logger.info(f"🎯 Context analysis: {result.context_analysis}")
+            logger.info(
+                f"🎯 Context analysis: {result.context_analysis}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                data={"context_analysis": result.context_analysis}
+            )
 
         except Exception as e:
-            logger.error(f"Context analysis failed: {e}")
+            logger.error(
+                f"Context analysis failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                error=e
+            )
             result.context_analysis = "Context analysis unavailable"
             result.purpose_analysis = "Purpose analysis unavailable"
 
@@ -736,10 +898,20 @@ class RevolutionaryScreenshotAnalyzer:
             result.automation_suggestions = suggestions
             result.interaction_opportunities = opportunities
 
-            logger.info(f"🤖 Generated {len(suggestions)} automation suggestions")
+            logger.info(
+                f"🤖 Generated {len(suggestions)} automation suggestions",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                data={"suggestions_count": len(suggestions)}
+            )
 
         except Exception as e:
-            logger.error(f"Automation suggestion generation failed: {e}")
+            logger.error(
+                f"Automation suggestion generation failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                error=e
+            )
             result.automation_suggestions = ["Automation analysis unavailable"]
             result.interaction_opportunities = []
 
@@ -801,7 +973,12 @@ class ScreenshotAnalysisTool(BaseTool):
             return self._format_analysis_result(result)
 
         except Exception as e:
-            logger.error(f"Screenshot analysis tool error: {e}")
+            logger.error(
+                f"Screenshot analysis tool error: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenshotAnalysisTool",
+                error=e
+            )
             return f"❌ Screenshot analysis error: {str(e)}"
 
     def _run(self, screenshot_path: str, source: str = "upload", capture_new: bool = False) -> str:

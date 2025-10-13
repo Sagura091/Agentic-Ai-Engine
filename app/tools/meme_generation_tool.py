@@ -27,10 +27,11 @@ from pathlib import Path
 import base64
 from io import BytesIO
 
-import structlog
 import cv2
 import numpy as np
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 # Use custom HTTP client with connection pooling
 from app.http_client import HTTPClient, ClientConfig, ConnectionPoolConfig
 
@@ -65,7 +66,7 @@ from app.tools.metadata import (
     BehavioralHint, MetadataCapableToolMixin
 )
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 @dataclass
@@ -267,19 +268,30 @@ class MemeGenerationTool(BaseTool, MetadataCapableToolMixin):
                         if meme.quality_score >= request.quality_threshold:
                             generated_memes.append(meme)
                             self._generation_stats['total_generated'] += 1
-                        
+
                 except Exception as e:
-                    logger.error(f"Failed to generate meme variation {i}: {str(e)}")
+                    logger.error(
+                        f"Failed to generate meme variation {i}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.meme_generation_tool",
+                        data={"variation_number": i},
+                        error=e
+                    )
                     self._generation_stats['errors'] += 1
                     continue
-            
+
             # Generate report
             report = self._generate_generation_report(generated_memes, request)
-            
+
             return json.dumps(report, indent=2)
-            
+
         except Exception as e:
-            logger.error(f"Meme generation failed: {str(e)}")
+            logger.error(
+                "Meme generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_generation_tool",
+                error=e
+            )
             return json.dumps({
                 'success': False,
                 'error': str(e),
@@ -361,36 +373,41 @@ class MemeGenerationTool(BaseTool, MetadataCapableToolMixin):
             
             self._generation_stats['template_generated'] += 1
             return generated_meme
-            
+
         except Exception as e:
-            logger.error(f"Template meme generation failed: {str(e)}")
+            logger.error(
+                "Template meme generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_generation_tool",
+                error=e
+            )
             return None
-    
+
     async def _generate_ai_meme(self, request: MemeGenerationRequest) -> Optional[GeneratedMeme]:
         """Generate meme using AI image generation."""
         try:
             # Create AI prompt for image generation
             ai_prompt = self._create_ai_image_prompt(request)
-            
+
             # Generate image using available AI service
             image = await self._generate_image_with_ai(ai_prompt)
-            
+
             if not image:
                 # Fallback to template generation
                 return await self._generate_template_meme(request)
-            
+
             # Generate text content
             text_elements = await self._generate_meme_text(request)
-            
+
             # Add text overlay if needed
             if text_elements:
                 image = self._add_text_overlay(image, text_elements)
-            
+
             # Save generated meme
             meme_id = f"ai_{int(datetime.now().timestamp())}_{random.randint(1000, 9999)}"
             output_path = self._output_path / f"{meme_id}.png"
             image.save(output_path)
-            
+
             # Create generated meme object
             generated_meme = GeneratedMeme(
                 meme_id=meme_id,
@@ -403,12 +420,17 @@ class MemeGenerationTool(BaseTool, MetadataCapableToolMixin):
                     'style': request.style
                 }
             )
-            
+
             self._generation_stats['ai_generated'] += 1
             return generated_meme
-            
+
         except Exception as e:
-            logger.error(f"AI meme generation failed: {str(e)}")
+            logger.error(
+                "AI meme generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_generation_tool",
+                error=e
+            )
             return None
     
     def _create_ai_image_prompt(self, request: MemeGenerationRequest) -> str:
@@ -455,11 +477,20 @@ class MemeGenerationTool(BaseTool, MetadataCapableToolMixin):
                     return image
             
             # 4. Fallback: Create placeholder image
-            logger.warning("No AI image generation service available, creating placeholder")
+            logger.warn(
+                "No AI image generation service available, creating placeholder",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_generation_tool"
+            )
             return self._create_placeholder_image(prompt)
-            
+
         except Exception as e:
-            logger.error(f"AI image generation failed: {str(e)}")
+            logger.error(
+                "AI image generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_generation_tool",
+                error=e
+            )
             return None
     
     async def _generate_with_stable_diffusion(self, prompt: str) -> Optional[Image.Image]:
@@ -491,34 +522,57 @@ class MemeGenerationTool(BaseTool, MetadataCapableToolMixin):
                     # Decode base64 image
                     image_data = base64.b64decode(result['images'][0])
                     return Image.open(BytesIO(image_data))
-            
+
         except Exception as e:
-            logger.error(f"Stable Diffusion generation failed: {str(e)}")
-        
+            logger.error(
+                "Stable Diffusion generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_generation_tool",
+                error=e
+            )
+
         return None
-    
+
     async def _generate_with_dalle(self, prompt: str) -> Optional[Image.Image]:
         """Generate image using OpenAI DALL-E."""
         try:
             # This would require OpenAI API integration
             # Placeholder implementation
-            logger.info("DALL-E generation not implemented yet")
+            logger.info(
+                "DALL-E generation not implemented yet",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_generation_tool"
+            )
             return None
-            
+
         except Exception as e:
-            logger.error(f"DALL-E generation failed: {str(e)}")
+            logger.error(
+                "DALL-E generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_generation_tool",
+                error=e
+            )
             return None
-    
+
     async def _generate_with_huggingface(self, prompt: str) -> Optional[Image.Image]:
         """Generate image using Hugging Face API."""
         try:
             # This would require Hugging Face API integration
             # Placeholder implementation
-            logger.info("Hugging Face generation not implemented yet")
+            logger.info(
+                "Hugging Face generation not implemented yet",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_generation_tool"
+            )
             return None
-            
+
         except Exception as e:
-            logger.error(f"Hugging Face generation failed: {str(e)}")
+            logger.error(
+                "Hugging Face generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_generation_tool",
+                error=e
+            )
             return None
     
     def _create_placeholder_image(self, prompt: str) -> Image.Image:
@@ -576,9 +630,14 @@ class MemeGenerationTool(BaseTool, MetadataCapableToolMixin):
             
             # Fallback to pattern-based generation
             return self._generate_text_with_patterns(request, template)
-            
+
         except Exception as e:
-            logger.error(f"Text generation failed: {str(e)}")
+            logger.error(
+                "Text generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_generation_tool",
+                error=e
+            )
             return ["Generated meme text"]
     
     async def _generate_text_with_llm(self, request: MemeGenerationRequest, template: Optional[MemeTemplate] = None) -> List[str]:
@@ -612,9 +671,14 @@ class MemeGenerationTool(BaseTool, MetadataCapableToolMixin):
                     text_elements.append(line)
             
             return text_elements[:template.typical_text_count if template else 2]
-            
+
         except Exception as e:
-            logger.error(f"LLM text generation failed: {str(e)}")
+            logger.error(
+                "LLM text generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_generation_tool",
+                error=e
+            )
             return self._generate_text_with_patterns(request, template)
     
     def _generate_text_with_patterns(self, request: MemeGenerationRequest, template: Optional[MemeTemplate] = None) -> List[str]:
@@ -770,9 +834,14 @@ class MemeGenerationTool(BaseTool, MetadataCapableToolMixin):
             meme.quality_score = sum(quality_factors) / len(quality_factors) if quality_factors else 0.5
             meme.humor_score = random.uniform(0.4, 0.9)  # Placeholder - would use ML model
             meme.creativity_score = random.uniform(0.3, 0.8)  # Placeholder - would use ML model
-            
+
         except Exception as e:
-            logger.error(f"Meme scoring failed: {str(e)}")
+            logger.error(
+                "Meme scoring failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_generation_tool",
+                error=e
+            )
             meme.quality_score = 0.5
     
     def _generate_generation_report(self, generated_memes: List[GeneratedMeme], request: MemeGenerationRequest) -> Dict[str, Any]:

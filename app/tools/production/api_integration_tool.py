@@ -17,13 +17,14 @@ from enum import Enum
 from urllib.parse import urljoin, urlparse
 
 import aiohttp
-import structlog
 from pydantic import BaseModel, Field, validator, HttpUrl
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class HTTPMethod(str, Enum):
@@ -182,7 +183,11 @@ class APIIntegrationTool(BaseTool):
         # Session for connection pooling
         self._session = None
 
-        logger.info("API Integration Tool initialized")
+        logger.info(
+            "API Integration Tool initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.api_integration_tool"
+        )
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create HTTP session with connection pooling."""
@@ -232,13 +237,17 @@ class APIIntegrationTool(BaseTool):
         
         if self._circuit_breaker_state == "open":
             # Check if we should try half-open
-            if (self._circuit_breaker_last_failure and 
+            if (self._circuit_breaker_last_failure and
                 now - self._circuit_breaker_last_failure > 60):  # 1 minute timeout
                 self._circuit_breaker_state = "half-open"
-                logger.info("Circuit breaker moving to half-open state")
+                logger.info(
+                    "Circuit breaker moving to half-open state",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.api_integration_tool"
+                )
                 return True
             return False
-        
+
         return True
 
     def _update_circuit_breaker(self, success: bool):
@@ -247,14 +256,22 @@ class APIIntegrationTool(BaseTool):
             if self._circuit_breaker_state == "half-open":
                 self._circuit_breaker_state = "closed"
                 self._circuit_breaker_failures = 0
-                logger.info("Circuit breaker closed - service recovered")
+                logger.info(
+                    "Circuit breaker closed - service recovered",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.api_integration_tool"
+                )
         else:
             self._circuit_breaker_failures += 1
             self._circuit_breaker_last_failure = time.time()
-            
+
             if self._circuit_breaker_failures >= 5:  # Threshold
                 self._circuit_breaker_state = "open"
-                logger.warning("Circuit breaker opened - service failing")
+                logger.warn(
+                    "Circuit breaker opened - service failing",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.api_integration_tool"
+                )
 
     def _prepare_auth_headers(self, input_data: APIIntegrationInput) -> Dict[str, str]:
         """Prepare authentication headers."""
@@ -322,7 +339,12 @@ class APIIntegrationTool(BaseTool):
                 if cache_key in self._response_cache:
                     cached_response, cache_time = self._response_cache[cache_key]
                     if time.time() - cache_time < self._cache_ttl:
-                        logger.info("Returning cached response", url=str(input_data.url))
+                        logger.info(
+                            "Returning cached response",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.production.api_integration_tool",
+                            data={"url": str(input_data.url)}
+                        )
                         return cached_response
 
             # Prepare headers with authentication
@@ -378,7 +400,12 @@ class APIIntegrationTool(BaseTool):
                             try:
                                 parsed_content = json.loads(content_text)
                             except json.JSONDecodeError:
-                                logger.warning("Failed to parse JSON response", url=str(input_data.url))
+                                logger.warn(
+                                    "Failed to parse JSON response",
+                                    LogCategory.TOOL_OPERATIONS,
+                                    "app.tools.production.api_integration_tool",
+                                    data={"url": str(input_data.url)}
+                                )
 
                         # Create response object
                         response_time = time.time() - start_time
@@ -397,11 +424,17 @@ class APIIntegrationTool(BaseTool):
                         # Update circuit breaker
                         self._update_circuit_breaker(api_response.success)
 
-                        logger.info("API request completed",
-                                   method=input_data.method,
-                                   url=str(input_data.url),
-                                   status=response.status,
-                                   response_time=response_time)
+                        logger.info(
+                            "API request completed",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.production.api_integration_tool",
+                            data={
+                                "method": input_data.method.value,
+                                "url": str(input_data.url),
+                                "status": response.status,
+                                "response_time": response_time
+                            }
+                        )
 
                         return api_response
 
@@ -409,10 +442,16 @@ class APIIntegrationTool(BaseTool):
                     last_exception = e
                     if attempt < input_data.max_retries:
                         delay = input_data.retry_delay * (2 ** attempt)  # Exponential backoff
-                        logger.warning("Request failed, retrying",
-                                     attempt=attempt + 1,
-                                     delay=delay,
-                                     error=str(e))
+                        logger.warn(
+                            "Request failed, retrying",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.production.api_integration_tool",
+                            data={
+                                "attempt": attempt + 1,
+                                "delay": delay
+                            },
+                            error=e
+                        )
                         await asyncio.sleep(delay)
                     else:
                         break
@@ -435,11 +474,17 @@ class APIIntegrationTool(BaseTool):
 
         except Exception as e:
             response_time = time.time() - start_time
-            logger.error("API request failed",
-                        method=input_data.method,
-                        url=str(input_data.url),
-                        error=str(e),
-                        response_time=response_time)
+            logger.error(
+                "API request failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.api_integration_tool",
+                data={
+                    "method": input_data.method.value,
+                    "url": str(input_data.url),
+                    "response_time": response_time
+                },
+                error=e
+            )
 
             return APIResponse(
                 status_code=0,
@@ -530,11 +575,17 @@ class APIIntegrationTool(BaseTool):
                 "cache_size": len(self._response_cache)
             }
 
-            logger.info("API integration completed",
-                       url=str(input_data.url),
-                       method=input_data.method,
-                       success=response.success,
-                       status_code=response.status_code)
+            logger.info(
+                "API integration completed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.api_integration_tool",
+                data={
+                    "url": str(input_data.url),
+                    "method": input_data.method.value,
+                    "success": response.success,
+                    "status_code": response.status_code
+                }
+            )
 
             return str(result)
 
@@ -547,10 +598,16 @@ class APIIntegrationTool(BaseTool):
                 "method": kwargs.get('method', 'unknown')
             }
 
-            logger.error("API integration failed",
-                        url=kwargs.get('url'),
-                        method=kwargs.get('method'),
-                        error=str(e))
+            logger.error(
+                "API integration failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.api_integration_tool",
+                data={
+                    "url": kwargs.get('url'),
+                    "method": kwargs.get('method')
+                },
+                error=e
+            )
 
             return str(error_result)
 
@@ -572,7 +629,7 @@ API_INTEGRATION_TOOL_METADATA = ToolMetadata(
     tool_id="api_integration_v1",
     name="api_integration",
     description="Revolutionary API integration with intelligent handling and enterprise features - Universal HTTP methods, multiple authentication, rate limiting, caching, and circuit breaker patterns",
-    category=ToolCategory.COMMUNICATION,
+    category=ToolCategoryEnum.COMMUNICATION,
     access_level=ToolAccessLevel.PUBLIC,
     requires_rag=False,
     use_cases={"api_integration", "data_retrieval", "web_services", "authentication", "automation"}

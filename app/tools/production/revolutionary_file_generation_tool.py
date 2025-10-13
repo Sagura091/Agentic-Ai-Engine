@@ -23,7 +23,11 @@ import yaml
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Union
-import logging
+
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+
+logger = get_logger()
 
 # Office Suite Libraries
 try:
@@ -85,7 +89,7 @@ from pydantic import Field
 from typing import ClassVar
 from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, UsagePattern, ConfidenceModifier
 
-logger = logging.getLogger(__name__)
+# Logger already initialized at top of file
 
 class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
     """
@@ -164,15 +168,27 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
             'web': WEB_AVAILABLE
         }
         
-        logger.info("🚀 Revolutionary File Generation Tool initialized")
-        logger.info(f"   📁 Output Directory: {self.output_dir}")
-        logger.info(f"   🎨 Template Directory: {self.template_dir}")
-        logger.info(f"   ⚡ Capabilities: {sum(self.capabilities.values())}/{len(self.capabilities)} modules available")
+        logger.info(
+            "🚀 Revolutionary File Generation Tool initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "RevolutionaryFileGenerationTool",
+            data={
+                "output_dir": str(self.output_dir),
+                "template_dir": str(self.template_dir),
+                "capabilities_count": sum(self.capabilities.values()),
+                "total_modules": len(self.capabilities)
+            }
+        )
         
         # Log available capabilities
         for capability, available in self.capabilities.items():
             status = "✅" if available else "❌"
-            logger.info(f"   {status} {capability.upper()}: {'Available' if available else 'Not Available'}")
+            logger.info(
+                f"   {status} {capability.upper()}: {'Available' if available else 'Not Available'}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                data={"capability": capability, "available": available}
+            )
     
     def _run(self, query: str) -> str:
         """Synchronous wrapper for the async execute method."""
@@ -185,7 +201,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
         This method can generate or modify ANY type of file based on the query.
         """
         try:
-            logger.info(f"🚀 Revolutionary File Generation started: {query[:100]}...")
+            logger.info(
+                f"🚀 Revolutionary File Generation started: {query[:100]}...",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                data={"query_preview": query[:100]}
+            )
             
             # Parse the query (expecting JSON format)
             if isinstance(query, str):
@@ -211,9 +232,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
             data = request.get('data', {})
             template = request.get('template', None)
             
-            logger.info(f"   🎯 Action: {action}")
-            logger.info(f"   📄 File Type: {file_type}")
-            logger.info(f"   📝 Filename: {filename}")
+            logger.info(
+                f"File generation request",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                data={"action": action, "file_type": file_type, "filename": filename}
+            )
             
             # Route to appropriate generation method
             if action == 'generate':
@@ -225,12 +249,21 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
             else:
                 return f"❌ Unknown action: {action}"
             
-            logger.info(f"✅ File generation completed successfully")
+            logger.info(
+                f"✅ File generation completed successfully",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool"
+            )
             return result
 
         except Exception as e:
             error_msg = f"❌ Revolutionary File Generation failed: {str(e)}"
-            logger.error(error_msg)
+            logger.error(
+                error_msg,
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                error=e
+            )
             return error_msg
 
     async def _generate_file(self, file_type: str, content: str, filename: str,
@@ -245,7 +278,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
         filename = self._ensure_extension(filename, file_type)
         file_path = self.output_dir / filename
 
-        logger.info(f"   🎯 Generating {file_type} file: {filename}")
+        logger.info(
+            f"   🎯 Generating {file_type} file: {filename}",
+            LogCategory.TOOL_OPERATIONS,
+            "RevolutionaryFileGenerationTool",
+            data={"file_type": file_type, "filename": filename}
+        )
 
         # Route to specific generation method
         if file_type in ['xlsx', 'excel', 'spreadsheet']:
@@ -328,7 +366,11 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
             return "❌ Excel generation not available. Install openpyxl: pip install openpyxl"
 
         try:
-            logger.info("   📊 Creating revolutionary Excel file...")
+            logger.info(
+                "   📊 Creating revolutionary Excel file...",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool"
+            )
 
             # Create workbook
             wb = openpyxl.Workbook()
@@ -396,7 +438,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
             # Save the file
             wb.save(file_path)
 
-            logger.info(f"   ✅ Excel file created: {file_path}")
+            logger.info(
+                f"   ✅ Excel file created: {file_path}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                data={"file_path": str(file_path)}
+            )
             return f"✅ Revolutionary Excel file created: {file_path}\n📊 Features: Professional styling, auto-formatting, charts, and intelligent data processing!"
 
         except Exception as e:
@@ -431,7 +478,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
             ws.add_chart(chart, "E5")
 
         except Exception as e:
-            logger.warning(f"Chart creation failed: {str(e)}")
+            logger.warn(
+                f"Chart creation failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                error=e
+            )
 
     async def _add_excel_summary_sheet(self, wb, data: Dict):
         """Add intelligent summary sheet."""
@@ -454,7 +506,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
                     row += 1
 
         except Exception as e:
-            logger.warning(f"Summary sheet creation failed: {str(e)}")
+            logger.warn(
+                f"Summary sheet creation failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                error=e
+            )
 
     async def _generate_word(self, file_path: Path, content: str, styling: Dict, data: Dict) -> str:
         """🚀 Generate revolutionary Word documents with professional formatting!"""
@@ -463,7 +520,11 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
             return "❌ Word generation not available. Install python-docx: pip install python-docx"
 
         try:
-            logger.info("   📄 Creating revolutionary Word document...")
+            logger.info(
+                "   📄 Creating revolutionary Word document...",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool"
+            )
 
             # Create document
             doc = Document()
@@ -522,7 +583,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
             # Save document
             doc.save(file_path)
 
-            logger.info(f"   ✅ Word document created: {file_path}")
+            logger.info(
+                f"   ✅ Word document created: {file_path}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                data={"file_path": str(file_path)}
+            )
             return f"✅ Revolutionary Word document created: {file_path}\n📄 Features: Professional formatting, intelligent content parsing, tables, and styling!"
 
         except Exception as e:
@@ -558,7 +624,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
                         row_cells[i].text = str(value)
 
         except Exception as e:
-            logger.warning(f"Table creation failed: {str(e)}")
+            logger.warn(
+                f"Table creation failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                error=e
+            )
 
     async def _apply_word_styling(self, doc, styling: Dict):
         """Apply professional styling to Word document."""
@@ -574,7 +645,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
                     run.font.size = Pt(font_size)
 
         except Exception as e:
-            logger.warning(f"Styling application failed: {str(e)}")
+            logger.warn(
+                f"Styling application failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                error=e
+            )
 
     async def _generate_powerpoint(self, file_path: Path, content: str, styling: Dict, data: Dict) -> str:
         """🚀 Generate revolutionary PowerPoint presentations!"""
@@ -583,7 +659,11 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
             return "❌ PowerPoint generation not available. Install python-pptx: pip install python-pptx"
 
         try:
-            logger.info("   🎯 Creating revolutionary PowerPoint presentation...")
+            logger.info(
+                "   🎯 Creating revolutionary PowerPoint presentation...",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool"
+            )
 
             # Create presentation
             prs = Presentation()
@@ -621,7 +701,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
             # Save presentation
             prs.save(file_path)
 
-            logger.info(f"   ✅ PowerPoint presentation created: {file_path}")
+            logger.info(
+                f"   ✅ PowerPoint presentation created: {file_path}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                data={"file_path": str(file_path)}
+            )
             return f"✅ Revolutionary PowerPoint presentation created: {file_path}\n🎯 Features: Professional layouts, intelligent content parsing, and dynamic slide generation!"
 
         except Exception as e:
@@ -652,12 +737,21 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
                 slide.placeholders[1].text = slide_data['content']
 
         except Exception as e:
-            logger.warning(f"Slide creation failed: {str(e)}")
+            logger.warn(
+                f"Slide creation failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                error=e
+            )
 
     async def _generate_csv(self, file_path: Path, content: str, data: Dict) -> str:
         """🚀 Generate intelligent CSV files!"""
         try:
-            logger.info("   📊 Creating CSV file...")
+            logger.info(
+                "   📊 Creating CSV file...",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool"
+            )
 
             with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
                 if 'table_data' in data:
@@ -678,7 +772,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
                     for line in lines:
                         writer.writerow(line.split(','))
 
-            logger.info(f"   ✅ CSV file created: {file_path}")
+            logger.info(
+                f"   ✅ CSV file created: {file_path}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                data={"file_path": str(file_path)}
+            )
             return f"✅ CSV file created: {file_path}"
 
         except Exception as e:
@@ -687,7 +786,11 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
     async def _generate_json(self, file_path: Path, content: str, data: Dict) -> str:
         """🚀 Generate intelligent JSON files!"""
         try:
-            logger.info("   📋 Creating JSON file...")
+            logger.info(
+                "   📋 Creating JSON file...",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool"
+            )
 
             if data:
                 json_data = data
@@ -700,7 +803,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
             with open(file_path, 'w', encoding='utf-8') as jsonfile:
                 json.dump(json_data, jsonfile, indent=2, ensure_ascii=False)
 
-            logger.info(f"   ✅ JSON file created: {file_path}")
+            logger.info(
+                f"   ✅ JSON file created: {file_path}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                data={"file_path": str(file_path)}
+            )
             return f"✅ JSON file created: {file_path}"
 
         except Exception as e:
@@ -709,7 +817,11 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
     async def _generate_yaml(self, file_path: Path, content: str, data: Dict) -> str:
         """🚀 Generate intelligent YAML files!"""
         try:
-            logger.info("   📋 Creating YAML file...")
+            logger.info(
+                "   📋 Creating YAML file...",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool"
+            )
 
             if data:
                 yaml_data = data
@@ -722,7 +834,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
             with open(file_path, 'w', encoding='utf-8') as yamlfile:
                 yaml.dump(yaml_data, yamlfile, default_flow_style=False, allow_unicode=True)
 
-            logger.info(f"   ✅ YAML file created: {file_path}")
+            logger.info(
+                f"   ✅ YAML file created: {file_path}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                data={"file_path": str(file_path)}
+            )
             return f"✅ YAML file created: {file_path}"
 
         except Exception as e:
@@ -731,7 +848,11 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
     async def _generate_xml(self, file_path: Path, content: str, data: Dict) -> str:
         """🚀 Generate intelligent XML files!"""
         try:
-            logger.info("   📋 Creating XML file...")
+            logger.info(
+                "   📋 Creating XML file...",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool"
+            )
 
             if 'xml_structure' in data:
                 root = ET.Element(data['xml_structure'].get('root', 'data'))
@@ -746,7 +867,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
                 tree = ET.ElementTree(root)
                 tree.write(file_path, encoding='utf-8', xml_declaration=True)
 
-            logger.info(f"   ✅ XML file created: {file_path}")
+            logger.info(
+                f"   ✅ XML file created: {file_path}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                data={"file_path": str(file_path)}
+            )
             return f"✅ XML file created: {file_path}"
 
         except Exception as e:
@@ -765,7 +891,11 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
     async def _generate_html(self, file_path: Path, content: str, styling: Dict, data: Dict) -> str:
         """🚀 Generate revolutionary HTML files with CSS and JavaScript!"""
         try:
-            logger.info("   🌐 Creating HTML file...")
+            logger.info(
+                "   🌐 Creating HTML file...",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool"
+            )
 
             # HTML template
             html_template = """
@@ -829,7 +959,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
             with open(file_path, 'w', encoding='utf-8') as htmlfile:
                 htmlfile.write(html_content)
 
-            logger.info(f"   ✅ HTML file created: {file_path}")
+            logger.info(
+                f"   ✅ HTML file created: {file_path}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                data={"file_path": str(file_path)}
+            )
             return f"✅ Revolutionary HTML file created: {file_path}\n🌐 Features: Responsive design, professional styling, and modern layout!"
 
         except Exception as e:
@@ -842,7 +977,11 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
             return "❌ Visualization generation not available. Install matplotlib, seaborn, pandas: pip install matplotlib seaborn pandas"
 
         try:
-            logger.info("   📈 Creating visualization...")
+            logger.info(
+                "   📈 Creating visualization...",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool"
+            )
 
             # Set style
             plt.style.use('seaborn-v0_8' if hasattr(plt.style, 'seaborn-v0_8') else 'default')
@@ -875,7 +1014,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
             plt.savefig(file_path, dpi=300, bbox_inches='tight')
             plt.close()
 
-            logger.info(f"   ✅ Visualization created: {file_path}")
+            logger.info(
+                f"   ✅ Visualization created: {file_path}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                data={"file_path": str(file_path)}
+            )
             return f"✅ Revolutionary visualization created: {file_path}\n📈 Features: High-resolution, professional styling, and intelligent chart selection!"
 
         except Exception as e:
@@ -884,12 +1028,22 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
     async def _generate_text_file(self, file_path: Path, content: str, file_type: str) -> str:
         """🚀 Generate intelligent text files!"""
         try:
-            logger.info(f"   📝 Creating {file_type} file...")
+            logger.info(
+                f"   📝 Creating {file_type} file...",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                data={"file_type": file_type}
+            )
 
             with open(file_path, 'w', encoding='utf-8') as textfile:
                 textfile.write(content)
 
-            logger.info(f"   ✅ {file_type.upper()} file created: {file_path}")
+            logger.info(
+                f"   ✅ {file_type.upper()} file created: {file_path}",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryFileGenerationTool",
+                data={"file_type": file_type, "file_path": str(file_path)}
+            )
             return f"✅ {file_type.upper()} file created: {file_path}"
 
         except Exception as e:
@@ -904,7 +1058,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
         if not file_path.exists():
             return f"❌ File not found: {file_path}"
 
-        logger.info(f"   🔧 Modifying {file_type} file: {filename}")
+        logger.info(
+            f"   🔧 Modifying {file_type} file: {filename}",
+            LogCategory.TOOL_OPERATIONS,
+            "RevolutionaryFileGenerationTool",
+            data={"file_type": file_type, "filename": filename}
+        )
 
         try:
             if file_type in ['xlsx', 'excel']:
@@ -1033,7 +1192,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
     async def _batch_generate(self, files: List[Dict]) -> str:
         """🚀 Generate multiple files in batch with revolutionary efficiency!"""
 
-        logger.info(f"   🚀 Starting batch generation of {len(files)} files...")
+        logger.info(
+            f"   🚀 Starting batch generation of {len(files)} files...",
+            LogCategory.TOOL_OPERATIONS,
+            "RevolutionaryFileGenerationTool",
+            data={"files_count": len(files)}
+        )
 
         results = []
         success_count = 0
@@ -1060,7 +1224,12 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
         summary += f"📁 Output directory: {self.output_dir}\n\n"
         summary += "Results:\n" + "\n".join(results)
 
-        logger.info(f"   ✅ Batch generation completed: {success_count}/{len(files)} files")
+        logger.info(
+            f"   ✅ Batch generation completed: {success_count}/{len(files)} files",
+            LogCategory.TOOL_OPERATIONS,
+            "RevolutionaryFileGenerationTool",
+            data={"success_count": success_count, "total_files": len(files)}
+        )
         return summary
 
     def _create_metadata(self) -> MetadataToolMetadata:

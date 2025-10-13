@@ -13,9 +13,11 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Set
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-import structlog
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+
+logger = get_logger()
 
 
 @dataclass
@@ -89,16 +91,30 @@ class AutonomousPersistenceService:
         self.goals_file = self.data_dir / "goals.json"
         self.decisions_file = self.data_dir / "decisions.json"
         self.learning_file = self.data_dir / "learning.json"
-        
-        logger.info(f"Autonomous persistence service initialized", data_dir=str(self.data_dir))
-    
+
+        logger.info(
+            "Autonomous persistence service initialized",
+            LogCategory.SERVICE_OPERATIONS,
+            "app.services.autonomous_persistence",
+            data={"data_dir": str(self.data_dir)}
+        )
+
     async def initialize(self) -> None:
         """Initialize the persistence service and load existing data."""
         try:
             await self._load_all_data()
-            logger.info("Autonomous persistence service loaded successfully")
+            logger.info(
+                "Autonomous persistence service loaded successfully",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.autonomous_persistence"
+            )
         except Exception as e:
-            logger.error(f"Failed to initialize autonomous persistence: {str(e)}")
+            logger.error(
+                "Failed to initialize autonomous persistence",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.autonomous_persistence",
+                error=e
+            )
             raise
     
     # Goal Management
@@ -122,8 +138,13 @@ class AutonomousPersistenceService:
         
         self.goals_cache[agent_id][goal.goal_id] = goal
         await self._save_goals()
-        
-        logger.info(f"Created goal for agent {agent_id}", goal_id=goal.goal_id, description=description)
+
+        logger.info(
+            f"Created goal for agent {agent_id}",
+            LogCategory.AGENT_OPERATIONS,
+            "app.services.autonomous_persistence",
+            data={"agent_id": agent_id, "goal_id": goal.goal_id, "description": description}
+        )
         return goal
     
     async def get_agent_goals(self, agent_id: str, status: Optional[str] = None) -> List[AutonomousGoal]:
@@ -146,7 +167,12 @@ class AutonomousPersistenceService:
                 if status:
                     goal.status = status
                 await self._save_goals()
-                logger.info(f"Updated goal progress", goal_id=goal_id, progress=progress, status=status)
+                logger.info(
+                    "Updated goal progress",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.services.autonomous_persistence",
+                    data={"goal_id": goal_id, "progress": progress, "status": status}
+                )
                 return True
         return False
     
@@ -170,8 +196,13 @@ class AutonomousPersistenceService:
         
         self.decisions_cache[agent_id].append(record)
         await self._save_decisions()
-        
-        logger.info(f"Recorded decision for agent {agent_id}", decision_id=record.decision_id)
+
+        logger.info(
+            f"Recorded decision for agent {agent_id}",
+            LogCategory.AGENT_OPERATIONS,
+            "app.services.autonomous_persistence",
+            data={"agent_id": agent_id, "decision_id": record.decision_id}
+        )
         return record
     
     async def get_decision_history(self, agent_id: str, limit: int = 100) -> List[DecisionRecord]:
@@ -202,8 +233,13 @@ class AutonomousPersistenceService:
         
         self.learning_cache[agent_id].append(learning)
         await self._save_learning()
-        
-        logger.info(f"Recorded learning for agent {agent_id}", learning_id=learning.learning_id)
+
+        logger.info(
+            f"Recorded learning for agent {agent_id}",
+            LogCategory.AGENT_OPERATIONS,
+            "app.services.autonomous_persistence",
+            data={"agent_id": agent_id, "learning_id": learning.learning_id}
+        )
         return learning
     
     async def get_learning_history(self, agent_id: str, experience_type: Optional[str] = None,
@@ -231,7 +267,12 @@ class AutonomousPersistenceService:
                 try:
                     agent_uuid = uuid_module.UUID(agent_id)
                 except ValueError:
-                    logger.warning(f"Invalid agent_id format: {agent_id}")
+                    logger.warn(
+                        f"Invalid agent_id format: {agent_id}",
+                        LogCategory.AGENT_OPERATIONS,
+                        "app.services.autonomous_persistence",
+                        data={"agent_id": agent_id}
+                    )
                     return []
             else:
                 agent_uuid = agent_id
@@ -244,7 +285,12 @@ class AutonomousPersistenceService:
                 agent_state_record = agent_state.scalar_one_or_none()
 
                 if not agent_state_record:
-                    logger.debug(f"No agent state found for {agent_uuid}")
+                    logger.debug(
+                        f"No agent state found for {agent_uuid}",
+                        LogCategory.AGENT_OPERATIONS,
+                        "app.services.autonomous_persistence",
+                        data={"agent_uuid": str(agent_uuid)}
+                    )
                     return []
 
                 # Load memories for this agent
@@ -273,11 +319,22 @@ class AutonomousPersistenceService:
                     }
                     memories.append(memory_data)
 
-                logger.info(f"Loaded {len(memories)} memories from database for agent {agent_id}")
+                logger.info(
+                    f"Loaded {len(memories)} memories from database for agent {agent_id}",
+                    LogCategory.MEMORY_OPERATIONS,
+                    "app.services.autonomous_persistence",
+                    data={"agent_id": agent_id, "memory_count": len(memories)}
+                )
                 return memories
 
         except Exception as e:
-            logger.error(f"Failed to load agent memories for {agent_id}: {str(e)}")
+            logger.error(
+                f"Failed to load agent memories for {agent_id}",
+                LogCategory.MEMORY_OPERATIONS,
+                "app.services.autonomous_persistence",
+                data={"agent_id": agent_id},
+                error=e
+            )
             return []
 
     async def load_agent_state(self, agent_id: str) -> Optional[Dict[str, Any]]:
@@ -293,7 +350,12 @@ class AutonomousPersistenceService:
                 try:
                     agent_uuid = uuid_module.UUID(agent_id)
                 except ValueError:
-                    logger.warning(f"Invalid agent_id format: {agent_id}")
+                    logger.warn(
+                        f"Invalid agent_id format: {agent_id}",
+                        LogCategory.AGENT_OPERATIONS,
+                        "app.services.autonomous_persistence",
+                        data={"agent_id": agent_id}
+                    )
                     return None
             else:
                 agent_uuid = agent_id
@@ -306,7 +368,12 @@ class AutonomousPersistenceService:
                 agent_state_record = agent_state.scalar_one_or_none()
 
                 if not agent_state_record:
-                    logger.debug(f"No agent state found for {agent_uuid}")
+                    logger.debug(
+                        f"No agent state found for {agent_uuid}",
+                        LogCategory.AGENT_OPERATIONS,
+                        "app.services.autonomous_persistence",
+                        data={"agent_uuid": str(agent_uuid)}
+                    )
                     return None
 
                 # Convert to dictionary
@@ -331,11 +398,22 @@ class AutonomousPersistenceService:
                     "adaptation_data": agent_state_record.adaptation_data or {}
                 }
 
-                logger.info(f"Loaded agent state from database for agent {agent_id}")
+                logger.info(
+                    f"Loaded agent state from database for agent {agent_id}",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.services.autonomous_persistence",
+                    data={"agent_id": agent_id}
+                )
                 return state_data
 
         except Exception as e:
-            logger.error(f"Failed to load agent state for {agent_id}: {str(e)}")
+            logger.error(
+                f"Failed to load agent state for {agent_id}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.autonomous_persistence",
+                data={"agent_id": agent_id},
+                error=e
+            )
             return None
     
     # Private methods for data persistence
@@ -366,7 +444,12 @@ class AutonomousPersistenceService:
                         self.goals_cache[agent_id][goal.goal_id] = goal
                         
             except Exception as e:
-                logger.error(f"Failed to load goals: {str(e)}")
+                logger.error(
+                    "Failed to load goals",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.services.autonomous_persistence",
+                    error=e
+                )
     
     async def _save_goals(self) -> None:
         """Save goals to file."""
@@ -386,7 +469,12 @@ class AutonomousPersistenceService:
                 json.dump(data, f, indent=2)
                 
         except Exception as e:
-            logger.error(f"Failed to save goals: {str(e)}")
+            logger.error(
+                "Failed to save goals",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.autonomous_persistence",
+                error=e
+            )
     
     async def _load_decisions(self) -> None:
         """Load decisions from file."""
@@ -403,7 +491,12 @@ class AutonomousPersistenceService:
                         self.decisions_cache[agent_id].append(decision)
                         
             except Exception as e:
-                logger.error(f"Failed to load decisions: {str(e)}")
+                logger.error(
+                    "Failed to load decisions",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.services.autonomous_persistence",
+                    error=e
+                )
     
     async def _save_decisions(self) -> None:
         """Save decisions to file."""
@@ -420,7 +513,12 @@ class AutonomousPersistenceService:
                 json.dump(data, f, indent=2)
                 
         except Exception as e:
-            logger.error(f"Failed to save decisions: {str(e)}")
+            logger.error(
+                "Failed to save decisions",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.autonomous_persistence",
+                error=e
+            )
     
     async def _load_learning(self) -> None:
         """Load learning data from file."""
@@ -437,7 +535,12 @@ class AutonomousPersistenceService:
                         self.learning_cache[agent_id].append(learning)
                         
             except Exception as e:
-                logger.error(f"Failed to load learning data: {str(e)}")
+                logger.error(
+                    "Failed to load learning data",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.services.autonomous_persistence",
+                    error=e
+                )
     
     async def _save_learning(self) -> None:
         """Save learning data to file."""
@@ -454,7 +557,12 @@ class AutonomousPersistenceService:
                 json.dump(data, f, indent=2)
                 
         except Exception as e:
-            logger.error(f"Failed to save learning data: {str(e)}")
+            logger.error(
+                "Failed to save learning data",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.autonomous_persistence",
+                error=e
+            )
 
 
 # Global instance

@@ -7,11 +7,12 @@ metadata-driven tool discovery and selection capabilities.
 
 from typing import Dict, List, Optional, Any, Tuple
 from collections import defaultdict
-import structlog
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from .tool_metadata import ToolMetadata, UsagePatternType, ConfidenceModifierType
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class ToolMetadataRegistry:
@@ -29,10 +30,21 @@ class ToolMetadataRegistry:
         try:
             self._metadata[metadata.name] = metadata
             self._update_indices(metadata)
-            logger.info(f"Registered metadata for tool: {metadata.name}")
+            logger.info(
+                f"Registered metadata for tool: {metadata.name}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.metadata_registry",
+                data={"tool_name": metadata.name}
+            )
 
         except Exception as e:
-            logger.error(f"Failed to register metadata for tool {metadata.name}", error=str(e))
+            logger.error(
+                f"Failed to register metadata for tool {metadata.name}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.metadata_registry",
+                data={"tool_name": metadata.name},
+                error=e
+            )
             raise
 
     def register_tool(self, tool) -> None:
@@ -43,10 +55,23 @@ class ToolMetadataRegistry:
                 metadata = tool._create_metadata()
                 self.register_tool_metadata(metadata)
             else:
-                logger.warning(f"Tool {getattr(tool, 'name', 'unknown')} does not have metadata capability")
+                tool_name = getattr(tool, 'name', 'unknown')
+                logger.warn(
+                    f"Tool {tool_name} does not have metadata capability",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.metadata.metadata_registry",
+                    data={"tool_name": tool_name}
+                )
 
         except Exception as e:
-            logger.error(f"Failed to register tool {getattr(tool, 'name', 'unknown')}", error=str(e))
+            tool_name = getattr(tool, 'name', 'unknown')
+            logger.error(
+                f"Failed to register tool {tool_name}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.metadata_registry",
+                data={"tool_name": tool_name},
+                error=e
+            )
             raise
     
     def get_tool_metadata(self, tool_name: str) -> Optional[ToolMetadata]:
@@ -90,21 +115,26 @@ class ToolMetadataRegistry:
             # Sort by score descending and return top results
             tool_scores.sort(key=lambda x: x[1], reverse=True)
             return tool_scores[:max_results]
-            
+
         except Exception as e:
-            logger.error(f"Context-based tool search failed", error=str(e))
+            logger.error(
+                "Context-based tool search failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.metadata_registry",
+                error=e
+            )
             return []
-    
+
     def calculate_tool_confidence(self, tool_name: str, context: Dict[str, Any]) -> float:
         """Calculate confidence score for a tool in a given context."""
         try:
             metadata = self.get_tool_metadata(tool_name)
             if not metadata:
                 return 0.0
-            
+
             # Start with base match score
             base_confidence = metadata.matches_context(context)
-            
+
             # Apply confidence modifiers
             for modifier in metadata.confidence_modifiers:
                 if self._modifier_condition_met(modifier.condition, context):
@@ -116,11 +146,17 @@ class ToolMetadataRegistry:
                         base_confidence *= modifier.value
                     elif modifier.type == ConfidenceModifierType.THRESHOLD:
                         base_confidence = max(base_confidence, modifier.value)
-            
+
             return max(0.0, min(1.0, base_confidence))
-            
+
         except Exception as e:
-            logger.warning(f"Confidence calculation failed for tool {tool_name}", error=str(e))
+            logger.warn(
+                f"Confidence calculation failed for tool {tool_name}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.metadata_registry",
+                data={"tool_name": tool_name},
+                error=e
+            )
             return 0.0
     
     def get_tools_by_execution_preference(self, context: Dict[str, Any]) -> List[Tuple[ToolMetadata, int]]:
@@ -137,9 +173,14 @@ class ToolMetadataRegistry:
             # Sort by preference (lower numbers first)
             tools_with_preference.sort(key=lambda x: x[1])
             return tools_with_preference
-            
+
         except Exception as e:
-            logger.error(f"Execution preference sorting failed", error=str(e))
+            logger.error(
+                "Execution preference sorting failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.metadata_registry",
+                error=e
+            )
             return []
     
     def validate_tool_context_requirements(self, tool_name: str, context: Dict[str, Any]) -> Tuple[bool, List[str]]:
@@ -166,9 +207,15 @@ class ToolMetadataRegistry:
                     missing_requirements.append(f"Context validator error: {str(e)}")
             
             return len(missing_requirements) == 0, missing_requirements
-            
+
         except Exception as e:
-            logger.error(f"Context validation failed for tool {tool_name}", error=str(e))
+            logger.error(
+                f"Context validation failed for tool {tool_name}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.metadata_registry",
+                data={"tool_name": tool_name},
+                error=e
+            )
             return False, [f"Validation error: {str(e)}"]
     
     def _update_indices(self, metadata: ToolMetadata) -> None:
@@ -201,32 +248,44 @@ class ToolMetadataRegistry:
             else:
                 # Check if condition exists as a key in context
                 return condition in context
-                
+
         except Exception as e:
-            logger.warning(f"Condition evaluation failed", condition=condition, error=str(e))
+            logger.warn(
+                "Condition evaluation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.metadata_registry",
+                data={"condition": condition},
+                error=e
+            )
             return False
-    
+
     def _tool_suitable_for_context(self, metadata: ToolMetadata, context: Dict[str, Any]) -> bool:
         """Check if a tool is suitable for the given context."""
         try:
             # Check if context matches preferred contexts
             preferences = metadata.execution_preferences
-            
+
             if preferences.preferred_contexts:
                 context_str = str(context).lower()
                 if not any(pref.lower() in context_str for pref in preferences.preferred_contexts):
                     return False
-            
+
             # Check if context matches avoided contexts
             if preferences.avoid_contexts:
                 context_str = str(context).lower()
                 if any(avoid.lower() in context_str for avoid in preferences.avoid_contexts):
                     return False
-            
+
             return True
-            
+
         except Exception as e:
-            logger.warning(f"Context suitability check failed", tool=metadata.name, error=str(e))
+            logger.warn(
+                "Context suitability check failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.metadata_registry",
+                data={"tool_name": metadata.name},
+                error=e
+            )
             return True  # Default to suitable if check fails
 
 

@@ -11,10 +11,12 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, ClassVar
 from pydantic import BaseModel, Field
 
-import structlog
 from langchain_core.tools import BaseTool
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+
+logger = get_logger()
 
 
 class GeneralBusinessIntelligenceTool(BaseTool):
@@ -111,12 +113,16 @@ class GeneralBusinessIntelligenceTool(BaseTool):
             # Log analysis start
             logger.info(
                 "General business intelligence analysis started",
-                tool_name=self.name,
-                analysis_id=analysis_id,
-                analysis_type=analysis_type,
-                time_horizon=time_horizon,
-                detail_level=detail_level,
-                usage_count=self._usage_count
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.general_business_intelligence_tool",
+                data={
+                    "tool_name": self.name,
+                    "analysis_id": analysis_id,
+                    "analysis_type": analysis_type,
+                    "time_horizon": time_horizon,
+                    "detail_level": detail_level,
+                    "usage_count": self._usage_count
+                }
             )
             
             # Generate realistic business data
@@ -146,22 +152,32 @@ class GeneralBusinessIntelligenceTool(BaseTool):
             # Calculate execution time
             execution_time = time.time() - start_time
             self._update_performance_metrics(execution_time, success=True)
-            
+
             logger.info(
                 "General business intelligence analysis completed successfully",
-                analysis_id=analysis_id,
-                analysis_type=analysis_type,
-                execution_time=execution_time,
-                tool_name=self.name,
-                usage_count=self._usage_count
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.general_business_intelligence_tool",
+                data={
+                    "analysis_id": analysis_id,
+                    "analysis_type": analysis_type,
+                    "execution_time": execution_time,
+                    "tool_name": self.name,
+                    "usage_count": self._usage_count
+                }
             )
-            
+
             return f"General Business Intelligence Analysis (ID: {analysis_id})\n{analysis_result}"
-            
+
         except Exception as e:
             execution_time = time.time() - start_time
             self._update_performance_metrics(execution_time, success=False)
-            logger.error(f"General business intelligence analysis failed: {e}", analysis_id=analysis_id)
+            logger.error(
+                "General business intelligence analysis failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.general_business_intelligence_tool",
+                data={"analysis_id": analysis_id},
+                error=e
+            )
             return f"Analysis failed: {str(e)}"
 
     def _generate_business_data(self, context: Dict[str, Any]) -> Dict[str, Any]:

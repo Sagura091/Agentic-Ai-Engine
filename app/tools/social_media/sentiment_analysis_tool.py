@@ -45,13 +45,15 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from enum import Enum
 
-import structlog
 from pydantic import BaseModel, Field
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 
-logger = structlog.get_logger(__name__)
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
+
+logger = get_logger()
 
 
 class SentimentType(str, Enum):
@@ -238,15 +240,24 @@ class SentimentAnalysisTool(BaseTool):
             
             logger.info(
                 "Sentiment analysis completed",
-                analysis_scope=input_data.analysis_scope,
-                platforms=input_data.platforms,
-                success=result.get("success", False)
+                LogCategory.TOOL_OPERATIONS,
+                "SentimentAnalysisTool",
+                data={
+                    "analysis_scope": input_data.analysis_scope,
+                    "platforms": input_data.platforms,
+                    "success": result.get("success", False)
+                }
             )
             
             return result
             
         except Exception as e:
-            logger.error(f"Sentiment analysis error: {str(e)}")
+            logger.error(
+                f"Sentiment analysis error: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "SentimentAnalysisTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -371,7 +382,12 @@ class SentimentAnalysisTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Error analyzing brand sentiment: {str(e)}")
+            logger.error(
+                f"Error analyzing brand sentiment: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "SentimentAnalysisTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -527,7 +543,7 @@ SENTIMENT_ANALYSIS_TOOL_METADATA = ToolMetadata(
     tool_id="sentiment_analysis",
     name="Sentiment Analysis Tool",
     description="Revolutionary sentiment analysis and social intelligence tool",
-    category=ToolCategory.COMMUNICATION,
+    category=ToolCategoryEnum.COMMUNICATION,
     access_level=ToolAccessLevel.PRIVATE,
     requires_rag=False,
     use_cases={"sentiment_analysis", "brand_monitoring", "social_intelligence", "crisis_management"}

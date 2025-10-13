@@ -12,9 +12,11 @@ import uuid
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Union, Tuple
 from pathlib import Path
-import structlog
 from io import BytesIO
 import json
+
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 
 # Document processing libraries
 try:
@@ -53,7 +55,7 @@ try:
 except ImportError:
     PDF_AVAILABLE = False
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class DocumentModificationEngine:
@@ -71,7 +73,11 @@ class DocumentModificationEngine:
     def __init__(self):
         self.temp_dir = Path(tempfile.gettempdir()) / "doc_modifications"
         self.temp_dir.mkdir(exist_ok=True)
-        logger.info("🛠️ Document Modification Engine initialized")
+        logger.info(
+            "🛠️ Document Modification Engine initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.document_processors"
+        )
     
     async def modify_word_document(
         self,
@@ -95,15 +101,19 @@ class DocumentModificationEngine:
             # Form field updates
             if "form_fields" in modifications:
                 # This would require more advanced form field detection
-                logger.info("Form field updates requested (advanced feature)")
-            
+                logger.info(
+                    "Form field updates requested (advanced feature)",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.document_processors"
+                )
+
             # Table updates
             if "table_updates" in modifications:
                 for table_idx, table_data in modifications["table_updates"].items():
                     if int(table_idx) < len(doc.tables):
                         table = doc.tables[int(table_idx)]
                         self._update_word_table(table, table_data)
-            
+
             # Add new content
             if "add_content" in modifications:
                 for content_item in modifications["add_content"]:
@@ -111,19 +121,28 @@ class DocumentModificationEngine:
                         doc.add_paragraph(content_item["text"])
                     elif content_item["type"] == "heading":
                         doc.add_heading(content_item["text"], level=content_item.get("level", 1))
-            
+
             # Save to bytes
             output = BytesIO()
             doc.save(output)
             output.seek(0)
-            
-            logger.info("✅ Word document modified successfully")
+
+            logger.info(
+                "✅ Word document modified successfully",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.document_processors"
+            )
             return output.getvalue()
-            
+
         except Exception as e:
-            logger.error(f"Word document modification failed: {str(e)}")
+            logger.error(
+                "Word document modification failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.document_processors",
+                error=e
+            )
             raise
-    
+
     def _update_word_table(self, table, table_data: Dict[str, Any]):
         """Update Word table with new data."""
         try:
@@ -134,7 +153,12 @@ class DocumentModificationEngine:
                             if col_idx < len(table.rows[row_idx].cells):
                                 table.rows[row_idx].cells[col_idx].text = str(cell_value)
         except Exception as e:
-            logger.error(f"Table update failed: {str(e)}")
+            logger.error(
+                "Table update failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.document_processors",
+                error=e
+            )
     
     async def modify_excel_document(
         self,
@@ -179,14 +203,23 @@ class DocumentModificationEngine:
             output = BytesIO()
             workbook.save(output)
             output.seek(0)
-            
-            logger.info("✅ Excel document modified successfully")
+
+            logger.info(
+                "✅ Excel document modified successfully",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.document_processors"
+            )
             return output.getvalue()
-            
+
         except Exception as e:
-            logger.error(f"Excel document modification failed: {str(e)}")
+            logger.error(
+                "Excel document modification failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.document_processors",
+                error=e
+            )
             raise
-    
+
     def _update_excel_sheet(self, sheet, sheet_data: Dict[str, Any]):
         """Update Excel sheet with new data."""
         try:
@@ -195,7 +228,12 @@ class DocumentModificationEngine:
                     for col_idx, cell_value in enumerate(row_data, 1):
                         sheet.cell(row=row_idx, column=col_idx, value=cell_value)
         except Exception as e:
-            logger.error(f"Sheet update failed: {str(e)}")
+            logger.error(
+                "Sheet update failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.document_processors",
+                error=e
+            )
     
     def _apply_excel_formatting(self, cell, format_data: Dict[str, Any]):
         """Apply formatting to Excel cell."""
@@ -224,8 +262,13 @@ class DocumentModificationEngine:
                     vertical=align_data.get("vertical", "top")
                 )
         except Exception as e:
-            logger.error(f"Cell formatting failed: {str(e)}")
-    
+            logger.error(
+                "Cell formatting failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.document_processors",
+                error=e
+            )
+
     def _populate_excel_sheet(self, sheet, data: List[List[Any]]):
         """Populate Excel sheet with data."""
         try:
@@ -233,7 +276,12 @@ class DocumentModificationEngine:
                 for col_idx, cell_value in enumerate(row_data, 1):
                     sheet.cell(row=row_idx, column=col_idx, value=cell_value)
         except Exception as e:
-            logger.error(f"Sheet population failed: {str(e)}")
+            logger.error(
+                "Sheet population failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.document_processors",
+                error=e
+            )
 
 
 class DocumentGenerationEngine:
@@ -251,7 +299,11 @@ class DocumentGenerationEngine:
     def __init__(self):
         self.temp_dir = Path(tempfile.gettempdir()) / "doc_generation"
         self.temp_dir.mkdir(exist_ok=True)
-        logger.info("🎨 Document Generation Engine initialized")
+        logger.info(
+            "🎨 Document Generation Engine initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.document_processors"
+        )
     
     async def generate_word_document(
         self,
@@ -286,32 +338,46 @@ class DocumentGenerationEngine:
             output = BytesIO()
             doc.save(output)
             output.seek(0)
-            
-            logger.info("✅ Word document generated successfully")
+
+            logger.info(
+                "✅ Word document generated successfully",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.document_processors"
+            )
             return output.getvalue()
-            
+
         except Exception as e:
-            logger.error(f"Word document generation failed: {str(e)}")
+            logger.error(
+                "Word document generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.document_processors",
+                error=e
+            )
             raise
-    
+
     def _add_word_table(self, doc, table_data: List[List[str]]):
         """Add table to Word document."""
         try:
             if not table_data:
                 return
-            
+
             rows = len(table_data)
             cols = len(table_data[0]) if table_data else 0
-            
+
             table = doc.add_table(rows=rows, cols=cols)
             table.style = 'Table Grid'
-            
+
             for row_idx, row_data in enumerate(table_data):
                 for col_idx, cell_value in enumerate(row_data):
                     if col_idx < len(table.rows[row_idx].cells):
                         table.rows[row_idx].cells[col_idx].text = str(cell_value)
         except Exception as e:
-            logger.error(f"Table creation failed: {str(e)}")
+            logger.error(
+                "Table creation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.document_processors",
+                error=e
+            )
     
     async def generate_excel_document(
         self,
@@ -347,14 +413,23 @@ class DocumentGenerationEngine:
             output = BytesIO()
             workbook.save(output)
             output.seek(0)
-            
-            logger.info("✅ Excel document generated successfully")
+
+            logger.info(
+                "✅ Excel document generated successfully",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.document_processors"
+            )
             return output.getvalue()
-            
+
         except Exception as e:
-            logger.error(f"Excel document generation failed: {str(e)}")
+            logger.error(
+                "Excel document generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.document_processors",
+                error=e
+            )
             raise
-    
+
     def _apply_sheet_formatting(self, sheet, formatting: Dict[str, Any]):
         """Apply formatting to Excel sheet."""
         try:
@@ -365,7 +440,12 @@ class DocumentGenerationEngine:
                     cell.font = Font(bold=True)
                     cell.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
         except Exception as e:
-            logger.error(f"Sheet formatting failed: {str(e)}")
+            logger.error(
+                "Sheet formatting failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.document_processors",
+                error=e
+            )
     
     async def generate_pdf_document(
         self,
@@ -420,10 +500,19 @@ class DocumentGenerationEngine:
             
             doc.build(story)
             output.seek(0)
-            
-            logger.info("✅ PDF document generated successfully")
+
+            logger.info(
+                "✅ PDF document generated successfully",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.document_processors"
+            )
             return output.getvalue()
-            
+
         except Exception as e:
-            logger.error(f"PDF document generation failed: {str(e)}")
+            logger.error(
+                "PDF document generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.document_processors",
+                error=e
+            )
             raise

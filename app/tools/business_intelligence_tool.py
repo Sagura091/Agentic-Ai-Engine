@@ -14,12 +14,14 @@ from typing import Any, Dict, List, Optional, Type, Union
 from datetime import datetime, timedelta
 from enum import Enum
 
-import structlog
 from pydantic import BaseModel, Field
 from langchain_core.callbacks import CallbackManagerForToolRun
 from langchain_core.tools import BaseTool
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+
+logger = get_logger()
 
 
 class AnalysisType(str, Enum):
@@ -100,12 +102,22 @@ class BusinessIntelligenceTool(BaseTool):
                     'data_source': 'Yahoo Finance (REAL DATA)',
                     'timestamp': datetime.now().isoformat()
                 }
-                
-                logger.info(f"✅ REAL STOCK DATA RETRIEVED: {symbol} - ${real_data.get('current_price')}")
+
+                logger.info(
+                    f"✅ REAL STOCK DATA RETRIEVED: {symbol} - ${real_data.get('current_price')}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.business_intelligence_tool",
+                    data={"symbol": symbol, "current_price": real_data.get('current_price')}
+                )
                 return real_data
-                
+
             except Exception as e:
-                logger.warning(f"Yahoo Finance failed: {e}")
+                logger.warn(
+                    f"Yahoo Finance failed",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.business_intelligence_tool",
+                    error=e
+                )
                 
             # Fallback: Return mock data with clear indication
             return {
@@ -121,9 +133,14 @@ class BusinessIntelligenceTool(BaseTool):
                 'data_source': 'MOCK DATA (API FAILED)',
                 'timestamp': datetime.now().isoformat()
             }
-            
+
         except Exception as e:
-            logger.error(f"Failed to get real stock data: {e}")
+            logger.error(
+                "Failed to get real stock data",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.business_intelligence_tool",
+                error=e
+            )
             return None
     
     def _run(
@@ -167,15 +184,19 @@ class BusinessIntelligenceTool(BaseTool):
             # Log analysis start
             logger.info(
                 "Business intelligence analysis started with REAL DATA",
-                tool_name=self.name,
-                analysis_id=analysis_id,
-                analysis_type=analysis_type,
-                has_real_data=bool(real_stock_data),
-                time_horizon=time_horizon,
-                detail_level=detail_level,
-                usage_count=self._usage_count
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.business_intelligence_tool",
+                data={
+                    "tool_name": self.name,
+                    "analysis_id": analysis_id,
+                    "analysis_type": analysis_type,
+                    "has_real_data": bool(real_stock_data),
+                    "time_horizon": time_horizon,
+                    "detail_level": detail_level,
+                    "usage_count": self._usage_count
+                }
             )
-            
+
             # 🚀 REVOLUTIONARY: Use REAL DATA for analysis!
             if real_stock_data:
                 # Update business context with real data
@@ -187,9 +208,18 @@ class BusinessIntelligenceTool(BaseTool):
                     'volume': real_stock_data.get('volume'),
                     'data_source': real_stock_data.get('data_source', 'REAL DATA')
                 })
-                logger.info(f"✅ Using REAL DATA: {real_stock_data.get('symbol')} - ${real_stock_data.get('current_price')}")
+                logger.info(
+                    f"✅ Using REAL DATA: {real_stock_data.get('symbol')} - ${real_stock_data.get('current_price')}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.business_intelligence_tool",
+                    data={"symbol": real_stock_data.get('symbol'), "current_price": real_stock_data.get('current_price')}
+                )
             else:
-                logger.warning("⚠️ No real data available - using context data only")
+                logger.warn(
+                    "⚠️ No real data available - using context data only",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.business_intelligence_tool"
+                )
             
             # Validate inputs
             self._validate_inputs(analysis_type, business_context, time_horizon)
@@ -199,7 +229,12 @@ class BusinessIntelligenceTool(BaseTool):
             if cache_key in self.analysis_cache:
                 cached_result = self.analysis_cache[cache_key]
                 if self._is_cache_valid(cached_result):
-                    logger.info("Using cached analysis result", analysis_id=analysis_id)
+                    logger.info(
+                        "Using cached analysis result",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.business_intelligence_tool",
+                        data={"analysis_id": analysis_id}
+                    )
                     return self._format_cached_result(cached_result)
             
             # Perform analysis based on type
@@ -238,21 +273,25 @@ class BusinessIntelligenceTool(BaseTool):
             # Log successful analysis
             logger.info(
                 "Business intelligence analysis completed successfully",
-                tool_name=self.name,
-                analysis_id=analysis_id,
-                analysis_type=analysis_type,
-                execution_time=execution_time,
-                usage_count=self._usage_count
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.business_intelligence_tool",
+                data={
+                    "tool_name": self.name,
+                    "analysis_id": analysis_id,
+                    "analysis_type": analysis_type,
+                    "execution_time": execution_time,
+                    "usage_count": self._usage_count
+                }
             )
-            
+
             return self._format_analysis_result(analysis_result, analysis_id)
-            
+
         except Exception as e:
             execution_time = time.time() - start_time
-            
+
             # Update performance metrics for failure
             self._update_performance_metrics(execution_time, success=False)
-            
+
             # Record failed analysis
             analysis_record = {
                 "analysis_id": analysis_id,
@@ -263,18 +302,22 @@ class BusinessIntelligenceTool(BaseTool):
                 "success": False
             }
             self.analysis_history.append(analysis_record)
-            
+
             # Log analysis error
             logger.error(
                 "Business intelligence analysis failed",
-                tool_name=self.name,
-                analysis_id=analysis_id,
-                analysis_type=analysis_type,
-                error=str(e),
-                execution_time=execution_time,
-                usage_count=self._usage_count
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.business_intelligence_tool",
+                data={
+                    "tool_name": self.name,
+                    "analysis_id": analysis_id,
+                    "analysis_type": analysis_type,
+                    "execution_time": execution_time,
+                    "usage_count": self._usage_count
+                },
+                error=e
             )
-            
+
             return f"Business intelligence analysis error: {str(e)}"
     
     def _validate_inputs(self, analysis_type: str, business_context: Dict[str, Any], time_horizon: str):

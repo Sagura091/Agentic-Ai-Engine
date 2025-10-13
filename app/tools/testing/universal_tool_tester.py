@@ -40,11 +40,13 @@ from enum import Enum
 from pathlib import Path
 import uuid
 
-import structlog
 from pydantic import BaseModel, Field, ValidationError
 from langchain_core.tools import BaseTool
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+
+logger = get_logger()
 
 
 class TestSeverity(Enum):
@@ -124,7 +126,11 @@ class UniversalToolTester:
             "performance_samples": 10
         }
         
-        logger.info("🧪 Universal Tool Tester initialized")
+        logger.info(
+            "🧪 Universal Tool Tester initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "UniversalToolTester"
+        )
     
     async def test_tool_comprehensive(self, tool: BaseTool) -> ToolTestResult:
         """
@@ -140,7 +146,12 @@ class UniversalToolTester:
         tool_id = getattr(tool, 'name', 'unknown_tool')
         tool_name = getattr(tool, 'description', tool_id)
         
-        logger.info(f"🧪 Starting comprehensive test for tool: {tool_id}")
+        logger.info(
+            f"🧪 Starting comprehensive test for tool: {tool_id}",
+            LogCategory.TOOL_OPERATIONS,
+            "UniversalToolTester",
+            data={"tool_id": tool_id}
+        )
         
         # Initialize result
         result = ToolTestResult(
@@ -197,15 +208,26 @@ class UniversalToolTester:
             
             logger.info(
                 f"🧪 Test completed for {tool_id}",
-                success=result.overall_success,
-                quality_score=result.quality_score,
-                issues=len(result.issues)
+                LogCategory.TOOL_OPERATIONS,
+                "UniversalToolTester",
+                data={
+                    "tool_id": tool_id,
+                    "success": result.overall_success,
+                    "quality_score": result.quality_score,
+                    "issues": len(result.issues)
+                }
             )
             
             return result
             
         except Exception as e:
-            logger.error(f"🧪 Test failed for {tool_id}: {str(e)}")
+            logger.error(
+                f"🧪 Test failed for {tool_id}: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "UniversalToolTester",
+                data={"tool_id": tool_id},
+                error=e
+            )
             result.overall_success = False
             result.issues.append(TestIssue(
                 category=TestCategory.STRUCTURE,

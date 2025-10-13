@@ -34,8 +34,10 @@ from enum import Enum
 from datetime import datetime
 import json
 
-import structlog
 from pydantic import BaseModel, Field
+
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 
 # Excel libraries
 try:
@@ -108,7 +110,7 @@ from .shared.utils import (
     ensure_directory_exists,
 )
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class ExcelOperation(str, Enum):
@@ -353,10 +355,14 @@ class RevolutionaryUniversalExcelTool(BaseUniversalTool):
 
         logger.info(
             "Revolutionary Universal Excel Tool initialized",
-            openpyxl_available=OPENPYXL_AVAILABLE,
-            xlwings_available=XLWINGS_AVAILABLE,
-            pandas_available=PANDAS_AVAILABLE,
-            win32com_available=WIN32COM_AVAILABLE,
+            LogCategory.TOOL_OPERATIONS,
+            "RevolutionaryUniversalExcelTool",
+            data={
+                "openpyxl_available": OPENPYXL_AVAILABLE,
+                "xlwings_available": XLWINGS_AVAILABLE,
+                "pandas_available": PANDAS_AVAILABLE,
+                "win32com_available": WIN32COM_AVAILABLE
+            }
         )
 
     def _check_dependencies(self) -> None:
@@ -377,7 +383,11 @@ class RevolutionaryUniversalExcelTool(BaseUniversalTool):
                 recovery_suggestion="Install with: pip install pandas>=2.1.0"
             )
 
-        logger.debug("Excel tool dependencies verified")
+        logger.debug(
+            "Excel tool dependencies verified",
+            LogCategory.TOOL_OPERATIONS,
+            "RevolutionaryUniversalExcelTool"
+        )
 
     def _resolve_output_path(self, file_path: str) -> Path:
         """
@@ -439,9 +449,13 @@ class RevolutionaryUniversalExcelTool(BaseUniversalTool):
         try:
             logger.info(
                 "Executing Excel operation",
-                operation=operation.value,
-                file_path=file_path,
-                sheet_name=sheet_name,
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalExcelTool",
+                data={
+                    "operation": operation.value,
+                    "file_path": file_path,
+                    "sheet_name": sheet_name
+                }
             )
 
             # Route to appropriate handler
@@ -623,7 +637,12 @@ class RevolutionaryUniversalExcelTool(BaseUniversalTool):
                 # Store in open workbooks cache
                 self._open_workbooks[str(resolved_path)] = wb
 
-                logger.info("Workbook created and saved", path=str(resolved_path))
+                logger.info(
+                    "Workbook created and saved",
+                    LogCategory.TOOL_OPERATIONS,
+                    "RevolutionaryUniversalExcelTool",
+                    data={"path": str(resolved_path)}
+                )
 
                 return json.dumps({
                     "success": True,
@@ -638,7 +657,12 @@ class RevolutionaryUniversalExcelTool(BaseUniversalTool):
                 wb.save(str(temp_path))
                 self._open_workbooks[str(temp_path)] = wb
 
-                logger.info("Workbook created in memory", temp_path=str(temp_path))
+                logger.info(
+                    "Workbook created in memory",
+                    LogCategory.TOOL_OPERATIONS,
+                    "RevolutionaryUniversalExcelTool",
+                    data={"temp_path": str(temp_path)}
+                )
 
                 return json.dumps({
                     "success": True,
@@ -701,9 +725,13 @@ class RevolutionaryUniversalExcelTool(BaseUniversalTool):
 
             logger.info(
                 "Workbook opened",
-                path=str(path),
-                sheets=len(sheet_names),
-                active_sheet=active_sheet,
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalExcelTool",
+                data={
+                    "path": str(path),
+                    "sheets": len(sheet_names),
+                    "active_sheet": active_sheet
+                }
             )
 
             return json.dumps({
@@ -749,7 +777,12 @@ class RevolutionaryUniversalExcelTool(BaseUniversalTool):
             # Save workbook
             wb.save(str(path))
 
-            logger.info("Workbook saved", path=str(path))
+            logger.info(
+                "Workbook saved",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalExcelTool",
+                data={"path": str(path)}
+            )
 
             return json.dumps({
                 "success": True,
@@ -801,7 +834,12 @@ class RevolutionaryUniversalExcelTool(BaseUniversalTool):
             if str(src_path) != str(dst_path):
                 del self._open_workbooks[str(src_path)]
 
-            logger.info("Workbook saved as", src=str(src_path), dst=str(dst_path))
+            logger.info(
+                "Workbook saved as",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalExcelTool",
+                data={"src": str(src_path), "dst": str(dst_path)}
+            )
 
             return json.dumps({
                 "success": True,
@@ -832,7 +870,12 @@ class RevolutionaryUniversalExcelTool(BaseUniversalTool):
 
             # Check if workbook is open
             if str(path) not in self._open_workbooks:
-                logger.warning("Workbook not in cache", path=str(path))
+                logger.warn(
+                    "Workbook not in cache",
+                    LogCategory.TOOL_OPERATIONS,
+                    "RevolutionaryUniversalExcelTool",
+                    data={"path": str(path)}
+                )
                 return json.dumps({
                     "success": True,
                     "operation": "close",
@@ -844,12 +887,22 @@ class RevolutionaryUniversalExcelTool(BaseUniversalTool):
             if options and options.get("save", False):
                 wb = self._open_workbooks[str(path)]
                 wb.save(str(path))
-                logger.debug("Workbook saved before closing", path=str(path))
+                logger.debug(
+                    "Workbook saved before closing",
+                    LogCategory.TOOL_OPERATIONS,
+                    "RevolutionaryUniversalExcelTool",
+                    data={"path": str(path)}
+                )
 
             # Remove from cache
             del self._open_workbooks[str(path)]
 
-            logger.info("Workbook closed", path=str(path))
+            logger.info(
+                "Workbook closed",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalExcelTool",
+                data={"path": str(path)}
+            )
 
             return json.dumps({
                 "success": True,

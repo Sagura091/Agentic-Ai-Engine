@@ -33,8 +33,10 @@ from enum import Enum
 from datetime import datetime
 import json
 
-import structlog
 from pydantic import BaseModel, Field
+
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 
 # Word libraries
 try:
@@ -85,7 +87,7 @@ from app.tools.production.universal.shared.utils import (
 )
 
 # Setup logger
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 # ============================================================================
@@ -222,17 +224,29 @@ class RevolutionaryUniversalWordTool(BaseUniversalTool):
         
         logger.info(
             "Revolutionary Universal Word Tool initialized",
-            docx_available=DOCX_AVAILABLE,
-            docx2python_available=DOCX2PYTHON_AVAILABLE,
-            docxtpl_available=DOCXTPL_AVAILABLE,
+            LogCategory.TOOL_OPERATIONS,
+            "RevolutionaryUniversalWordTool",
+            data={
+                "docx_available": DOCX_AVAILABLE,
+                "docx2python_available": DOCX2PYTHON_AVAILABLE,
+                "docxtpl_available": DOCXTPL_AVAILABLE
+            }
         )
     
     def _verify_dependencies(self):
         """Verify required dependencies are available."""
         if not DOCX_AVAILABLE:
-            logger.warning("python-docx not available - core Word functionality disabled")
+            logger.warn(
+                "python-docx not available - core Word functionality disabled",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalWordTool"
+            )
         
-        logger.debug("Word tool dependencies verified")
+        logger.debug(
+            "Word tool dependencies verified",
+            LogCategory.TOOL_OPERATIONS,
+            "RevolutionaryUniversalWordTool"
+        )
     
     def _resolve_output_path(self, file_path: str) -> Path:
         """
@@ -272,8 +286,12 @@ class RevolutionaryUniversalWordTool(BaseUniversalTool):
         """
         logger.info(
             "Executing Word operation",
-            operation=operation.value,
-            file_path=file_path,
+            LogCategory.TOOL_OPERATIONS,
+            "RevolutionaryUniversalWordTool",
+            data={
+                "operation": operation.value,
+                "file_path": file_path
+            }
         )
         
         try:
@@ -343,10 +361,22 @@ class RevolutionaryUniversalWordTool(BaseUniversalTool):
                 )
         
         except (ValidationError, FileOperationError, ConversionError, DependencyError, SecurityError) as e:
-            logger.error("Word operation failed", operation=operation.value, error=str(e))
+            logger.error(
+                "Word operation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalWordTool",
+                data={"operation": operation.value},
+                error=e
+            )
             raise
         except Exception as e:
-            logger.error("Unexpected error in Word operation", operation=operation.value, error=str(e))
+            logger.error(
+                "Unexpected error in Word operation",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalWordTool",
+                data={"operation": operation.value},
+                error=e
+            )
             raise FileOperationError(
                 f"Word operation failed: {str(e)}",
                 file_path=file_path or "unknown",
@@ -416,7 +446,9 @@ class RevolutionaryUniversalWordTool(BaseUniversalTool):
 
             logger.info(
                 "Document created",
-                path=str(resolved_path),
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalWordTool",
+                data={"path": str(resolved_path)}
             )
 
             return json.dumps({
@@ -429,7 +461,12 @@ class RevolutionaryUniversalWordTool(BaseUniversalTool):
         except DependencyError as e:
             raise
         except Exception as e:
-            logger.error("Failed to create document", error=str(e))
+            logger.error(
+                "Failed to create document",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalWordTool",
+                error=e
+            )
             raise FileOperationError(
                 f"Failed to create document: {str(e)}",
                 file_path=file_path or "unknown",
@@ -474,7 +511,9 @@ class RevolutionaryUniversalWordTool(BaseUniversalTool):
 
             logger.info(
                 "Document opened",
-                path=str(path),
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalWordTool",
+                data={"path": str(path)}
             )
 
             return json.dumps({
@@ -490,7 +529,13 @@ class RevolutionaryUniversalWordTool(BaseUniversalTool):
         except (ValidationError, DependencyError) as e:
             raise
         except Exception as e:
-            logger.error("Failed to open document", file_path=file_path, error=str(e))
+            logger.error(
+                "Failed to open document",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalWordTool",
+                data={"file_path": file_path},
+                error=e
+            )
             raise FileOperationError(
                 f"Failed to open document: {str(e)}",
                 file_path=file_path,
@@ -530,7 +575,9 @@ class RevolutionaryUniversalWordTool(BaseUniversalTool):
 
             logger.info(
                 "Document saved",
-                path=str(resolved_path),
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalWordTool",
+                data={"path": str(resolved_path)}
             )
 
             return json.dumps({
@@ -543,7 +590,13 @@ class RevolutionaryUniversalWordTool(BaseUniversalTool):
         except (ValidationError, FileOperationError) as e:
             raise
         except Exception as e:
-            logger.error("Failed to save document", file_path=file_path, error=str(e))
+            logger.error(
+                "Failed to save document",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalWordTool",
+                data={"file_path": file_path},
+                error=e
+            )
             raise FileOperationError(
                 f"Failed to save document: {str(e)}",
                 file_path=file_path,
@@ -599,8 +652,12 @@ class RevolutionaryUniversalWordTool(BaseUniversalTool):
 
             logger.info(
                 "Document saved as",
-                old_path=str(resolved_path),
-                new_path=str(new_path),
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalWordTool",
+                data={
+                    "old_path": str(resolved_path),
+                    "new_path": str(new_path)
+                }
             )
 
             return json.dumps({
@@ -614,7 +671,13 @@ class RevolutionaryUniversalWordTool(BaseUniversalTool):
         except (ValidationError, FileOperationError) as e:
             raise
         except Exception as e:
-            logger.error("Failed to save document as", file_path=file_path, error=str(e))
+            logger.error(
+                "Failed to save document as",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalWordTool",
+                data={"file_path": file_path},
+                error=e
+            )
             raise FileOperationError(
                 f"Failed to save document as: {str(e)}",
                 file_path=file_path,
@@ -645,7 +708,9 @@ class RevolutionaryUniversalWordTool(BaseUniversalTool):
 
             logger.info(
                 "Document closed",
-                path=str(resolved_path),
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalWordTool",
+                data={"path": str(resolved_path)}
             )
 
             return json.dumps({
@@ -658,7 +723,13 @@ class RevolutionaryUniversalWordTool(BaseUniversalTool):
         except ValidationError as e:
             raise
         except Exception as e:
-            logger.error("Failed to close document", file_path=file_path, error=str(e))
+            logger.error(
+                "Failed to close document",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalWordTool",
+                data={"file_path": file_path},
+                error=e
+            )
             raise FileOperationError(
                 f"Failed to close document: {str(e)}",
                 file_path=file_path,
@@ -742,8 +813,12 @@ class RevolutionaryUniversalWordTool(BaseUniversalTool):
 
             logger.info(
                 "Paragraph added",
-                file_path=str(resolved_path),
-                text_length=len(text),
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalWordTool",
+                data={
+                    "file_path": str(resolved_path),
+                    "text_length": len(text)
+                }
             )
 
             return json.dumps({
@@ -758,7 +833,13 @@ class RevolutionaryUniversalWordTool(BaseUniversalTool):
         except (ValidationError, FileOperationError) as e:
             raise
         except Exception as e:
-            logger.error("Failed to add paragraph", file_path=file_path, error=str(e))
+            logger.error(
+                "Failed to add paragraph",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalWordTool",
+                data={"file_path": file_path},
+                error=e
+            )
             raise FileOperationError(
                 f"Failed to add paragraph: {str(e)}",
                 file_path=file_path,
@@ -792,7 +873,12 @@ class RevolutionaryUniversalWordTool(BaseUniversalTool):
             doc.add_heading(text, level=level)
             doc.save(str(resolved_path))
 
-            logger.info("Heading added", file_path=str(resolved_path), level=level)
+            logger.info(
+                "Heading added",
+                LogCategory.TOOL_OPERATIONS,
+                "RevolutionaryUniversalWordTool",
+                data={"file_path": str(resolved_path), "level": level}
+            )
 
             return json.dumps({
                 "success": True,

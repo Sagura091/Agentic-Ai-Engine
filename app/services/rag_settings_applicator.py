@@ -7,13 +7,14 @@ the running RAG system.
 """
 
 from typing import Any, Dict, Optional
-import structlog
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from app.rag.core.unified_rag_system import UnifiedRAGSystem, UnifiedRAGConfig
 from app.rag.config.openwebui_config import get_rag_config, OpenWebUIRAGConfig
 from app.core.unified_system_orchestrator import get_enhanced_system_orchestrator
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class RAGSettingsApplicator:
@@ -40,10 +41,19 @@ class RAGSettingsApplicator:
             self.rag_config_manager = get_rag_config()
             
             self.is_initialized = True
-            logger.info("RAG settings applicator initialized")
-            
+            logger.info(
+                "RAG settings applicator initialized",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.rag_settings_applicator"
+            )
+
         except Exception as e:
-            logger.error("Failed to initialize RAG settings applicator", error=str(e))
+            logger.error(
+                "Failed to initialize RAG settings applicator",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.rag_settings_applicator",
+                error=e
+            )
             raise
     
     async def apply_rag_settings(self, settings: Dict[str, Any]) -> bool:
@@ -59,32 +69,46 @@ class RAGSettingsApplicator:
         try:
             if not self.is_initialized:
                 await self.initialize()
-            
-            logger.info("Applying RAG settings to system", settings_count=len(settings))
-            
+
+            logger.info(
+                "Applying RAG settings to system",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.rag_settings_applicator",
+                data={"settings_count": len(settings)}
+            )
+
             # Apply vector store settings
             await self._apply_vector_store_settings(settings)
-            
+
             # Apply embedding settings
             await self._apply_embedding_settings(settings)
-            
+
             # Apply chunking settings
             await self._apply_chunking_settings(settings)
-            
+
             # Apply retrieval settings
             await self._apply_retrieval_settings(settings)
-            
+
             # Apply performance settings
             await self._apply_performance_settings(settings)
-            
+
             # Apply multi-agent settings
             await self._apply_multi_agent_settings(settings)
-            
-            logger.info("RAG settings applied successfully")
+
+            logger.info(
+                "RAG settings applied successfully",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.rag_settings_applicator"
+            )
             return True
-            
+
         except Exception as e:
-            logger.error("Failed to apply RAG settings", error=str(e))
+            logger.error(
+                "Failed to apply RAG settings",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.rag_settings_applicator",
+                error=e
+            )
             return False
     
     async def _apply_vector_store_settings(self, settings: Dict[str, Any]) -> None:
@@ -124,11 +148,21 @@ class RAGSettingsApplicator:
                     
                     # Update the RAG system config
                     self.orchestrator.unified_rag.config = new_config
-                    
-                logger.info("Vector store settings applied", settings=vector_store_settings)
-                
+
+                logger.info(
+                    "Vector store settings applied",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.services.rag_settings_applicator",
+                    data={"settings": vector_store_settings}
+                )
+
         except Exception as e:
-            logger.error("Failed to apply vector store settings", error=str(e))
+            logger.error(
+                "Failed to apply vector store settings",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.rag_settings_applicator",
+                error=e
+            )
     
     async def _apply_embedding_settings(self, settings: Dict[str, Any]) -> None:
         """Apply embedding related settings."""
@@ -171,13 +205,27 @@ class RAGSettingsApplicator:
                     
                     # If embedding model changed, we need to reinitialize
                     if "embedding_model" in embedding_settings:
-                        logger.info("Embedding model changed, reinitializing RAG system")
+                        logger.info(
+                            "Embedding model changed, reinitializing RAG system",
+                            LogCategory.RAG_OPERATIONS,
+                            "app.services.rag_settings_applicator"
+                        )
                         # Note: This would require a restart in production
-                        
-                logger.info("Embedding settings applied", settings=embedding_settings)
-                
+
+                logger.info(
+                    "Embedding settings applied",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.services.rag_settings_applicator",
+                    data={"settings": embedding_settings}
+                )
+
         except Exception as e:
-            logger.error("Failed to apply embedding settings", error=str(e))
+            logger.error(
+                "Failed to apply embedding settings",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.rag_settings_applicator",
+                error=e
+            )
     
     async def _apply_chunking_settings(self, settings: Dict[str, Any]) -> None:
         """Apply chunking related settings."""
@@ -211,11 +259,21 @@ class RAGSettingsApplicator:
                     )
                     
                     self.orchestrator.unified_rag.config = new_config
-                    
-                logger.info("Chunking settings applied", settings=chunking_settings)
-                
+
+                logger.info(
+                    "Chunking settings applied",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.services.rag_settings_applicator",
+                    data={"settings": chunking_settings}
+                )
+
         except Exception as e:
-            logger.error("Failed to apply chunking settings", error=str(e))
+            logger.error(
+                "Failed to apply chunking settings",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.rag_settings_applicator",
+                error=e
+            )
     
     async def _apply_retrieval_settings(self, settings: Dict[str, Any]) -> None:
         """Apply retrieval related settings."""
@@ -255,11 +313,21 @@ class RAGSettingsApplicator:
                     )
                     
                     self.orchestrator.unified_rag.config = new_config
-                    
-                logger.info("Retrieval settings applied", settings=retrieval_settings)
-                
+
+                logger.info(
+                    "Retrieval settings applied",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.services.rag_settings_applicator",
+                    data={"settings": retrieval_settings}
+                )
+
         except Exception as e:
-            logger.error("Failed to apply retrieval settings", error=str(e))
+            logger.error(
+                "Failed to apply retrieval settings",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.rag_settings_applicator",
+                error=e
+            )
     
     async def _apply_performance_settings(self, settings: Dict[str, Any]) -> None:
         """Apply performance related settings."""
@@ -279,11 +347,21 @@ class RAGSettingsApplicator:
             if performance_settings:
                 # Update RAG configuration
                 self.rag_config_manager.update_config(**performance_settings)
-                
-                logger.info("Performance settings applied", settings=performance_settings)
-                
+
+                logger.info(
+                    "Performance settings applied",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.services.rag_settings_applicator",
+                    data={"settings": performance_settings}
+                )
+
         except Exception as e:
-            logger.error("Failed to apply performance settings", error=str(e))
+            logger.error(
+                "Failed to apply performance settings",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.rag_settings_applicator",
+                error=e
+            )
     
     async def _apply_multi_agent_settings(self, settings: Dict[str, Any]) -> None:
         """Apply multi-agent related settings."""
@@ -306,11 +384,21 @@ class RAGSettingsApplicator:
             if multi_agent_settings:
                 # Update RAG configuration
                 self.rag_config_manager.update_config(**multi_agent_settings)
-                
-                logger.info("Multi-agent settings applied", settings=multi_agent_settings)
-                
+
+                logger.info(
+                    "Multi-agent settings applied",
+                    LogCategory.RAG_OPERATIONS,
+                    "app.services.rag_settings_applicator",
+                    data={"settings": multi_agent_settings}
+                )
+
         except Exception as e:
-            logger.error("Failed to apply multi-agent settings", error=str(e))
+            logger.error(
+                "Failed to apply multi-agent settings",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.rag_settings_applicator",
+                error=e
+            )
 
 
 # Global applicator instance

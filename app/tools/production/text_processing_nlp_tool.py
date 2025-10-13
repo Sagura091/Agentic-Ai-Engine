@@ -18,14 +18,15 @@ import unicodedata
 import string
 from collections import Counter, defaultdict
 
-import structlog
 from pydantic import BaseModel, Field, validator
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
 from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class TextOperation(str, Enum):
@@ -241,7 +242,11 @@ class TextProcessingNLPTool(BaseTool, MetadataCapableToolMixin):
             'time': r'\b\d{1,2}:\d{2}(?::\d{2})?\s?(?:AM|PM|am|pm)?\b'
         }
         
-        logger.info("Text Processing & NLP Tool initialized")
+        logger.info(
+            "Text Processing & NLP Tool initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "TextProcessingNLPTool"
+        )
 
     def _get_cache_key(self, operation: str, text: str, **kwargs) -> str:
         """Generate cache key for operation."""
@@ -344,7 +349,12 @@ class TextProcessingNLPTool(BaseTool, MetadataCapableToolMixin):
                 return 'en', 0.5  # Default to English with low confidence
                 
         except Exception as e:
-            logger.warning("Language detection failed", error=str(e))
+            logger.warn(
+                "Language detection failed",
+                LogCategory.TOOL_OPERATIONS,
+                "TextProcessingNLPTool",
+                error=e
+            )
             return 'en', 0.0
 
     async def _analyze_sentiment(self, text: str) -> Dict[str, Any]:
@@ -403,7 +413,12 @@ class TextProcessingNLPTool(BaseTool, MetadataCapableToolMixin):
             }
             
         except Exception as e:
-            logger.error("Sentiment analysis failed", error=str(e))
+            logger.error(
+                "Sentiment analysis failed",
+                LogCategory.TOOL_OPERATIONS,
+                "TextProcessingNLPTool",
+                error=e
+            )
             return {
                 'sentiment': 'neutral',
                 'polarity': 0.0,
@@ -444,7 +459,12 @@ class TextProcessingNLPTool(BaseTool, MetadataCapableToolMixin):
             return keywords
 
         except Exception as e:
-            logger.error("Keyword extraction failed", error=str(e))
+            logger.error(
+                "Keyword extraction failed",
+                LogCategory.TOOL_OPERATIONS,
+                "TextProcessingNLPTool",
+                error=e
+            )
             return []
 
     async def _extract_entities(self, text: str) -> List[Dict[str, Any]]:
@@ -517,7 +537,12 @@ class TextProcessingNLPTool(BaseTool, MetadataCapableToolMixin):
             return entities
 
         except Exception as e:
-            logger.error("Entity extraction failed", error=str(e))
+            logger.error(
+                "Entity extraction failed",
+                LogCategory.TOOL_OPERATIONS,
+                "TextProcessingNLPTool",
+                error=e
+            )
             return []
 
     async def _calculate_readability(self, text: str) -> Dict[str, Any]:
@@ -571,7 +596,12 @@ class TextProcessingNLPTool(BaseTool, MetadataCapableToolMixin):
             }
 
         except Exception as e:
-            logger.error("Readability analysis failed", error=str(e))
+            logger.error(
+                "Readability analysis failed",
+                LogCategory.TOOL_OPERATIONS,
+                "TextProcessingNLPTool",
+                error=e
+            )
             return {'error': str(e)}
 
     async def _calculate_similarity(self, text1: str, text2: str) -> Dict[str, Any]:
@@ -613,7 +643,12 @@ class TextProcessingNLPTool(BaseTool, MetadataCapableToolMixin):
             }
 
         except Exception as e:
-            logger.error("Similarity calculation failed", error=str(e))
+            logger.error(
+                "Similarity calculation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "TextProcessingNLPTool",
+                error=e
+            )
             return {'error': str(e)}
 
     async def _transform_case(self, text: str, case_type: CaseTransform) -> str:
@@ -638,7 +673,12 @@ class TextProcessingNLPTool(BaseTool, MetadataCapableToolMixin):
                 return text
 
         except Exception as e:
-            logger.error("Case transformation failed", error=str(e))
+            logger.error(
+                "Case transformation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "TextProcessingNLPTool",
+                error=e
+            )
             return text
 
     async def _extract_patterns(self, text: str, pattern: str, extract_all: bool = True) -> List[str]:
@@ -653,7 +693,13 @@ class TextProcessingNLPTool(BaseTool, MetadataCapableToolMixin):
             return matches
 
         except Exception as e:
-            logger.error("Pattern extraction failed", pattern=pattern, error=str(e))
+            logger.error(
+                "Pattern extraction failed",
+                LogCategory.TOOL_OPERATIONS,
+                "TextProcessingNLPTool",
+                data={"pattern": pattern},
+                error=e
+            )
             return []
 
     async def _run(self, **kwargs) -> str:
@@ -675,7 +721,12 @@ class TextProcessingNLPTool(BaseTool, MetadataCapableToolMixin):
                 if cache_key in self._result_cache:
                     cached_time, cached_result = self._result_cache[cache_key]
                     if time.time() - cached_time < self._cache_ttl:
-                        logger.info("Returning cached result", operation=input_data.operation)
+                        logger.info(
+                            "Returning cached result",
+                            LogCategory.TOOL_OPERATIONS,
+                            "TextProcessingNLPTool",
+                            data={"operation": input_data.operation}
+                        )
                         return cached_result
 
             # Execute operation based on type
@@ -826,10 +877,16 @@ class TextProcessingNLPTool(BaseTool, MetadataCapableToolMixin):
                 self._clean_cache()
 
             # Log operation
-            logger.info("Text processing operation completed",
-                       operation=input_data.operation,
-                       execution_time=execution_time,
-                       success=True)
+            logger.info(
+                "Text processing operation completed",
+                LogCategory.TOOL_OPERATIONS,
+                "TextProcessingNLPTool",
+                data={
+                    "operation": input_data.operation,
+                    "execution_time": execution_time,
+                    "success": True
+                }
+            )
 
             return result_json
 
@@ -837,10 +894,16 @@ class TextProcessingNLPTool(BaseTool, MetadataCapableToolMixin):
             self._failed_operations += 1
             execution_time = time.time() - start_time if 'start_time' in locals() else 0
 
-            logger.error("Text processing operation failed",
-                        operation=kwargs.get('operation'),
-                        error=str(e),
-                        execution_time=execution_time)
+            logger.error(
+                "Text processing operation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "TextProcessingNLPTool",
+                data={
+                    "operation": kwargs.get('operation'),
+                    "execution_time": execution_time
+                },
+                error=e
+            )
 
             return json.dumps({
                 "success": False,

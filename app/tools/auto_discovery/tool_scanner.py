@@ -43,14 +43,15 @@ from enum import Enum
 import hashlib
 import json
 
-import structlog
 from pydantic import BaseModel, Field
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolMetadata, ToolCategory, ToolAccessLevel
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+from app.tools.unified_tool_repository import ToolMetadata, ToolCategory as ToolCategoryEnum, ToolAccessLevel
 from app.tools.testing.universal_tool_tester import UniversalToolTester, ToolTestResult
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class DiscoveryStatus(Enum):
@@ -112,32 +113,56 @@ class ToolAutoDiscovery:
                 "*_tool_factory"
             ]
         }
-        
-        logger.info("🔍 Tool Auto-Discovery System initialized")
-    
+
+        logger.info(
+            "🔍 Tool Auto-Discovery System initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.tool_scanner"
+        )
+
     async def discover_all_tools(self) -> Dict[str, ToolInfo]:
         """
         Discover all tools in the configured directories.
-        
+
         Returns:
             Dictionary of discovered tools with their information
         """
-        logger.info("🔍 Starting comprehensive tool discovery...")
-        
+        logger.info(
+            "🔍 Starting comprehensive tool discovery...",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.tool_scanner"
+        )
+
         discovered_count = 0
-        
+
         for directory in self.config["scan_directories"]:
             try:
                 tools_in_dir = await self._scan_directory(Path(directory))
                 discovered_count += len(tools_in_dir)
                 self.discovered_tools.update(tools_in_dir)
-                
-                logger.info(f"🔍 Discovered {len(tools_in_dir)} tools in {directory}")
-                
+
+                logger.info(
+                    f"🔍 Discovered {len(tools_in_dir)} tools in {directory}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.auto_discovery.tool_scanner",
+                    data={"tools_count": len(tools_in_dir), "directory": str(directory)}
+                )
+
             except Exception as e:
-                logger.error(f"Failed to scan directory {directory}: {str(e)}")
-        
-        logger.info(f"🔍 Discovery complete: {discovered_count} tools found")
+                logger.error(
+                    f"Failed to scan directory {directory}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.auto_discovery.tool_scanner",
+                    data={"directory": str(directory)},
+                    error=e
+                )
+
+        logger.info(
+            f"🔍 Discovery complete: {discovered_count} tools found",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.tool_scanner",
+            data={"discovered_count": discovered_count}
+        )
         
         # Build dependency graph
         await self._build_dependency_graph()
@@ -150,25 +175,36 @@ class ToolAutoDiscovery:
     async def _scan_directory(self, directory: Path) -> Dict[str, ToolInfo]:
         """Scan a directory for tool files."""
         tools = {}
-        
+
         if not directory.exists():
-            logger.warning(f"Directory does not exist: {directory}")
+            logger.warn(
+                f"Directory does not exist: {directory}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.auto_discovery.tool_scanner",
+                data={"directory": str(directory)}
+            )
             return tools
-        
+
         # Recursively scan Python files
         for file_path in directory.rglob("*.py"):
             # Skip excluded patterns
             if self._should_skip_file(file_path):
                 continue
-            
+
             try:
                 tool_info = await self._analyze_file(file_path)
                 if tool_info:
                     tools[tool_info.tool_id] = tool_info
-                    
+
             except Exception as e:
-                logger.error(f"Failed to analyze file {file_path}: {str(e)}")
-        
+                logger.error(
+                    f"Failed to analyze file {file_path}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.auto_discovery.tool_scanner",
+                    data={"file_path": str(file_path)},
+                    error=e
+                )
+
         return tools
     
     def _should_skip_file(self, file_path: Path) -> bool:
@@ -202,7 +238,12 @@ class ToolAutoDiscovery:
             try:
                 tree = ast.parse(content, filename=str(file_path))
             except SyntaxError as e:
-                logger.warning(f"Syntax error in {file_path}: {str(e)}")
+                logger.warn(
+                    f"Syntax error in {file_path}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.auto_discovery.tool_scanner",
+                    data={"file_path": str(file_path), "syntax_error": str(e)}
+                )
                 return None
             
             # Find tool classes
@@ -237,9 +278,15 @@ class ToolAutoDiscovery:
             self.discovery_cache[cache_key] = tool_info
             
             return tool_info
-            
+
         except Exception as e:
-            logger.error(f"Failed to analyze file {file_path}: {str(e)}")
+            logger.error(
+                f"Failed to analyze file {file_path}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.auto_discovery.tool_scanner",
+                data={"file_path": str(file_path)},
+                error=e
+            )
             return None
     
     def _find_tool_classes(self, tree: ast.AST) -> List[Dict[str, Any]]:
@@ -321,31 +368,31 @@ class ToolAutoDiscovery:
             tool_id=tool_info.tool_id,
             name=tool_class['name'],
             description=tool_class['docstring'] or f"{tool_class['name']} - Auto-discovered tool",
-            category=ToolCategory.UTILITY,  # Default category
+            category=ToolCategoryEnum.UTILITY,  # Default category
             access_level=ToolAccessLevel.PUBLIC,
             requires_rag=False,
             use_cases=set()
         )
-        
+
         # Try to infer category from class name or docstring
         class_name_lower = tool_class['name'].lower()
         docstring_lower = (tool_class['docstring'] or "").lower()
-        
+
         # Category inference
         if any(word in class_name_lower for word in ['social', 'media', 'twitter', 'facebook']):
-            metadata.category = ToolCategory.COMMUNICATION
+            metadata.category = ToolCategoryEnum.COMMUNICATION
         elif any(word in class_name_lower for word in ['meme', 'image', 'creative', 'art']):
-            metadata.category = ToolCategory.CREATIVE
+            metadata.category = ToolCategoryEnum.CREATIVE
         elif any(word in class_name_lower for word in ['file', 'document', 'pdf', 'excel']):
-            metadata.category = ToolCategory.PRODUCTIVITY
+            metadata.category = ToolCategoryEnum.PRODUCTIVITY
         elif any(word in class_name_lower for word in ['web', 'scraper', 'http', 'api']):
-            metadata.category = ToolCategory.RESEARCH
+            metadata.category = ToolCategoryEnum.RESEARCH
         elif any(word in class_name_lower for word in ['database', 'sql', 'data']):
-            metadata.category = ToolCategory.DATA
+            metadata.category = ToolCategoryEnum.DATA
         elif any(word in class_name_lower for word in ['security', 'password', 'crypto']):
-            metadata.category = ToolCategory.SECURITY
+            metadata.category = ToolCategoryEnum.SECURITY
         elif any(word in class_name_lower for word in ['automation', 'browser', 'screenshot']):
-            metadata.category = ToolCategory.AUTOMATION
+            metadata.category = ToolCategoryEnum.AUTOMATION
         
         # Use case inference
         use_cases = set()
@@ -387,7 +434,11 @@ class ToolAutoDiscovery:
 
     async def _build_dependency_graph(self):
         """Build dependency graph for discovered tools."""
-        logger.info("🔗 Building tool dependency graph...")
+        logger.info(
+            "🔗 Building tool dependency graph...",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.tool_scanner"
+        )
 
         for tool_id, tool_info in self.discovered_tools.items():
             self.dependency_graph[tool_id] = set()
@@ -399,11 +450,20 @@ class ToolAutoDiscovery:
                         if dep in other_tool_info.module_name or dep in other_tool_info.class_name.lower():
                             self.dependency_graph[tool_id].add(other_tool_id)
 
-        logger.info(f"🔗 Dependency graph built with {len(self.dependency_graph)} nodes")
+        logger.info(
+            f"🔗 Dependency graph built with {len(self.dependency_graph)} nodes",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.tool_scanner",
+            data={"nodes_count": len(self.dependency_graph)}
+        )
 
     async def _validate_discovered_tools(self):
         """Validate all discovered tools."""
-        logger.info("✅ Validating discovered tools...")
+        logger.info(
+            "✅ Validating discovered tools...",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.tool_scanner"
+        )
 
         validated_count = 0
         failed_count = 0
@@ -434,9 +494,20 @@ class ToolAutoDiscovery:
                 tool_info.status = DiscoveryStatus.FAILED
                 tool_info.error_message = f"Validation error: {str(e)}"
                 failed_count += 1
-                logger.error(f"Failed to validate tool {tool_id}: {str(e)}")
+                logger.error(
+                    f"Failed to validate tool {tool_id}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.auto_discovery.tool_scanner",
+                    data={"tool_id": tool_id},
+                    error=e
+                )
 
-        logger.info(f"✅ Validation complete: {validated_count} validated, {failed_count} failed")
+        logger.info(
+            f"✅ Validation complete: {validated_count} validated, {failed_count} failed",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.tool_scanner",
+            data={"validated_count": validated_count, "failed_count": failed_count}
+        )
 
     async def _load_tool_instance(self, tool_info: ToolInfo) -> Optional[BaseTool]:
         """Load tool instance from tool info."""
@@ -466,16 +537,30 @@ class ToolAutoDiscovery:
             return None
 
         except Exception as e:
-            logger.error(f"Failed to load tool instance for {tool_info.tool_id}: {str(e)}")
+            logger.error(
+                f"Failed to load tool instance for {tool_info.tool_id}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.auto_discovery.tool_scanner",
+                data={"tool_id": tool_info.tool_id},
+                error=e
+            )
             return None
 
     async def register_discovered_tools(self) -> Dict[str, bool]:
         """Register all validated tools with the tool repository."""
         if not self.tool_repository:
-            logger.error("No tool repository available for registration")
+            logger.error(
+                "No tool repository available for registration",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.auto_discovery.tool_scanner"
+            )
             return {}
 
-        logger.info("📝 Registering discovered tools...")
+        logger.info(
+            "📝 Registering discovered tools...",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.tool_scanner"
+        )
 
         registration_results = {}
         registered_count = 0
@@ -501,7 +586,12 @@ class ToolAutoDiscovery:
                     registration_results[tool_id] = True
                     registered_count += 1
 
-                    logger.info(f"📝 Registered tool: {tool_id}")
+                    logger.info(
+                        f"📝 Registered tool: {tool_id}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.auto_discovery.tool_scanner",
+                        data={"tool_id": tool_id}
+                    )
                 else:
                     registration_results[tool_id] = False
                     tool_info.error_message = "Failed to load tool for registration"
@@ -509,9 +599,20 @@ class ToolAutoDiscovery:
             except Exception as e:
                 registration_results[tool_id] = False
                 tool_info.error_message = f"Registration failed: {str(e)}"
-                logger.error(f"Failed to register tool {tool_id}: {str(e)}")
+                logger.error(
+                    f"Failed to register tool {tool_id}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.auto_discovery.tool_scanner",
+                    data={"tool_id": tool_id},
+                    error=e
+                )
 
-        logger.info(f"📝 Registration complete: {registered_count} tools registered")
+        logger.info(
+            f"📝 Registration complete: {registered_count} tools registered",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.tool_scanner",
+            data={"registered_count": registered_count}
+        )
         return registration_results
 
     def _topological_sort(self) -> List[str]:

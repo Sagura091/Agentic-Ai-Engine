@@ -29,11 +29,13 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from enum import Enum
 
-import structlog
 from pydantic import BaseModel, Field
 from langchain.tools import BaseTool
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+
+logger = get_logger()
 
 
 class ToolCategory(str, Enum):
@@ -132,8 +134,12 @@ class UnifiedToolRepository:
         }
 
         self.is_initialized = False
-        logger.info("THE Unified tool repository created")
-    
+        logger.info(
+            "THE Unified tool repository created",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.unified_tool_repository"
+        )
+
     async def initialize(self) -> None:
         """Initialize the tool repository."""
         try:
@@ -145,10 +151,19 @@ class UnifiedToolRepository:
                 self.stats["tools_by_category"][category.value] = 0
 
             self.is_initialized = True
-            logger.info("Tool repository initialized successfully")
+            logger.info(
+                "Tool repository initialized successfully",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to initialize tool repository: {str(e)}")
+            logger.error(
+                "Failed to initialize tool repository",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
             raise
 
     async def register_tool(
@@ -173,7 +188,12 @@ class UnifiedToolRepository:
             tool_id = metadata.tool_id
 
             if tool_id in self.tools:
-                logger.warning(f"Tool {tool_id} already registered")
+                logger.warn(
+                    f"Tool {tool_id} already registered",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.unified_tool_repository",
+                    data={"tool_id": tool_id}
+                )
                 return tool_id
 
             # Register tool
@@ -192,11 +212,22 @@ class UnifiedToolRepository:
             if metadata.requires_rag:
                 self.stats["rag_enabled_tools"] += 1
 
-            logger.debug(f"Registered tool: {tool_id} ({metadata.category.value}, RAG: {metadata.requires_rag})")
+            logger.debug(
+                f"Registered tool: {tool_id} ({metadata.category.value}, RAG: {metadata.requires_rag})",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                data={"tool_id": tool_id, "category": metadata.category.value, "requires_rag": metadata.requires_rag}
+            )
             return tool_id
 
         except Exception as e:
-            logger.error(f"Failed to register tool {metadata.tool_id}: {str(e)}")
+            logger.error(
+                f"Failed to register tool {metadata.tool_id}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                data={"tool_id": metadata.tool_id},
+                error=e
+            )
             raise
     
     async def get_tools_for_use_case(
@@ -273,11 +304,22 @@ class UnifiedToolRepository:
                             if tool not in selected_tools:
                                 selected_tools.append(tool)
 
-            logger.debug(f"Selected {len(selected_tools)} tools for agent {agent_id} with use cases: {use_cases}")
+            logger.debug(
+                f"Selected {len(selected_tools)} tools for agent {agent_id} with use cases: {use_cases}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                data={"agent_id": agent_id, "tools_count": len(selected_tools), "use_cases": use_cases}
+            )
             return selected_tools
 
         except Exception as e:
-            logger.error(f"Failed to get tools for agent {agent_id}: {str(e)}")
+            logger.error(
+                f"Failed to get tools for agent {agent_id}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                data={"agent_id": agent_id},
+                error=e
+            )
             return []
 
     def _can_agent_access_tool(self, agent_id: str, tool_id: str) -> bool:
@@ -321,7 +363,12 @@ class UnifiedToolRepository:
         """
         try:
             if agent_id in self.agent_profiles:
-                logger.warning(f"Tool profile already exists for agent {agent_id}")
+                logger.warn(
+                    f"Tool profile already exists for agent {agent_id}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.unified_tool_repository",
+                    data={"agent_id": agent_id}
+                )
                 return self.agent_profiles[agent_id]
 
             # Create profile
@@ -335,11 +382,22 @@ class UnifiedToolRepository:
 
             self.stats["total_agents"] += 1
 
-            logger.info(f"Created tool profile for agent {agent_id}")
+            logger.info(
+                f"Created tool profile for agent {agent_id}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                data={"agent_id": agent_id}
+            )
             return profile
 
         except Exception as e:
-            logger.error(f"Failed to create tool profile for agent {agent_id}: {str(e)}")
+            logger.error(
+                f"Failed to create tool profile for agent {agent_id}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                data={"agent_id": agent_id},
+                error=e
+            )
             raise
 
     async def get_agent_tools(self, agent_id: str) -> List[BaseTool]:
@@ -366,7 +424,13 @@ class UnifiedToolRepository:
             return available_tools
 
         except Exception as e:
-            logger.error(f"Failed to get tools for agent {agent_id}: {str(e)}")
+            logger.error(
+                f"Failed to get tools for agent {agent_id}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                data={"agent_id": agent_id},
+                error=e
+            )
             return []
     async def assign_tool_to_agent(
         self,
@@ -385,7 +449,12 @@ class UnifiedToolRepository:
         """
         try:
             if tool_id not in self.tools:
-                logger.error(f"Tool {tool_id} not found")
+                logger.error(
+                    f"Tool {tool_id} not found",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.unified_tool_repository",
+                    data={"tool_id": tool_id}
+                )
                 return False
 
             if agent_id not in self.agent_profiles:
@@ -397,11 +466,22 @@ class UnifiedToolRepository:
             profile.assigned_tools.add(tool_id)
             profile.last_updated = datetime.now()
 
-            logger.info(f"Assigned tool {tool_id} to agent {agent_id}")
+            logger.info(
+                f"Assigned tool {tool_id} to agent {agent_id}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                data={"tool_id": tool_id, "agent_id": agent_id}
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to assign tool {tool_id} to agent {agent_id}: {str(e)}")
+            logger.error(
+                f"Failed to assign tool {tool_id} to agent {agent_id}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                data={"tool_id": tool_id, "agent_id": agent_id},
+                error=e
+            )
             return False
     async def record_tool_usage(
         self,
@@ -432,7 +512,12 @@ class UnifiedToolRepository:
             self.stats["total_tool_calls"] += 1
 
         except Exception as e:
-            logger.error(f"Failed to record tool usage: {str(e)}")
+            logger.error(
+                "Failed to record tool usage",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     def get_tool(self, tool_id: str) -> Optional[BaseTool]:
         """Get a tool by ID, loading it on-demand if needed."""
@@ -448,14 +533,25 @@ class UnifiedToolRepository:
             if loop.is_running():
                 # If we're in an async context, we can't use run_until_complete
                 # So we'll need to handle this differently
-                logger.warning(f"Tool {tool_id} not loaded yet - consider using async loading")
+                logger.warn(
+                    f"Tool {tool_id} not loaded yet - consider using async loading",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.unified_tool_repository",
+                    data={"tool_id": tool_id}
+                )
                 return None
             else:
                 # Load the tool synchronously
                 loop.run_until_complete(self._load_tool_on_demand(tool_id))
                 return self.tools.get(tool_id)
         except Exception as e:
-            logger.error(f"Failed to load tool {tool_id} on-demand: {str(e)}")
+            logger.error(
+                f"Failed to load tool {tool_id} on-demand",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                data={"tool_id": tool_id},
+                error=e
+            )
             return None
 
     def get_tool_metadata(self, tool_id: str) -> Optional[ToolMetadata]:
@@ -507,7 +603,13 @@ class UnifiedToolRepository:
                     # Add other tool loading logic here as needed
 
         except Exception as e:
-            logger.error(f"Failed to load tools for use case {use_case}: {str(e)}")
+            logger.error(
+                f"Failed to load tools for use case {use_case}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                data={"use_case": use_case},
+                error=e
+            )
 
     async def _load_tool_on_demand(self, tool_id: str) -> bool:
         """Load a specific tool on-demand."""
@@ -567,10 +669,21 @@ class UnifiedToolRepository:
                 await self._load_revolutionary_universal_pdf_tool()
                 return True
             else:
-                logger.warning(f"No on-demand loader available for tool: {tool_id}")
+                logger.warn(
+                    f"No on-demand loader available for tool: {tool_id}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.unified_tool_repository",
+                    data={"tool_id": tool_id}
+                )
                 return False
         except Exception as e:
-            logger.error(f"Failed to load tool {tool_id} on-demand: {str(e)}")
+            logger.error(
+                f"Failed to load tool {tool_id} on-demand",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                data={"tool_id": tool_id},
+                error=e
+            )
             return False
 
     async def _load_stock_trading_tool(self):
@@ -598,10 +711,19 @@ class UnifiedToolRepository:
             )
 
             await self.register_tool(tool_instance, metadata)
-            logger.info("Advanced stock trading tool loaded successfully")
+            logger.info(
+                "Advanced stock trading tool loaded successfully",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to load stock trading tool: {str(e)}")
+            logger.error(
+                "Failed to load stock trading tool",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     async def _load_file_generation_tool(self):
         """Load the revolutionary file generation tool."""
@@ -632,10 +754,19 @@ class UnifiedToolRepository:
             )
 
             await self.register_tool(tool_instance, metadata)
-            logger.info("Revolutionary file generation tool loaded successfully")
+            logger.info(
+                "Revolutionary file generation tool loaded successfully",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to load file generation tool: {str(e)}")
+            logger.error(
+                "Failed to load file generation tool",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     async def _load_screen_capture_tool(self):
         """Load screen capture tool on-demand."""
@@ -650,9 +781,18 @@ class UnifiedToolRepository:
             registry.register_tool(tool_instance)
 
             await self.register_tool(tool_instance, SCREEN_CAPTURE_TOOL_METADATA)
-            logger.info("✅ Screen capture tool loaded on-demand")
+            logger.info(
+                "✅ Screen capture tool loaded on-demand",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
         except Exception as e:
-            logger.error(f"Failed to load screen capture tool: {str(e)}")
+            logger.error(
+                "Failed to load screen capture tool",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     async def _load_viral_content_generator_tool(self):
         """Load viral content generator tool on-demand."""
@@ -667,9 +807,18 @@ class UnifiedToolRepository:
             registry.register_tool(tool_instance)
 
             await self.register_tool(tool_instance, VIRAL_CONTENT_GENERATOR_TOOL_METADATA)
-            logger.info("✅ Viral content generator tool loaded on-demand")
+            logger.info(
+                "✅ Viral content generator tool loaded on-demand",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
         except Exception as e:
-            logger.error(f"Failed to load viral content generator tool: {str(e)}")
+            logger.error(
+                "Failed to load viral content generator tool",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     async def _load_ai_music_composition_tool(self):
         """Load AI music composition tool on-demand."""
@@ -684,9 +833,18 @@ class UnifiedToolRepository:
             registry.register_tool(tool_instance)
 
             await self.register_tool(tool_instance, AI_MUSIC_COMPOSITION_TOOL_METADATA)
-            logger.info("✅ AI music composition tool loaded on-demand")
+            logger.info(
+                "✅ AI music composition tool loaded on-demand",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
         except Exception as e:
-            logger.error(f"Failed to load AI music composition tool: {str(e)}")
+            logger.error(
+                "Failed to load AI music composition tool",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     async def _load_ai_lyric_vocal_synthesis_tool(self):
         """Load AI lyric vocal synthesis tool on-demand."""
@@ -701,9 +859,18 @@ class UnifiedToolRepository:
             registry.register_tool(tool_instance)
 
             await self.register_tool(tool_instance, None)  # Metadata handled by registry
-            logger.info("✅ AI lyric vocal synthesis tool loaded on-demand")
+            logger.info(
+                "✅ AI lyric vocal synthesis tool loaded on-demand",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
         except Exception as e:
-            logger.error(f"Failed to load AI lyric vocal synthesis tool: {str(e)}")
+            logger.error(
+                "Failed to load AI lyric vocal synthesis tool",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     # ================================
     # 🚀 REVOLUTIONARY AUTO-DISCOVERY INTEGRATION
@@ -717,7 +884,11 @@ class UnifiedToolRepository:
             Comprehensive discovery and registration report
         """
         try:
-            logger.info("🔍 Starting revolutionary auto-discovery and registration...")
+            logger.info(
+                "🔍 Starting revolutionary auto-discovery and registration...",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
 
             # Import auto-discovery systems
             from app.tools.auto_discovery.tool_scanner import ToolAutoDiscovery
@@ -728,7 +899,12 @@ class UnifiedToolRepository:
 
             # Discover all tools
             discovered_tools = await auto_discovery.discover_all_tools()
-            logger.info(f"🔍 Discovered {len(discovered_tools)} tools")
+            logger.info(
+                f"🔍 Discovered {len(discovered_tools)} tools",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                data={"tools_count": len(discovered_tools)}
+            )
 
             # Initialize enhanced registration
             registration_system = EnhancedRegistrationSystem(self)
@@ -755,11 +931,20 @@ class UnifiedToolRepository:
                 "recommendations": self._generate_combined_recommendations(discovery_report, registration_report)
             }
 
-            logger.info("🚀 Revolutionary auto-discovery and registration complete!")
+            logger.info(
+                "🚀 Revolutionary auto-discovery and registration complete!",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
             return combined_report
 
         except Exception as e:
-            logger.error(f"Auto-discovery and registration failed: {str(e)}")
+            logger.error(
+                "Auto-discovery and registration failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
             return {
                 "auto_discovery_enabled": False,
                 "error": str(e),
@@ -774,7 +959,11 @@ class UnifiedToolRepository:
             Comprehensive testing report
         """
         try:
-            logger.info("🧪 Starting comprehensive tool testing...")
+            logger.info(
+                "🧪 Starting comprehensive tool testing...",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
 
             from app.tools.testing.universal_tool_tester import UniversalToolTester
 
@@ -783,7 +972,12 @@ class UnifiedToolRepository:
 
             for tool_id, tool_instance in self.tools.items():
                 try:
-                    logger.info(f"🧪 Testing tool: {tool_id}")
+                    logger.info(
+                        f"🧪 Testing tool: {tool_id}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.unified_tool_repository",
+                        data={"tool_id": tool_id}
+                    )
                     test_result = await tester.test_tool_comprehensive(tool_instance)
                     test_results[tool_id] = {
                         "overall_success": test_result.overall_success,
@@ -815,11 +1009,21 @@ class UnifiedToolRepository:
                 "system_recommendations": self._generate_testing_recommendations(test_results)
             }
 
-            logger.info(f"🧪 Testing complete: {successful_tests}/{len(test_results)} tools passed")
+            logger.info(
+                f"🧪 Testing complete: {successful_tests}/{len(test_results)} tools passed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                data={"successful_tests": successful_tests, "total_tests": len(test_results)}
+            )
             return testing_report
 
         except Exception as e:
-            logger.error(f"Tool testing failed: {str(e)}")
+            logger.error(
+                "Tool testing failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
             return {
                 "testing_enabled": False,
                 "error": str(e)
@@ -892,9 +1096,18 @@ class UnifiedToolRepository:
             registry.register_tool(meme_generation_tool)
 
             await self.register_tool(meme_generation_tool, MEME_GENERATION_TOOL_METADATA)
-            logger.info("✅ Meme generation tool loaded on-demand")
+            logger.info(
+                "✅ Meme generation tool loaded on-demand",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
         except Exception as e:
-            logger.error(f"Failed to load meme generation tool: {str(e)}")
+            logger.error(
+                "Failed to load meme generation tool",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     async def _load_meme_collection_tool(self):
         """Load meme collection tool on-demand."""
@@ -907,9 +1120,18 @@ class UnifiedToolRepository:
             registry.register_tool(meme_collection_tool)
 
             await self.register_tool(meme_collection_tool, MEME_COLLECTION_TOOL_METADATA)
-            logger.info("✅ Meme collection tool loaded on-demand")
+            logger.info(
+                "✅ Meme collection tool loaded on-demand",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
         except Exception as e:
-            logger.error(f"Failed to load meme collection tool: {str(e)}")
+            logger.error(
+                "Failed to load meme collection tool",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     async def _load_meme_analysis_tool(self):
         """Load meme analysis tool on-demand."""
@@ -922,9 +1144,18 @@ class UnifiedToolRepository:
             registry.register_tool(meme_analysis_tool)
 
             await self.register_tool(meme_analysis_tool, MEME_ANALYSIS_TOOL_METADATA)
-            logger.info("✅ Meme analysis tool loaded on-demand")
+            logger.info(
+                "✅ Meme analysis tool loaded on-demand",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
         except Exception as e:
-            logger.error(f"Failed to load meme analysis tool: {str(e)}")
+            logger.error(
+                "Failed to load meme analysis tool",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     async def _load_social_media_orchestrator_tool(self):
         """Load social media orchestrator tool on-demand."""
@@ -939,9 +1170,18 @@ class UnifiedToolRepository:
             registry.register_tool(tool_instance)
 
             await self.register_tool(tool_instance, SOCIAL_MEDIA_ORCHESTRATOR_TOOL_METADATA)
-            logger.info("✅ Social media orchestrator tool loaded on-demand")
+            logger.info(
+                "✅ Social media orchestrator tool loaded on-demand",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
         except Exception as e:
-            logger.error(f"Failed to load social media orchestrator tool: {str(e)}")
+            logger.error(
+                "Failed to load social media orchestrator tool",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     async def _load_revolutionary_web_scraper_tool(self):
         """Load revolutionary web scraper tool on-demand."""
@@ -956,9 +1196,18 @@ class UnifiedToolRepository:
             registry.register_tool(tool_instance)
 
             await self.register_tool(tool_instance, None)  # Metadata handled by registry
-            logger.info("✅ Revolutionary web scraper tool loaded on-demand")
+            logger.info(
+                "✅ Revolutionary web scraper tool loaded on-demand",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
         except Exception as e:
-            logger.error(f"Failed to load revolutionary web scraper tool: {str(e)}")
+            logger.error(
+                "Failed to load revolutionary web scraper tool",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     async def _load_calculator_tool(self):
         """Load calculator tool on-demand."""
@@ -971,9 +1220,18 @@ class UnifiedToolRepository:
             registry.register_tool(calculator_tool)
 
             await self.register_tool(calculator_tool, CALCULATOR_TOOL_METADATA)
-            logger.info("✅ Calculator tool loaded on-demand")
+            logger.info(
+                "✅ Calculator tool loaded on-demand",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
         except Exception as e:
-            logger.error(f"Failed to load calculator tool: {str(e)}")
+            logger.error(
+                "Failed to load calculator tool",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     async def _load_text_processing_nlp_tool(self):
         """Load text processing NLP tool on-demand."""
@@ -988,9 +1246,18 @@ class UnifiedToolRepository:
             registry.register_tool(tool_instance)
 
             await self.register_tool(tool_instance, TEXT_PROCESSING_NLP_TOOL_METADATA)
-            logger.info("✅ Text processing NLP tool loaded on-demand")
+            logger.info(
+                "✅ Text processing NLP tool loaded on-demand",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
         except Exception as e:
-            logger.error(f"Failed to load text processing NLP tool: {str(e)}")
+            logger.error(
+                "Failed to load text processing NLP tool",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     async def _load_browser_automation_tool(self):
         """Load browser automation tool on-demand."""
@@ -1005,9 +1272,18 @@ class UnifiedToolRepository:
             registry.register_tool(tool_instance)
 
             await self.register_tool(tool_instance, BROWSER_AUTOMATION_TOOL_METADATA)
-            logger.info("✅ Browser automation tool loaded on-demand")
+            logger.info(
+                "✅ Browser automation tool loaded on-demand",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
         except Exception as e:
-            logger.error(f"Failed to load browser automation tool: {str(e)}")
+            logger.error(
+                "Failed to load browser automation tool",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     async def _load_revolutionary_universal_excel_tool(self):
         """Load Revolutionary Universal Excel Tool on-demand."""
@@ -1023,9 +1299,18 @@ class UnifiedToolRepository:
             registry.register_tool(revolutionary_universal_excel_tool)
 
             await self.register_tool(revolutionary_universal_excel_tool, REVOLUTIONARY_UNIVERSAL_EXCEL_TOOL_METADATA)
-            logger.info("✅ Revolutionary Universal Excel Tool loaded on-demand")
+            logger.info(
+                "✅ Revolutionary Universal Excel Tool loaded on-demand",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
         except Exception as e:
-            logger.error(f"Failed to load Revolutionary Universal Excel Tool: {str(e)}")
+            logger.error(
+                "Failed to load Revolutionary Universal Excel Tool",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     async def _load_revolutionary_universal_word_tool(self):
         """Load Revolutionary Universal Word Tool on-demand."""
@@ -1041,9 +1326,18 @@ class UnifiedToolRepository:
             registry.register_tool(revolutionary_universal_word_tool)
 
             await self.register_tool(revolutionary_universal_word_tool, REVOLUTIONARY_UNIVERSAL_WORD_TOOL_METADATA)
-            logger.info("✅ Revolutionary Universal Word Tool loaded on-demand")
+            logger.info(
+                "✅ Revolutionary Universal Word Tool loaded on-demand",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
         except Exception as e:
-            logger.error(f"Failed to load Revolutionary Universal Word Tool: {str(e)}")
+            logger.error(
+                "Failed to load Revolutionary Universal Word Tool",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     async def _load_revolutionary_universal_pdf_tool(self):
         """Load Revolutionary Universal PDF Tool on-demand."""
@@ -1059,9 +1353,18 @@ class UnifiedToolRepository:
             registry.register_tool(revolutionary_universal_pdf_tool)
 
             await self.register_tool(revolutionary_universal_pdf_tool, REVOLUTIONARY_UNIVERSAL_PDF_TOOL_METADATA)
-            logger.info("✅ Revolutionary Universal PDF Tool loaded on-demand")
+            logger.info(
+                "✅ Revolutionary Universal PDF Tool loaded on-demand",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
         except Exception as e:
-            logger.error(f"Failed to load Revolutionary Universal PDF Tool: {str(e)}")
+            logger.error(
+                "Failed to load Revolutionary Universal PDF Tool",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     async def _load_notification_alert_tool(self):
         """Load notification alert tool on-demand."""
@@ -1074,9 +1377,18 @@ class UnifiedToolRepository:
             registry.register_tool(notification_alert_tool)
 
             await self.register_tool(notification_alert_tool, NOTIFICATION_ALERT_TOOL_METADATA)
-            logger.info("✅ Notification alert tool loaded on-demand")
+            logger.info(
+                "✅ Notification alert tool loaded on-demand",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository"
+            )
         except Exception as e:
-            logger.error(f"Failed to load notification alert tool: {str(e)}")
+            logger.error(
+                "Failed to load notification alert tool",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
 
 # Global instance
@@ -1096,7 +1408,12 @@ def get_unified_tool_repository() -> Optional[UnifiedToolRepository]:
                 _unified_tool_repository = orchestrator.tool_repository
 
         except Exception as e:
-            logger.error(f"Failed to get unified tool repository: {e}")
+            logger.error(
+                "Failed to get unified tool repository",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.unified_tool_repository",
+                error=e
+            )
 
     return _unified_tool_repository
 

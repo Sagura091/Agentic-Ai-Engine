@@ -7,9 +7,11 @@ NO SHORTCUTS - Complete error coverage.
 
 from typing import Optional, Any, Dict
 from enum import Enum
-import structlog
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory, LogLevel
+
+logger = get_logger()
 
 
 class ErrorSeverity(Enum):
@@ -80,22 +82,50 @@ class UniversalToolError(Exception):
     
     def _log_error(self) -> None:
         """Log the error with full context."""
-        log_method = {
-            ErrorSeverity.LOW: logger.debug,
-            ErrorSeverity.MEDIUM: logger.warning,
-            ErrorSeverity.HIGH: logger.error,
-            ErrorSeverity.CRITICAL: logger.critical,
-        }.get(self.severity, logger.error)
-        
-        log_method(
-            "Universal Tool Error",
-            error_message=self.message,
-            category=self.category.value,
-            severity=self.severity.value,
-            context=self.context,
-            recovery_suggestion=self.recovery_suggestion,
-            original_exception=str(self.original_exception) if self.original_exception else None,
-        )
+        # Map severity to log level
+        log_level_map = {
+            ErrorSeverity.LOW: LogLevel.DEBUG,
+            ErrorSeverity.MEDIUM: LogLevel.WARNING,
+            ErrorSeverity.HIGH: LogLevel.ERROR,
+            ErrorSeverity.CRITICAL: LogLevel.CRITICAL,
+        }
+
+        log_level = log_level_map.get(self.severity, LogLevel.ERROR)
+
+        # Prepare log data
+        log_data = {
+            "error_message": self.message,
+            "category": self.category.value,
+            "severity": self.severity.value,
+            "context": self.context,
+            "recovery_suggestion": self.recovery_suggestion,
+        }
+
+        # Log based on severity
+        if self.severity == ErrorSeverity.LOW:
+            logger.debug(
+                "Universal Tool Error",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.universal.shared.error_handlers",
+                data=log_data,
+                error=self.original_exception
+            )
+        elif self.severity == ErrorSeverity.MEDIUM:
+            logger.warn(
+                "Universal Tool Error",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.universal.shared.error_handlers",
+                data=log_data,
+                error=self.original_exception
+            )
+        else:  # HIGH or CRITICAL
+            logger.error(
+                "Universal Tool Error",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.universal.shared.error_handlers",
+                data=log_data,
+                error=self.original_exception
+            )
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert error to dictionary for serialization."""

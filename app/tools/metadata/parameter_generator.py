@@ -9,11 +9,12 @@ from typing import Dict, List, Any, Optional, Union
 import re
 import json
 from datetime import datetime
-import structlog
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from .tool_metadata import ToolMetadata, ParameterSchema, ParameterType
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class ContextMatcher:
@@ -99,28 +100,40 @@ class ParameterGenerator:
                     parameters[param_schema.name] = param_schema.default_value
             
             return parameters
-            
+
         except Exception as e:
-            logger.error(f"Parameter generation failed for tool {metadata.name}", error=str(e))
+            logger.error(
+                f"Parameter generation failed for tool {metadata.name}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.parameter_generator",
+                data={"tool_name": metadata.name},
+                error=e
+            )
             return {}
-    
+
     def _generate_parameter_value(self, param_schema: ParameterSchema, context: Dict[str, Any], metadata: ToolMetadata) -> Any:
         """Generate a single parameter value."""
         try:
             # Check for explicit parameter in context
             if param_schema.name in context:
                 return self._validate_and_convert_value(context[param_schema.name], param_schema)
-            
+
             # Use context hints to find parameter value
             for hint in param_schema.context_hints:
                 if hint in context:
                     return self._validate_and_convert_value(context[hint], param_schema)
-            
+
             # Generate based on parameter type and context
             return self._generate_by_type(param_schema, context, metadata)
-            
+
         except Exception as e:
-            logger.warning(f"Parameter value generation failed", param=param_schema.name, error=str(e))
+            logger.warn(
+                f"Parameter value generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.parameter_generator",
+                data={"param_name": param_schema.name},
+                error=e
+            )
             return param_schema.default_value
     
     def _generate_by_type(self, param_schema: ParameterSchema, context: Dict[str, Any], metadata: ToolMetadata) -> Any:

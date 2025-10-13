@@ -59,18 +59,19 @@ import platform
 import subprocess
 import psutil
 
-import structlog
 from pydantic import BaseModel, Field
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
 from app.tools.metadata import (
     ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType,
     ConfidenceModifier, ConfidenceModifierType, ExecutionPreference, ContextRequirement,
     BehavioralHint, MetadataCapableToolMixin
 )
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class ScreenCaptureConfig(BaseModel):
@@ -194,7 +195,12 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
                             pytesseract.pytesseract.tesseract_cmd = path
                             break
             except Exception as e:
-                logger.warning(f"OCR setup warning: {e}")
+                logger.warn(
+                    f"OCR setup warning: {e}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "ScreenCaptureTool",
+                    error=e
+                )
     
     def _check_dependencies(self):
         """Check if required dependencies are available."""
@@ -208,8 +214,17 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
             missing_deps.append("pytesseract")
         
         if missing_deps:
-            logger.warning(f"Missing optional dependencies: {missing_deps}")
-            logger.info("Install with: pip install pyautogui Pillow pytesseract opencv-python")
+            logger.warn(
+                f"Missing optional dependencies: {missing_deps}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureTool",
+                data={"missing_deps": missing_deps}
+            )
+            logger.info(
+                "Install with: pip install pyautogui Pillow pytesseract opencv-python",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureTool"
+            )
     
     def _run(self, **kwargs) -> str:
         """Synchronous wrapper for async screen capture."""
@@ -225,7 +240,12 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
             else:
                 return asyncio.run(self._arun(**kwargs))
         except Exception as e:
-            logger.error(f"Screen capture error: {e}")
+            logger.error(
+                f"Screen capture error: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureTool",
+                error=e
+            )
             return json.dumps({
                 "success": False,
                 "error_message": str(e),
@@ -253,7 +273,12 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
             return json.dumps(result.dict(), indent=2)
             
         except Exception as e:
-            logger.error(f"Screen capture operation failed: {e}")
+            logger.error(
+                f"Screen capture operation failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureTool",
+                error=e
+            )
             return json.dumps({
                 "success": False,
                 "error_message": str(e),
@@ -301,7 +326,12 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
                 try:
                     extracted_text = pytesseract.image_to_string(screenshot)
                 except Exception as e:
-                    logger.warning(f"OCR failed: {e}")
+                    logger.warn(
+                        f"OCR failed: {e}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "ScreenCaptureTool",
+                        error=e
+                    )
                     extracted_text = "OCR extraction failed"
 
             # Get active applications
@@ -330,7 +360,12 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
             )
 
         except Exception as e:
-            logger.error(f"Full screen capture failed: {e}")
+            logger.error(
+                f"Full screen capture failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureTool",
+                error=e
+            )
             return ScreenCaptureResult(
                 success=False,
                 error_message=str(e),
@@ -364,7 +399,12 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
             return await self._process_screenshot(screenshot, input_data, f"window_{input_data.window_title}")
 
         except Exception as e:
-            logger.error(f"Window capture failed: {e}")
+            logger.error(
+                f"Window capture failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureTool",
+                error=e
+            )
             return ScreenCaptureResult(
                 success=False,
                 error_message=str(e),
@@ -383,7 +423,12 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
             return await self._process_screenshot(screenshot, input_data, "region")
 
         except Exception as e:
-            logger.error(f"Region capture failed: {e}")
+            logger.error(
+                f"Region capture failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureTool",
+                error=e
+            )
             return ScreenCaptureResult(
                 success=False,
                 error_message=str(e),
@@ -427,7 +472,12 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
             )
 
         except Exception as e:
-            logger.error(f"Get active window info failed: {e}")
+            logger.error(
+                f"Get active window info failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureTool",
+                error=e
+            )
             return ScreenCaptureResult(
                 success=False,
                 error_message=str(e),
@@ -472,7 +522,12 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
                 try:
                     extracted_text = pytesseract.image_to_string(screenshot)
                 except Exception as e:
-                    logger.warning(f"OCR failed: {e}")
+                    logger.warn(
+                        f"OCR failed: {e}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "ScreenCaptureTool",
+                        error=e
+                    )
                     extracted_text = "OCR extraction failed"
 
             # Get system info
@@ -501,7 +556,12 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
             )
 
         except Exception as e:
-            logger.error(f"Screenshot processing failed: {e}")
+            logger.error(
+                f"Screenshot processing failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureTool",
+                error=e
+            )
             return ScreenCaptureResult(
                 success=False,
                 error_message=str(e),
@@ -526,7 +586,12 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
             return sorted(filtered_apps)[:20]  # Limit to top 20
 
         except Exception as e:
-            logger.warning(f"Failed to get active applications: {e}")
+            logger.warn(
+                f"Failed to get active applications: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureTool",
+                error=e
+            )
             return []
 
     async def _get_window_titles(self) -> List[str]:
@@ -541,7 +606,12 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
             return sorted(list(set(titles)))[:20]  # Limit to top 20
 
         except Exception as e:
-            logger.warning(f"Failed to get window titles: {e}")
+            logger.warn(
+                f"Failed to get window titles: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureTool",
+                error=e
+            )
             return []
 
     async def _analyze_screen_content(self, image_base64: str, custom_prompt: Optional[str], extracted_text: Optional[str]) -> str:
@@ -581,7 +651,12 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
             return "\n".join(analysis_parts)
 
         except Exception as e:
-            logger.error(f"Screen analysis failed: {e}")
+            logger.error(
+                f"Screen analysis failed: {e}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureTool",
+                error=e
+            )
             return f"Screen analysis failed: {str(e)}"
 
     def _create_metadata(self) -> MetadataToolMetadata:

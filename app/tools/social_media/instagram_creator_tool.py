@@ -47,13 +47,15 @@ from enum import Enum
 from pathlib import Path
 
 import aiohttp
-import structlog
 from pydantic import BaseModel, Field, validator
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 
-logger = structlog.get_logger(__name__)
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
+
+logger = get_logger()
 
 
 class InstagramActionType(str, Enum):
@@ -276,15 +278,24 @@ class InstagramCreatorTool(BaseTool):
             
             logger.info(
                 "Instagram creator action completed",
-                action=input_data.action,
-                success=result.get("success", False),
-                metrics=result.get("metrics", {})
+                LogCategory.TOOL_OPERATIONS,
+                "InstagramCreatorTool",
+                data={
+                    "action": input_data.action,
+                    "success": result.get("success", False),
+                    "metrics": result.get("metrics", {})
+                }
             )
             
             return result
             
         except Exception as e:
-            logger.error(f"Instagram creator tool error: {str(e)}")
+            logger.error(
+                f"Instagram creator tool error: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "InstagramCreatorTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -311,7 +322,11 @@ class InstagramCreatorTool(BaseTool):
             connector=aiohttp.TCPConnector(limit=100)
         )
 
-        logger.info("Instagram creator session initialized")
+        logger.info(
+            "Instagram creator session initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "InstagramCreatorTool"
+        )
 
     async def _post_photo(self, input_data: InstagramCreatorInput) -> Dict[str, Any]:
         """Post a photo to Instagram with optimization."""
@@ -384,7 +399,12 @@ class InstagramCreatorTool(BaseTool):
                 raise Exception(f"Failed to create Instagram post: {response}")
 
         except Exception as e:
-            logger.error(f"Error posting photo: {str(e)}")
+            logger.error(
+                f"Error posting photo: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "InstagramCreatorTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -465,7 +485,12 @@ class InstagramCreatorTool(BaseTool):
                 raise Exception(f"Failed to create Instagram Reel: {response}")
 
         except Exception as e:
-            logger.error(f"Error creating reel: {str(e)}")
+            logger.error(
+                f"Error creating reel: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "InstagramCreatorTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -532,7 +557,12 @@ class InstagramCreatorTool(BaseTool):
                 raise Exception(f"Failed to create Instagram Story: {response}")
 
         except Exception as e:
-            logger.error(f"Error creating story: {str(e)}")
+            logger.error(
+                f"Error creating story: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "InstagramCreatorTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -571,7 +601,12 @@ class InstagramCreatorTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Error analyzing hashtags: {str(e)}")
+            logger.error(
+                f"Error analyzing hashtags: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "InstagramCreatorTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -638,7 +673,12 @@ class InstagramCreatorTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Error growing followers: {str(e)}")
+            logger.error(
+                f"Error growing followers: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "InstagramCreatorTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -696,7 +736,12 @@ class InstagramCreatorTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Error managing shopping: {str(e)}")
+            logger.error(
+                f"Error managing shopping: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "InstagramCreatorTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -723,7 +768,12 @@ class InstagramCreatorTool(BaseTool):
                 async with self.session.post(url, headers=headers, json=data) as response:
                     return await response.json()
         except Exception as e:
-            logger.error(f"Instagram API request failed: {str(e)}")
+            logger.error(
+                f"Instagram API request failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "InstagramCreatorTool",
+                error=e
+            )
             return {"error": str(e)}
 
     async def _enhance_image_quality(self, image_url: str, style: str = None) -> str:
@@ -791,7 +841,7 @@ INSTAGRAM_CREATOR_TOOL_METADATA = ToolMetadata(
     tool_id="instagram_creator",
     name="Instagram Creator Tool",
     description="Revolutionary Instagram management and visual content creation tool",
-    category=ToolCategory.COMMUNICATION,
+    category=ToolCategoryEnum.COMMUNICATION,
     access_level=ToolAccessLevel.PRIVATE,
     requires_rag=False,
     use_cases={"social_media", "visual_content", "marketing", "e_commerce"}

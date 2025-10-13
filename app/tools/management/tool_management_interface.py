@@ -35,15 +35,16 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime, timezone
 from pathlib import Path
 
-import structlog
 from pydantic import BaseModel, Field
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from app.tools.unified_tool_repository import UnifiedToolRepository, get_unified_tool_repository
 from app.tools.auto_discovery.tool_scanner import ToolAutoDiscovery
 from app.tools.auto_discovery.enhanced_registration import EnhancedRegistrationSystem
 from app.tools.testing.universal_tool_tester import UniversalToolTester
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class ToolManagementInterface:
@@ -61,41 +62,66 @@ class ToolManagementInterface:
         self.last_testing_report = None
         self.system_health_cache = {}
         self.performance_metrics = {}
-        
-        logger.info("🎛️ Revolutionary Tool Management Interface initialized")
-    
+
+        logger.info(
+            "🎛️ Revolutionary Tool Management Interface initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.management.tool_management_interface"
+        )
+
     async def initialize(self) -> bool:
         """Initialize the management interface."""
         try:
             if not self.tool_repository:
-                logger.error("Tool repository not available")
+                logger.error(
+                    "Tool repository not available",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.management.tool_management_interface"
+                )
                 return False
-            
+
             # Initialize auto-discovery
             self.auto_discovery = ToolAutoDiscovery(self.tool_repository)
-            
+
             # Initialize registration system
             self.registration_system = EnhancedRegistrationSystem(self.tool_repository)
-            
-            logger.info("🎛️ Tool Management Interface ready")
+
+            logger.info(
+                "🎛️ Tool Management Interface ready",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.management.tool_management_interface"
+            )
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to initialize tool management interface: {str(e)}")
+            logger.error(
+                "Failed to initialize tool management interface",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.management.tool_management_interface",
+                error=e
+            )
             return False
     
     async def discover_and_register_all_tools(self) -> Dict[str, Any]:
         """
         Complete tool discovery and registration workflow.
-        
+
         Returns:
             Comprehensive workflow report
         """
-        logger.info("🚀 Starting complete tool discovery and registration workflow...")
-        
+        logger.info(
+            "🚀 Starting complete tool discovery and registration workflow...",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.management.tool_management_interface"
+        )
+
         try:
             # Phase 1: Auto-discovery
-            logger.info("🔍 Phase 1: Tool Discovery")
+            logger.info(
+                "🔍 Phase 1: Tool Discovery",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.management.tool_management_interface"
+            )
             if hasattr(self.tool_repository, 'auto_discover_and_register_tools'):
                 discovery_report = await self.tool_repository.auto_discover_and_register_tools()
             else:
@@ -103,26 +129,38 @@ class ToolManagementInterface:
                 discovered_tools = await self.auto_discovery.discover_all_tools()
                 validated_tools = [t for t in discovered_tools.values() if t.status.value == 'validated']
                 registration_results = await self.registration_system.register_tools_batch(validated_tools)
-                
+
                 discovery_report = {
                     "total_tools_discovered": len(discovered_tools),
                     "total_tools_registered": len([r for r in registration_results.values() if r.value == 'registered']),
                     "discovery_details": self.auto_discovery.generate_discovery_report(),
                     "registration_details": self.registration_system.get_registration_report()
                 }
-            
+
             self.last_discovery_report = discovery_report
-            
+
             # Phase 2: Comprehensive Testing
-            logger.info("🧪 Phase 2: Comprehensive Testing")
+            logger.info(
+                "🧪 Phase 2: Comprehensive Testing",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.management.tool_management_interface"
+            )
             testing_report = await self.test_all_tools()
-            
+
             # Phase 3: System Health Assessment
-            logger.info("🏥 Phase 3: System Health Assessment")
+            logger.info(
+                "🏥 Phase 3: System Health Assessment",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.management.tool_management_interface"
+            )
             health_report = await self.get_system_health_report()
-            
+
             # Phase 4: Performance Analysis
-            logger.info("⚡ Phase 4: Performance Analysis")
+            logger.info(
+                "⚡ Phase 4: Performance Analysis",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.management.tool_management_interface"
+            )
             performance_report = await self.analyze_system_performance()
             
             # Generate comprehensive workflow report
@@ -141,12 +179,21 @@ class ToolManagementInterface:
                     discovery_report, testing_report, health_report, performance_report
                 )
             }
-            
-            logger.info("🚀 Complete workflow finished successfully!")
+
+            logger.info(
+                "🚀 Complete workflow finished successfully!",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.management.tool_management_interface"
+            )
             return workflow_report
-            
+
         except Exception as e:
-            logger.error(f"Workflow failed: {str(e)}")
+            logger.error(
+                "Workflow failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.management.tool_management_interface",
+                error=e
+            )
             return {
                 "workflow_timestamp": datetime.now(timezone.utc).isoformat(),
                 "workflow_success": False,
@@ -181,9 +228,14 @@ class ToolManagementInterface:
             
             self.last_testing_report = testing_report
             return testing_report
-            
+
         except Exception as e:
-            logger.error(f"Testing failed: {str(e)}")
+            logger.error(
+                "Testing failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.management.tool_management_interface",
+                error=e
+            )
             return {"testing_success": False, "error": str(e)}
     
     async def get_system_health_report(self) -> Dict[str, Any]:
@@ -218,9 +270,14 @@ class ToolManagementInterface:
             
             self.system_health_cache = health_report
             return health_report
-            
+
         except Exception as e:
-            logger.error(f"Health check failed: {str(e)}")
+            logger.error(
+                "Health check failed",
+                LogCategory.SYSTEM_HEALTH,
+                "app.tools.management.tool_management_interface",
+                error=e
+            )
             return {
                 "health_check_timestamp": datetime.now(timezone.utc).isoformat(),
                 "health_status": "critical",
@@ -275,9 +332,14 @@ class ToolManagementInterface:
             
             self.performance_metrics = performance_report
             return performance_report
-            
+
         except Exception as e:
-            logger.error(f"Performance analysis failed: {str(e)}")
+            logger.error(
+                "Performance analysis failed",
+                LogCategory.PERFORMANCE,
+                "app.tools.management.tool_management_interface",
+                error=e
+            )
             return {
                 "analysis_timestamp": datetime.now(timezone.utc).isoformat(),
                 "analysis_success": False,

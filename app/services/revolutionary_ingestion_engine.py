@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any, Union
 
 import aiofiles
-import structlog
 from fastapi import UploadFile
 from langchain.text_splitter import (
     RecursiveCharacterTextSplitter,
@@ -39,6 +38,8 @@ from langchain_community.document_loaders import (
     JSONLoader
 )
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from app.config.settings import get_settings
 from app.models.document import DocumentDB, DocumentChunkDB, DocumentMetadata, DocumentChunkMetadata
 from app.models.database.base import get_database_session
@@ -52,7 +53,7 @@ from app.llm.manager import get_enhanced_llm_manager
 from app.llm.models import LLMConfig, ProviderType
 from app.agents.base.agent import AgentCapability
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class RevolutionaryIngestionEngine:
@@ -149,9 +150,13 @@ class RevolutionaryIngestionEngine:
         try:
             logger.info(
                 "Starting revolutionary document ingestion",
-                filename=file.filename,
-                content_type=file.content_type,
-                knowledge_base_id=knowledge_base_id
+                LogCategory.RAG_OPERATIONS,
+                "app.services.revolutionary_ingestion_engine",
+                data={
+                    "filename": file.filename,
+                    "content_type": file.content_type,
+                    "knowledge_base_id": knowledge_base_id
+                }
             )
             
             # Step 1: Read and validate file
@@ -223,15 +228,24 @@ class RevolutionaryIngestionEngine:
             
             logger.info(
                 "Revolutionary document ingestion completed",
-                document_id=document_id,
-                chunks_created=len(chunks),
-                total_size=file_size
+                LogCategory.RAG_OPERATIONS,
+                "app.services.revolutionary_ingestion_engine",
+                data={
+                    "document_id": document_id,
+                    "chunks_created": len(chunks),
+                    "total_size": file_size
+                }
             )
-            
+
             return document_metadata
-            
+
         except Exception as e:
-            logger.error(f"Failed to ingest document {file.filename}: {e}")
+            logger.error(
+                f"Failed to ingest document {file.filename}",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.revolutionary_ingestion_engine",
+                error=e
+            )
             raise
     
     async def _process_document_content(
@@ -660,7 +674,12 @@ class RevolutionaryIngestionEngine:
 
     async def _async_worker(self, worker_id: str):
         """Async worker for processing documents."""
-        logger.info(f"Starting async worker: {worker_id}")
+        logger.info(
+            f"Starting async worker: {worker_id}",
+            LogCategory.SERVICE_OPERATIONS,
+            "app.services.revolutionary_ingestion_engine",
+            data={"worker_id": worker_id}
+        )
 
         while True:
             try:
@@ -674,7 +693,12 @@ class RevolutionaryIngestionEngine:
                 content = task_data["content"]
                 filename = task_data["filename"]
 
-                logger.info(f"Worker {worker_id} processing: {filename}")
+                logger.info(
+                    f"Worker {worker_id} processing: {filename}",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.revolutionary_ingestion_engine",
+                    data={"worker_id": worker_id, "filename": filename}
+                )
 
                 # Process document
                 result = await self.process_document(content, filename)
@@ -690,10 +714,21 @@ class RevolutionaryIngestionEngine:
                 self.processing_queue.task_done()
 
             except asyncio.CancelledError:
-                logger.info(f"Worker {worker_id} cancelled")
+                logger.info(
+                    f"Worker {worker_id} cancelled",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.revolutionary_ingestion_engine",
+                    data={"worker_id": worker_id}
+                )
                 break
             except Exception as e:
-                logger.error(f"Worker {worker_id} error: {str(e)}")
+                logger.error(
+                    f"Worker {worker_id} error",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.revolutionary_ingestion_engine",
+                    data={"worker_id": worker_id},
+                    error=e
+                )
                 if 'task_id' in locals():
                     self.processing_tasks[task_id] = {
                         "status": "failed",
@@ -791,10 +826,19 @@ class IntelligentDocumentProcessor:
             # Create specialized document processing agents
             await self._create_document_processing_agents()
 
-            logger.info("Intelligent document processor initialized successfully")
+            logger.info(
+                "Intelligent document processor initialized successfully",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.revolutionary_ingestion_engine"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to initialize intelligent document processor: {str(e)}")
+            logger.error(
+                "Failed to initialize intelligent document processor",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.revolutionary_ingestion_engine",
+                error=e
+            )
             raise
 
     async def _create_document_processing_agents(self):
@@ -899,10 +943,20 @@ class IntelligentDocumentProcessor:
             await self.agent_registry.start_agent(code_agent_id)
             self._processing_agents["code"] = code_agent_id
 
-            logger.info(f"Created {len(self._processing_agents)} specialized document processing agents")
+            logger.info(
+                f"Created {len(self._processing_agents)} specialized document processing agents",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.revolutionary_ingestion_engine",
+                data={"agent_count": len(self._processing_agents)}
+            )
 
         except Exception as e:
-            logger.error(f"Failed to create document processing agents: {str(e)}")
+            logger.error(
+                "Failed to create document processing agents",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.revolutionary_ingestion_engine",
+                error=e
+            )
             raise
 
     async def process_document_intelligently(
@@ -928,7 +982,12 @@ class IntelligentDocumentProcessor:
             if not self.agent_registry:
                 await self.initialize()
 
-            logger.info(f"Starting intelligent document processing: {file.filename}")
+            logger.info(
+                f"Starting intelligent document processing: {file.filename}",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.revolutionary_ingestion_engine",
+                data={"filename": file.filename}
+            )
 
             # First, do standard ingestion
             ingestion_result = await self.ingestion_engine.ingest_document(file)
@@ -970,11 +1029,21 @@ class IntelligentDocumentProcessor:
                 summary = await self._create_intelligent_summary(content, file.filename)
                 results["summary"] = summary
 
-            logger.info(f"Intelligent document processing completed: {file.filename}")
+            logger.info(
+                f"Intelligent document processing completed: {file.filename}",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.revolutionary_ingestion_engine",
+                data={"filename": file.filename}
+            )
             return results
 
         except Exception as e:
-            logger.error(f"Failed to process document intelligently: {str(e)}")
+            logger.error(
+                "Failed to process document intelligently",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.revolutionary_ingestion_engine",
+                error=e
+            )
             raise
 
     def _determine_document_type(self, content_type: str, filename: str) -> str:
@@ -1013,7 +1082,12 @@ class IntelligentDocumentProcessor:
                     return "Binary content - text extraction not available"
 
         except Exception as e:
-            logger.error(f"Failed to extract document content: {str(e)}")
+            logger.error(
+                "Failed to extract document content",
+                LogCategory.RAG_OPERATIONS,
+                "app.services.revolutionary_ingestion_engine",
+                error=e
+            )
             return "Content extraction failed"
 
     async def _process_with_agent(self, agent_id: str, content: str, filename: str) -> Dict[str, Any]:
@@ -1050,7 +1124,13 @@ class IntelligentDocumentProcessor:
             return insights
 
         except Exception as e:
-            logger.error(f"Failed to process with agent {agent_id}: {str(e)}")
+            logger.error(
+                f"Failed to process with agent {agent_id}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.revolutionary_ingestion_engine",
+                data={"agent_id": agent_id},
+                error=e
+            )
             return {"error": str(e)}
 
     async def _create_intelligent_summary(self, content: str, filename: str) -> Dict[str, Any]:
@@ -1079,7 +1159,12 @@ class IntelligentDocumentProcessor:
             return summary
 
         except Exception as e:
-            logger.error(f"Failed to create intelligent summary: {str(e)}")
+            logger.error(
+                "Failed to create intelligent summary",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.revolutionary_ingestion_engine",
+                error=e
+            )
             return {"error": str(e)}
 
 

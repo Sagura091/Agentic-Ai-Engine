@@ -26,7 +26,6 @@ from pathlib import Path
 import base64
 from io import BytesIO
 
-import structlog
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance
@@ -36,12 +35,14 @@ from sklearn.cluster import KMeans
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 # Import required modules
 from app.tools.unified_tool_repository import ToolCategory
 from app.tools.meme_collection_tool import MemeData
 from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 @dataclass
@@ -232,17 +233,28 @@ class MemeAnalysisTool(BaseTool, MetadataCapableToolMixin):
                         analysis_results.append(result)
                         self._analysis_stats['total_analyzed'] += 1
                 except Exception as e:
-                    logger.error(f"Failed to analyze meme {meme.id}: {str(e)}")
+                    logger.error(
+                        f"Failed to analyze meme {meme.id}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.meme_analysis_tool",
+                        data={"meme_id": meme.id},
+                        error=e
+                    )
                     self._analysis_stats['errors'] += 1
                     continue
-            
+
             # Generate analysis report
             report = self._generate_analysis_report(analysis_results)
-            
+
             return json.dumps(report, indent=2)
-            
+
         except Exception as e:
-            logger.error(f"Meme analysis failed: {str(e)}")
+            logger.error(
+                "Meme analysis failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_analysis_tool",
+                error=e
+            )
             return json.dumps({
                 'success': False,
                 'error': str(e),
@@ -308,16 +320,26 @@ class MemeAnalysisTool(BaseTool, MetadataCapableToolMixin):
         """Perform comprehensive analysis on a single meme."""
         try:
             if not meme.local_path or not os.path.exists(meme.local_path):
-                logger.warning(f"Meme file not found: {meme.local_path}")
+                logger.warn(
+                    f"Meme file not found: {meme.local_path}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.meme_analysis_tool",
+                    data={"local_path": meme.local_path}
+                )
                 return None
-            
+
             # Initialize analysis result
             result = MemeAnalysisResult(meme_id=meme.id)
-            
+
             # Load image
             image = cv2.imread(meme.local_path)
             if image is None:
-                logger.error(f"Failed to load image: {meme.local_path}")
+                logger.error(
+                    f"Failed to load image: {meme.local_path}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.meme_analysis_tool",
+                    data={"local_path": meme.local_path}
+                )
                 return None
             
             pil_image = Image.open(meme.local_path)
@@ -344,9 +366,15 @@ class MemeAnalysisTool(BaseTool, MetadataCapableToolMixin):
             await self._categorize_content(result)
             
             return result
-            
+
         except Exception as e:
-            logger.error(f"Meme analysis failed for {meme.id}: {str(e)}")
+            logger.error(
+                f"Meme analysis failed for {meme.id}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_analysis_tool",
+                data={"meme_id": meme.id},
+                error=e
+            )
             return None
     
     async def _extract_text(self, image: Image.Image, result: MemeAnalysisResult):
@@ -380,9 +408,14 @@ class MemeAnalysisTool(BaseTool, MetadataCapableToolMixin):
             
             if combined_texts:
                 self._analysis_stats['text_extracted'] += 1
-            
+
         except Exception as e:
-            logger.error(f"Text extraction failed: {str(e)}")
+            logger.error(
+                "Text extraction failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_analysis_tool",
+                error=e
+            )
     
     def _combine_text_regions(self, texts: List[str], regions: List[Tuple[int, int, int, int]]) -> List[str]:
         """Combine nearby text regions into coherent phrases."""
@@ -450,9 +483,14 @@ class MemeAnalysisTool(BaseTool, MetadataCapableToolMixin):
             
             if matches:
                 self._analysis_stats['templates_matched'] += 1
-            
+
         except Exception as e:
-            logger.error(f"Template matching failed: {str(e)}")
+            logger.error(
+                "Template matching failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_analysis_tool",
+                error=e
+            )
     
     async def _analyze_visual_features(self, cv_image: np.ndarray, pil_image: Image.Image, result: MemeAnalysisResult):
         """Analyze visual features of the meme."""
@@ -485,9 +523,14 @@ class MemeAnalysisTool(BaseTool, MetadataCapableToolMixin):
                 'contrast': contrast,
                 'edge_density': edge_density
             })
-            
+
         except Exception as e:
-            logger.error(f"Visual feature analysis failed: {str(e)}")
+            logger.error(
+                "Visual feature analysis failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_analysis_tool",
+                error=e
+            )
     
     def _extract_dominant_colors(self, image: Image.Image, num_colors: int = 5) -> List[str]:
         """Extract dominant colors from image."""
@@ -510,9 +553,14 @@ class MemeAnalysisTool(BaseTool, MetadataCapableToolMixin):
                 colors.append(hex_color)
             
             return colors
-            
+
         except Exception as e:
-            logger.error(f"Color extraction failed: {str(e)}")
+            logger.error(
+                "Color extraction failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_analysis_tool",
+                error=e
+            )
             return []
     
     async def _analyze_sentiment(self, result: MemeAnalysisResult):
@@ -537,9 +585,14 @@ class MemeAnalysisTool(BaseTool, MetadataCapableToolMixin):
             # Clamp values
             result.sentiment_score = max(-1.0, min(1.0, result.sentiment_score))
             result.humor_score = max(0.0, min(1.0, result.humor_score))
-            
+
         except Exception as e:
-            logger.error(f"Sentiment analysis failed: {str(e)}")
+            logger.error(
+                "Sentiment analysis failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_analysis_tool",
+                error=e
+            )
     
     async def _calculate_quality_scores(self, result: MemeAnalysisResult, meme: MemeData):
         """Calculate overall quality scores for the meme."""
@@ -575,9 +628,14 @@ class MemeAnalysisTool(BaseTool, MetadataCapableToolMixin):
                 result.quality_score = sum(quality_factors) / len(quality_factors)
             else:
                 result.quality_score = 0.5  # Default neutral score
-            
+
         except Exception as e:
-            logger.error(f"Quality score calculation failed: {str(e)}")
+            logger.error(
+                "Quality score calculation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_analysis_tool",
+                error=e
+            )
     
     async def _categorize_content(self, result: MemeAnalysisResult):
         """Categorize meme content based on analysis."""
@@ -604,9 +662,14 @@ class MemeAnalysisTool(BaseTool, MetadataCapableToolMixin):
                 result.content_category = 'gaming'
             else:
                 result.content_category = 'general'
-            
+
         except Exception as e:
-            logger.error(f"Content categorization failed: {str(e)}")
+            logger.error(
+                "Content categorization failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.meme_analysis_tool",
+                error=e
+            )
     
     def _generate_analysis_report(self, results: List[MemeAnalysisResult]) -> Dict[str, Any]:
         """Generate comprehensive analysis report."""

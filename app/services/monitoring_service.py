@@ -8,16 +8,15 @@ performance metrics, and alerting capabilities.
 import asyncio
 import time
 import psutil
-import structlog
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
 
-from app.backend_logging.backend_logger import get_logger
+from app.backend_logging import get_logger
 from app.backend_logging.models import LogCategory
 
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 @dataclass
@@ -69,10 +68,10 @@ class MonitoringService:
         try:
             self.backend_logger.info(
                 "Initializing monitoring service",
-                category=LogCategory.SYSTEM_HEALTH,
-                component="MonitoringService"
+                LogCategory.SYSTEM_HEALTH,
+                "app.services.monitoring_service"
             )
-            
+
             # Initialize service health tracking
             self.service_health = {
                 "database": ServiceHealth("database", "unknown", datetime.now()),
@@ -80,30 +79,30 @@ class MonitoringService:
                 "orchestrator": ServiceHealth("orchestrator", "unknown", datetime.now()),
                 "rag_system": ServiceHealth("rag_system", "unknown", datetime.now()),
             }
-            
+
             # Start monitoring tasks
             self.is_running = True
             self.monitoring_task = asyncio.create_task(self._monitoring_loop())
-            
+
             self.is_initialized = True
-            
+
             self.backend_logger.info(
                 "Monitoring service initialized successfully",
-                category=LogCategory.SYSTEM_HEALTH,
-                component="MonitoringService",
+                LogCategory.SYSTEM_HEALTH,
+                "app.services.monitoring_service",
                 data={
                     "metrics_interval": self.metrics_interval,
                     "health_check_interval": self.health_check_interval,
                     "services_tracked": list(self.service_health.keys())
                 }
             )
-            
+
         except Exception as e:
             self.backend_logger.error(
                 "Failed to initialize monitoring service",
-                category=LogCategory.SYSTEM_HEALTH,
-                component="MonitoringService",
-                error=str(e)
+                LogCategory.SYSTEM_HEALTH,
+                "app.services.monitoring_service",
+                error=e
             )
             raise
     
@@ -112,31 +111,31 @@ class MonitoringService:
         try:
             self.backend_logger.info(
                 "Shutting down monitoring service",
-                category=LogCategory.SYSTEM_HEALTH,
-                component="MonitoringService"
+                LogCategory.SYSTEM_HEALTH,
+                "app.services.monitoring_service"
             )
-            
+
             self.is_running = False
-            
+
             if self.monitoring_task:
                 self.monitoring_task.cancel()
                 try:
                     await self.monitoring_task
                 except asyncio.CancelledError:
                     pass
-            
+
             self.backend_logger.info(
                 "Monitoring service shut down successfully",
-                category=LogCategory.SYSTEM_HEALTH,
-                component="MonitoringService"
+                LogCategory.SYSTEM_HEALTH,
+                "app.services.monitoring_service"
             )
-            
+
         except Exception as e:
             self.backend_logger.error(
                 "Error during monitoring service shutdown",
-                category=LogCategory.SYSTEM_HEALTH,
-                component="MonitoringService",
-                error=str(e)
+                LogCategory.SYSTEM_HEALTH,
+                "app.services.monitoring_service",
+                error=e
             )
     
     async def _monitoring_loop(self) -> None:
@@ -163,8 +162,13 @@ class MonitoringService:
                 
             except asyncio.CancelledError:
                 break
-            except Exception:
-                logger.error("Error in monitoring loop", exc_info=True)
+            except Exception as e:
+                logger.error(
+                    "Error in monitoring loop",
+                    LogCategory.SYSTEM_HEALTH,
+                    "app.services.monitoring_service",
+                    error=e
+                )
                 await asyncio.sleep(10)  # Wait before retrying
     
     async def _collect_system_metrics(self) -> None:
@@ -217,17 +221,22 @@ class MonitoringService:
             # Log metrics
             self.backend_logger.debug(
                 "System metrics collected",
-                category=LogCategory.SYSTEM_HEALTH,
-                component="MonitoringService",
+                LogCategory.SYSTEM_HEALTH,
+                "app.services.monitoring_service",
                 data=asdict(metrics)
             )
-            
+
             # Check for alerts
             await self._check_metric_alerts(metrics)
-            
-        except Exception:
-            logger.error("Error collecting system metrics", exc_info=True)
-    
+
+        except Exception as e:
+            logger.error(
+                "Error collecting system metrics",
+                LogCategory.SYSTEM_HEALTH,
+                "app.services.monitoring_service",
+                error=e
+            )
+
     async def _perform_health_checks(self) -> None:
         """Perform health checks on system services."""
         try:
@@ -236,19 +245,24 @@ class MonitoringService:
                 health = self.service_health[service_name]
                 health.last_check = datetime.now()
                 health.status = "healthy"  # Default to healthy for now
-                
+
             self.backend_logger.debug(
                 "Health checks completed",
-                category=LogCategory.SYSTEM_HEALTH,
-                component="MonitoringService",
+                LogCategory.SYSTEM_HEALTH,
+                "app.services.monitoring_service",
                 data={
                     "services_checked": len(self.service_health),
                     "healthy_services": len([h for h in self.service_health.values() if h.status == "healthy"])
                 }
             )
-            
-        except Exception:
-            logger.error("Error performing health checks", exc_info=True)
+
+        except Exception as e:
+            logger.error(
+                "Error performing health checks",
+                LogCategory.SYSTEM_HEALTH,
+                "app.services.monitoring_service",
+                error=e
+            )
     
     async def _check_metric_alerts(self, metrics: SystemMetrics) -> None:
         """Check metrics against alert thresholds."""
@@ -270,8 +284,8 @@ class MonitoringService:
         if alerts:
             self.backend_logger.warn(
                 "System performance alerts",
-                category=LogCategory.SYSTEM_HEALTH,
-                component="MonitoringService",
+                LogCategory.SYSTEM_HEALTH,
+                "app.services.monitoring_service",
                 data={
                     "alerts": alerts,
                     "metrics": asdict(metrics)

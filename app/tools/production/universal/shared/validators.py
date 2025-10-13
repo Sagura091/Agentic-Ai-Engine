@@ -10,11 +10,12 @@ import re
 from pathlib import Path
 from typing import Any, List, Optional, Union, Dict, Callable
 from enum import Enum
-import structlog
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from .error_handlers import ValidationError, SecurityError
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class FileType(Enum):
@@ -165,7 +166,12 @@ class UniversalToolValidator:
                         recovery_suggestion=f"Use a file with one of these extensions: {allowed_extensions}"
                     )
             
-            logger.debug("File path validated", path=str(path))
+            logger.debug(
+                "File path validated",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.universal.shared.validators",
+                data={"path": str(path)}
+            )
             return path
             
         except (ValidationError, SecurityError):
@@ -255,7 +261,12 @@ class UniversalToolValidator:
                     recovery_suggestion=f"Use a file smaller than {max_allowed / (1024*1024):.1f} MB"
                 )
             
-            logger.debug("File size validated", path=str(path), size=file_size)
+            logger.debug(
+                "File size validated",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.universal.shared.validators",
+                data={"path": str(path), "size": file_size}
+            )
             return file_size
             
         except ValidationError:

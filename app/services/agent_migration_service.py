@@ -24,18 +24,19 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple
 from uuid import UUID, uuid4
 from enum import Enum
-import structlog
 
 from sqlalchemy import select, update, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from ..models.database.base import get_database_session
 from ..models.agent import Agent
 from ..models.auth import UserDB
 from ..api.websocket.notification_handlers import notification_handler
 from ..core.admin_model_manager import admin_model_manager
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class MigrationStatus(str, Enum):
@@ -128,8 +129,13 @@ class AgentMigrationService:
         """Migrate a single agent to a new model."""
         try:
             job_id = str(uuid4())
-            logger.info(f"🔄 Starting single agent migration: {agent_id} -> {target_model}")
-            
+            logger.info(
+                f"🔄 Starting single agent migration: {agent_id} -> {target_model}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.agent_migration_service",
+                data={"agent_id": str(agent_id), "target_model": target_model, "job_id": job_id}
+            )
+
             # Create migration job
             job = AgentMigrationJob(
                 job_id=job_id,
@@ -153,7 +159,12 @@ class AgentMigrationService:
             }
             
         except Exception as e:
-            logger.error(f"❌ Failed to start single agent migration: {str(e)}")
+            logger.error(
+                f"❌ Failed to start single agent migration: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.agent_migration_service",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -178,8 +189,13 @@ class AgentMigrationService:
                 }
             
             job_id = str(uuid4())
-            logger.info(f"🔄 Starting bulk agent migration: {len(agent_ids)} agents -> {target_model}")
-            
+            logger.info(
+                f"🔄 Starting bulk agent migration: {len(agent_ids)} agents -> {target_model}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.agent_migration_service",
+                data={"agent_count": len(agent_ids), "target_model": target_model, "job_id": job_id}
+            )
+
             # Create migration job
             job = AgentMigrationJob(
                 job_id=job_id,
@@ -207,7 +223,12 @@ class AgentMigrationService:
             }
             
         except Exception as e:
-            logger.error(f"❌ Failed to start bulk agent migration: {str(e)}")
+            logger.error(
+                f"❌ Failed to start bulk agent migration: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.agent_migration_service",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -258,16 +279,26 @@ class AgentMigrationService:
             # Move to history
             self._job_history.append(job)
             del self._active_jobs[job_id]
-            
-            logger.info(f"✅ Migration job cancelled: {job_id}")
-            
+
+            logger.info(
+                f"✅ Migration job cancelled: {job_id}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.agent_migration_service",
+                data={"job_id": job_id}
+            )
+
             return {
                 "success": True,
                 "message": f"Migration job {job_id} cancelled successfully"
             }
             
         except Exception as e:
-            logger.error(f"❌ Failed to cancel migration: {str(e)}")
+            logger.error(
+                f"❌ Failed to cancel migration: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.agent_migration_service",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -304,16 +335,26 @@ class AgentMigrationService:
                     "error": "Rollback not available",
                     "message": "Rollback data not available for this migration"
                 }
-            
-            logger.info(f"🔄 Starting rollback for job: {job_id}")
-            
+
+            logger.info(
+                f"🔄 Starting rollback for job: {job_id}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.agent_migration_service",
+                data={"job_id": job_id}
+            )
+
             # Execute rollback
             rollback_result = await self._execute_rollback(job)
             
             return rollback_result
             
         except Exception as e:
-            logger.error(f"❌ Failed to rollback migration: {str(e)}")
+            logger.error(
+                f"❌ Failed to rollback migration: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.agent_migration_service",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -341,7 +382,12 @@ class AgentMigrationService:
             return user_jobs[:limit]
             
         except Exception as e:
-            logger.error(f"❌ Failed to get migration history: {str(e)}")
+            logger.error(
+                f"❌ Failed to get migration history: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.agent_migration_service",
+                error=e
+            )
             return []
 
     async def _execute_single_migration(self, job: AgentMigrationJob, validate_compatibility: bool) -> None:
@@ -445,14 +491,24 @@ class AgentMigrationService:
                     }
                 )
 
-                logger.info(f"✅ Single agent migration completed: {agent.id} -> {job.target_model}")
+                logger.info(
+                    f"✅ Single agent migration completed: {agent.id} -> {job.target_model}",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.services.agent_migration_service",
+                    data={"agent_id": str(agent.id), "target_model": job.target_model}
+                )
 
         except Exception as e:
             job.status = MigrationStatus.FAILED
             job.errors.append(str(e))
             job.completed_at = datetime.utcnow()
             await self._send_progress_update(job)
-            logger.error(f"❌ Single agent migration failed: {str(e)}")
+            logger.error(
+                f"❌ Single agent migration failed: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.agent_migration_service",
+                error=e
+            )
 
         finally:
             # Move to history
@@ -502,14 +558,24 @@ class AgentMigrationService:
                 job.completed_at = datetime.utcnow()
                 await self._send_progress_update(job)
 
-                logger.info(f"✅ Bulk migration completed: {job.completed_agents}/{job.total_agents} successful")
+                logger.info(
+                    f"✅ Bulk migration completed: {job.completed_agents}/{job.total_agents} successful",
+                    LogCategory.AGENT_OPERATIONS,
+                    "app.services.agent_migration_service",
+                    data={"completed": job.completed_agents, "total": job.total_agents}
+                )
 
         except Exception as e:
             job.status = MigrationStatus.FAILED
             job.errors.append(str(e))
             job.completed_at = datetime.utcnow()
             await self._send_progress_update(job)
-            logger.error(f"❌ Bulk migration failed: {str(e)}")
+            logger.error(
+                f"❌ Bulk migration failed: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.agent_migration_service",
+                error=e
+            )
 
         finally:
             # Move to history
@@ -654,7 +720,13 @@ class AgentMigrationService:
             await session.commit()
 
         except Exception as e:
-            logger.error(f"❌ Failed to rollback agent {agent_id}: {str(e)}")
+            logger.error(
+                f"❌ Failed to rollback agent {agent_id}: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.agent_migration_service",
+                data={"agent_id": str(agent_id)},
+                error=e
+            )
 
     async def _execute_rollback(self, job: AgentMigrationJob) -> Dict[str, Any]:
         """Execute rollback for a completed migration."""
@@ -706,7 +778,12 @@ class AgentMigrationService:
                 }
             )
         except Exception as e:
-            logger.error(f"❌ Failed to send progress update: {str(e)}")
+            logger.error(
+                f"❌ Failed to send progress update: {str(e)}",
+                LogCategory.AGENT_OPERATIONS,
+                "app.services.agent_migration_service",
+                error=e
+            )
 
 
 # Global instance

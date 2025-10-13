@@ -17,15 +17,16 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
 import mimetypes
-import structlog
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, and_, or_
 from sqlalchemy.orm import selectinload
 from cryptography.fernet import Fernet
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from app.models.document import (
-    DocumentDB, DocumentChunkDB, DocumentMetadata, 
+    DocumentDB, DocumentChunkDB, DocumentMetadata,
     DocumentChunkMetadata, DocumentCreateRequest,
     DocumentUploadResponse, DocumentSearchResult
 )
@@ -34,7 +35,7 @@ from app.rag.core.unified_rag_system import Document, DocumentChunk
 from app.rag.ingestion.pipeline import RevolutionaryIngestionPipeline
 from app.config.settings import get_settings
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class DocumentEncryption:
@@ -75,8 +76,12 @@ class DocumentService:
         """Initialize the document service."""
         if self.is_initialized:
             return
-            
-        logger.info("Document service initialized")
+
+        logger.info(
+            "Document service initialized",
+            LogCategory.SERVICE_OPERATIONS,
+            "app.services.document_service"
+        )
         self.is_initialized = True
     
     async def upload_document(
@@ -145,13 +150,17 @@ class DocumentService:
                 
                 session.add(document)
                 await session.commit()
-                
+
                 logger.info(
                     "Document uploaded successfully",
-                    document_id=str(document_id),
-                    knowledge_base_id=knowledge_base_id,
-                    filename=filename,
-                    size=len(file_content)
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.document_service",
+                    data={
+                        "document_id": str(document_id),
+                        "knowledge_base_id": knowledge_base_id,
+                        "filename": filename,
+                        "size": len(file_content)
+                    }
                 )
                 
                 # Process document using revolutionary ingestion engine
@@ -175,7 +184,12 @@ class DocumentService:
                 )
                 
         except Exception as e:
-            logger.error(f"Failed to upload document: {e}")
+            logger.error(
+                f"Failed to upload document: {e}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.document_service",
+                error=e
+            )
             raise
 
     async def _process_document_with_revolutionary_engine(
@@ -189,7 +203,12 @@ class DocumentService:
     ) -> None:
         """Process document using the revolutionary ingestion engine."""
         try:
-            logger.info(f"Processing document {document_id} with revolutionary ingestion engine")
+            logger.info(
+                f"Processing document {document_id} with revolutionary ingestion engine",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.document_service",
+                data={"document_id": str(document_id)}
+            )
 
             # Import revolutionary processor registry
             from app.rag.ingestion.processors import get_revolutionary_processor_registry
@@ -239,13 +258,24 @@ class DocumentService:
 
             logger.info(
                 f"Document {document_id} processed successfully",
-                chunks_created=len(chunks),
-                confidence=confidence_score,
-                language=detected_language
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.document_service",
+                data={
+                    "document_id": str(document_id),
+                    "chunks_created": len(chunks),
+                    "confidence": confidence_score,
+                    "language": detected_language
+                }
             )
 
         except Exception as e:
-            logger.error(f"Failed to process document {document_id}: {e}")
+            logger.error(
+                f"Failed to process document {document_id}: {e}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.document_service",
+                data={"document_id": str(document_id)},
+                error=e
+            )
             # Update document status to failed
             await self._update_document_status(
                 document_id=document_id,
@@ -308,7 +338,13 @@ class DocumentService:
             return chunks
 
         except Exception as e:
-            logger.error(f"Failed to chunk text for document {document_id}: {e}")
+            logger.error(
+                f"Failed to chunk text for document {document_id}: {e}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.document_service",
+                data={"document_id": str(document_id)},
+                error=e
+            )
             # Fallback: create single chunk
             return [{
                 'index': 0,
@@ -363,10 +399,21 @@ class DocumentService:
                     metadata=chunk['metadata']
                 )
 
-            logger.info(f"Stored {len(chunks)} chunks for document {document_id}")
+            logger.info(
+                f"Stored {len(chunks)} chunks for document {document_id}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.document_service",
+                data={"document_id": str(document_id), "chunk_count": len(chunks)}
+            )
 
         except Exception as e:
-            logger.error(f"Failed to store chunks for document {document_id}: {e}")
+            logger.error(
+                f"Failed to store chunks for document {document_id}: {e}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.document_service",
+                data={"document_id": str(document_id)},
+                error=e
+            )
             raise
 
     async def _store_chunk_in_postgres(
@@ -393,7 +440,13 @@ class DocumentService:
                 await session.commit()
 
         except Exception as e:
-            logger.error(f"Failed to store chunk {chunk_index} for document {document_id}: {e}")
+            logger.error(
+                f"Failed to store chunk {chunk_index} for document {document_id}: {e}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.document_service",
+                data={"document_id": str(document_id), "chunk_index": chunk_index},
+                error=e
+            )
             raise
 
     async def _update_document_status(
@@ -439,7 +492,13 @@ class DocumentService:
                     await session.commit()
 
         except Exception as e:
-            logger.error(f"Failed to update document status for {document_id}: {e}")
+            logger.error(
+                f"Failed to update document status for {document_id}: {e}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.document_service",
+                data={"document_id": str(document_id)},
+                error=e
+            )
             # Don't raise here to avoid cascading failures
     
     async def get_document(self, document_id: str) -> Optional[DocumentMetadata]:
@@ -457,7 +516,13 @@ class DocumentService:
                 return DocumentMetadata.model_validate(document)
                 
         except Exception as e:
-            logger.error(f"Failed to get document {document_id}: {e}")
+            logger.error(
+                f"Failed to get document {document_id}: {e}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.document_service",
+                data={"document_id": str(document_id)},
+                error=e
+            )
             raise
     
     async def list_documents(
@@ -481,7 +546,13 @@ class DocumentService:
                 return [DocumentMetadata.model_validate(doc) for doc in documents]
 
         except Exception as e:
-            logger.warning(f"Failed to list documents for KB {knowledge_base_id}: {e}")
+            logger.warn(
+                f"Failed to list documents for KB {knowledge_base_id}: {e}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.document_service",
+                data={"knowledge_base_id": str(knowledge_base_id)},
+                error=e
+            )
             # Return empty list if database tables don't exist yet
             return []
     
@@ -502,7 +573,13 @@ class DocumentService:
                 return [DocumentChunkMetadata.model_validate(chunk) for chunk in chunks]
                 
         except Exception as e:
-            logger.error(f"Failed to get chunks for document {document_id}: {e}")
+            logger.error(
+                f"Failed to get chunks for document {document_id}: {e}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.document_service",
+                data={"document_id": str(document_id)},
+                error=e
+            )
             raise
     
     def _detect_document_type(self, content_type: str) -> str:
@@ -548,7 +625,12 @@ class DocumentService:
                 document = result.scalar_one_or_none()
 
                 if not document:
-                    logger.error(f"Document {document_id} not found for processing")
+                    logger.error(
+                        f"Document {document_id} not found for processing",
+                        LogCategory.SERVICE_OPERATIONS,
+                        "app.services.document_service",
+                        data={"document_id": str(document_id)}
+                    )
                     return
 
                 # Update status to processing
@@ -590,8 +672,12 @@ class DocumentService:
 
                     logger.info(
                         "Document processed successfully",
-                        document_id=document_id,
-                        chunks=len(chunks)
+                        LogCategory.SERVICE_OPERATIONS,
+                        "app.services.document_service",
+                        data={
+                            "document_id": str(document_id),
+                            "chunks": len(chunks)
+                        }
                     )
 
                 except Exception as e:
@@ -608,7 +694,13 @@ class DocumentService:
                     raise
 
         except Exception as e:
-            logger.error(f"Failed to process document {document_id}: {e}")
+            logger.error(
+                f"Failed to process document {document_id}: {e}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.document_service",
+                data={"document_id": str(document_id)},
+                error=e
+            )
 
     async def _extract_text_content(
         self,
@@ -634,7 +726,13 @@ class DocumentService:
                     return f"Binary file: {filename} (content extraction not supported)"
 
         except Exception as e:
-            logger.warning(f"Failed to extract text from {filename}: {e}")
+            logger.warn(
+                f"Failed to extract text from {filename}: {e}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.document_service",
+                data={"filename": filename},
+                error=e
+            )
             return f"Failed to extract text from {filename}"
 
     async def _extract_pdf_text(self, content: bytes) -> str:
@@ -764,10 +862,23 @@ class DocumentService:
                 # Commit batch
                 await session.commit()
 
-                logger.info(f"Processed batch {i//batch_size + 1} of {(len(chunks) + batch_size - 1)//batch_size}")
+                logger.info(
+                    f"Processed batch {i//batch_size + 1} of {(len(chunks) + batch_size - 1)//batch_size}",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.document_service",
+                    data={
+                        "batch_number": i//batch_size + 1,
+                        "total_batches": (len(chunks) + batch_size - 1)//batch_size
+                    }
+                )
 
         except Exception as e:
-            logger.error(f"Failed to embed and store chunks: {e}")
+            logger.error(
+                "Failed to embed and store chunks",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.document_service",
+                error=e
+            )
             raise
 
     async def delete_document(self, document_id: str) -> bool:
@@ -805,11 +916,22 @@ class DocumentService:
                 )
                 await session.commit()
 
-                logger.info(f"Document {document_id} deleted successfully")
+                logger.info(
+                    f"Document {document_id} deleted successfully",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.services.document_service",
+                    data={"document_id": str(document_id)}
+                )
                 return True
 
         except Exception as e:
-            logger.error(f"Failed to delete document {document_id}: {e}")
+            logger.error(
+                f"Failed to delete document {document_id}: {e}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.services.document_service",
+                data={"document_id": str(document_id)},
+                error=e
+            )
             raise
 
 

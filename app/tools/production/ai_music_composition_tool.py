@@ -23,14 +23,15 @@ from enum import Enum
 import os
 import tempfile
 
-import structlog
 from pydantic import BaseModel, Field
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
 from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class MusicGenre(str, Enum):
@@ -377,17 +378,26 @@ class AIMusicCompositionTool(BaseTool, MetadataCapableToolMixin):
 
             logger.info(
                 "AI music composition completed",
-                genre=genre.value,
-                key=key.value,
-                duration_bars=duration_bars,
-                execution_time=execution_time
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.ai_music_composition_tool",
+                data={
+                    "genre": genre.value,
+                    "key": key.value,
+                    "duration_bars": duration_bars,
+                    "execution_time": execution_time
+                }
             )
 
             return json.dumps(result, indent=2)
 
         except Exception as e:
             error_msg = f"Music composition failed: {str(e)}"
-            logger.error(error_msg, error=str(e))
+            logger.error(
+                "Music composition failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.ai_music_composition_tool",
+                error=e
+            )
             return json.dumps({
                 'success': False,
                 'error': error_msg,
@@ -942,7 +952,12 @@ class AIMusicCompositionTool(BaseTool, MetadataCapableToolMixin):
             # In a full implementation, you would use a library like mido or music21
 
             # For now, return the path where the MIDI would be saved
-            logger.info(f"MIDI export would be saved to: {filepath}")
+            logger.info(
+                f"MIDI export would be saved to: {filepath}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.ai_music_composition_tool",
+                data={"filepath": filepath}
+            )
 
             # Create a simple text representation of the MIDI data
             midi_data = {
@@ -963,7 +978,12 @@ class AIMusicCompositionTool(BaseTool, MetadataCapableToolMixin):
             return metadata_path
 
         except Exception as e:
-            logger.error(f"MIDI export failed: {str(e)}")
+            logger.error(
+                "MIDI export failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.ai_music_composition_tool",
+                error=e
+            )
             return f"MIDI export failed: {str(e)}"
 
     def _export_audio(self, composition: MusicComposition) -> str:
@@ -975,11 +995,21 @@ class AIMusicCompositionTool(BaseTool, MetadataCapableToolMixin):
             filename = f"ai_composition_{int(time.time())}.wav"
             filepath = os.path.join(temp_dir, filename)
 
-            logger.info(f"Audio export would be saved to: {filepath}")
+            logger.info(
+                f"Audio export would be saved to: {filepath}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.ai_music_composition_tool",
+                data={"filepath": filepath}
+            )
             return f"Audio export not implemented yet. Would save to: {filepath}"
 
         except Exception as e:
-            logger.error(f"Audio export failed: {str(e)}")
+            logger.error(
+                "Audio export failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.ai_music_composition_tool",
+                error=e
+            )
             return f"Audio export failed: {str(e)}"
 
     def _analyze_composition(self, composition: MusicComposition) -> Dict[str, Any]:
@@ -1185,7 +1215,7 @@ AI_MUSIC_COMPOSITION_TOOL_METADATA = ToolMetadata(
     tool_id="ai_music_composition",
     name="AI Music Composition Tool",
     description="Revolutionary AI music composition tool that creates complete musical pieces in any genre with intelligent chord progressions, melodies, and MIDI export",
-    category=ToolCategory.PRODUCTIVITY,  # Changed from ANALYSIS to PRODUCTIVITY
+    category=ToolCategoryEnum.PRODUCTIVITY,  # Changed from ANALYSIS to PRODUCTIVITY
     access_level=ToolAccessLevel.PUBLIC,
     requires_rag=False,
     use_cases={

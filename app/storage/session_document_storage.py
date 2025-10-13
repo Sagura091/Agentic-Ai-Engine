@@ -23,16 +23,17 @@ from typing import Dict, List, Optional, Tuple, Any, BinaryIO
 import aiofiles
 import aiofiles.os
 
-import structlog
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from app.config.session_document_config import session_document_config
 from app.models.session_document_models import (
-    SessionDocument, 
+    SessionDocument,
     SessionDocumentType,
     DocumentProcessingStatus,
     SessionDocumentError
 )
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class SessionDocumentStorage:
@@ -64,8 +65,12 @@ class SessionDocumentStorage:
             "cleanup_runs": 0,
             "last_cleanup": None
         }
-        
-        logger.info("🔥 Revolutionary Session Document Storage initialized")
+
+        logger.info(
+            "🔥 Revolutionary Session Document Storage initialized",
+            LogCategory.SERVICE_OPERATIONS,
+            "app.storage.session_document_storage"
+        )
     
     def _ensure_directories(self):
         """Ensure all required directories exist."""
@@ -82,8 +87,13 @@ class SessionDocumentStorage:
             directory.mkdir(parents=True, exist_ok=True)
             # Set permissions
             directory.chmod(self.config.storage.dir_permissions)
-        
-        logger.info(f"📁 Storage directories ensured: {len(directories)} directories")
+
+        logger.info(
+            f"📁 Storage directories ensured: {len(directories)} directories",
+            LogCategory.SERVICE_OPERATIONS,
+            "app.storage.session_document_storage",
+            data={"directories_count": len(directories)}
+        )
     
     async def store_document(
         self,
@@ -153,24 +163,29 @@ class SessionDocumentStorage:
             self.stats["total_files"] += 1
             self.stats["total_size"] += len(content)
             self.stats["operations_count"] += 1
-            
+
             logger.info(
                 "📁 Document stored successfully",
-                document_id=document_id,
-                session_id=session_id,
-                filename=filename,
-                size=len(content),
-                storage_path=str(storage_path)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.storage.session_document_storage",
+                data={
+                    "document_id": document_id,
+                    "session_id": session_id,
+                    "filename": filename,
+                    "size": len(content),
+                    "storage_path": str(storage_path)
+                }
             )
-            
+
             return document
-            
+
         except Exception as e:
             logger.error(
                 "❌ Failed to store document",
-                document_id=document_id,
-                session_id=session_id,
-                error=str(e)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.storage.session_document_storage",
+                data={"document_id": document_id, "session_id": session_id},
+                error=e
             )
             raise SessionDocumentError(f"Failed to store document: {str(e)}")
     
@@ -195,41 +210,55 @@ class SessionDocumentStorage:
             storage_path = self.config.get_storage_path(session_id, document_id)
             
             if not storage_path.exists():
-                logger.warning(
+                logger.warn(
                     "📁 Document not found in storage",
-                    document_id=document_id,
-                    session_id=session_id,
-                    storage_path=str(storage_path)
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.storage.session_document_storage",
+                    data={
+                        "document_id": document_id,
+                        "session_id": session_id,
+                        "storage_path": str(storage_path)
+                    }
                 )
                 return None
-            
+
             # Read content
             async with aiofiles.open(storage_path, 'rb') as f:
                 content = await f.read()
-            
+
             # Verify integrity if requested
             if verify_integrity:
                 content_hash = hashlib.sha256(content).hexdigest()
                 # Note: In a full implementation, you'd compare with stored hash
-                logger.debug(f"📁 Content integrity verified: {content_hash[:8]}...")
-            
+                logger.debug(
+                    f"📁 Content integrity verified: {content_hash[:8]}...",
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.storage.session_document_storage",
+                    data={"content_hash": content_hash[:8]}
+                )
+
             self.stats["operations_count"] += 1
-            
+
             logger.debug(
                 "📁 Document retrieved successfully",
-                document_id=document_id,
-                session_id=session_id,
-                size=len(content)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.storage.session_document_storage",
+                data={
+                    "document_id": document_id,
+                    "session_id": session_id,
+                    "size": len(content)
+                }
             )
             
             return content
-            
+
         except Exception as e:
             logger.error(
                 "❌ Failed to retrieve document",
-                document_id=document_id,
-                session_id=session_id,
-                error=str(e)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.storage.session_document_storage",
+                data={"document_id": document_id, "session_id": session_id},
+                error=e
             )
             return None
     
@@ -252,39 +281,45 @@ class SessionDocumentStorage:
             storage_path = self.config.get_storage_path(session_id, document_id)
             
             if not storage_path.exists():
-                logger.warning(
+                logger.warn(
                     "📁 Document not found for deletion",
-                    document_id=document_id,
-                    session_id=session_id
+                    LogCategory.SERVICE_OPERATIONS,
+                    "app.storage.session_document_storage",
+                    data={"document_id": document_id, "session_id": session_id}
                 )
                 return False
-            
+
             # Get file size for statistics
             file_size = storage_path.stat().st_size
-            
+
             # Delete file
             await aiofiles.os.remove(str(storage_path))
-            
+
             # Update statistics
             self.stats["total_files"] -= 1
             self.stats["total_size"] -= file_size
             self.stats["operations_count"] += 1
-            
+
             logger.info(
                 "🗑️ Document deleted successfully",
-                document_id=document_id,
-                session_id=session_id,
-                size=file_size
+                LogCategory.SERVICE_OPERATIONS,
+                "app.storage.session_document_storage",
+                data={
+                    "document_id": document_id,
+                    "session_id": session_id,
+                    "size": file_size
+                }
             )
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(
                 "❌ Failed to delete document",
-                document_id=document_id,
-                session_id=session_id,
-                error=str(e)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.storage.session_document_storage",
+                data={"document_id": document_id, "session_id": session_id},
+                error=e
             )
             return False
     
@@ -319,21 +354,30 @@ class SessionDocumentStorage:
                             "storage_path": str(file_path)
                         })
                     except Exception as e:
-                        logger.warning(f"Failed to get info for {file_path}: {e}")
-            
+                        logger.warn(
+                            f"Failed to get info for {file_path}",
+                            LogCategory.SERVICE_OPERATIONS,
+                            "app.storage.session_document_storage",
+                            data={"file_path": str(file_path)},
+                            error=e
+                        )
+
             logger.debug(
                 "📁 Listed session documents",
-                session_id=session_id,
-                count=len(documents)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.storage.session_document_storage",
+                data={"session_id": session_id, "count": len(documents)}
             )
-            
+
             return documents
-            
+
         except Exception as e:
             logger.error(
                 "❌ Failed to list session documents",
-                session_id=session_id,
-                error=str(e)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.storage.session_document_storage",
+                data={"session_id": session_id},
+                error=e
             )
             return []
     
@@ -373,16 +417,23 @@ class SessionDocumentStorage:
             # Update statistics
             self.stats["cleanup_runs"] += 1
             self.stats["last_cleanup"] = current_time
-            
+
             logger.info(
                 "🧹 Cleanup completed",
-                **cleanup_stats
+                LogCategory.SERVICE_OPERATIONS,
+                "app.storage.session_document_storage",
+                data=cleanup_stats
             )
-            
+
             return cleanup_stats
-            
+
         except Exception as e:
-            logger.error(f"❌ Cleanup failed: {e}")
+            logger.error(
+                "❌ Cleanup failed",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.storage.session_document_storage",
+                error=e
+            )
             return {"error": str(e)}
     
     async def _cleanup_session_directory(
@@ -407,26 +458,54 @@ class SessionDocumentStorage:
                             
                             cleanup_stats["documents_deleted"] += 1
                             cleanup_stats["bytes_freed"] += file_size
-                            
-                            logger.debug(f"🗑️ Deleted expired document: {file_path}")
+
+                            logger.debug(
+                                f"🗑️ Deleted expired document: {file_path}",
+                                LogCategory.SERVICE_OPERATIONS,
+                                "app.storage.session_document_storage",
+                                data={"file_path": str(file_path)}
+                            )
                         else:
                             files_in_session += 1
-                            
+
                     except Exception as e:
                         cleanup_stats["errors"] += 1
-                        logger.warning(f"Failed to process {file_path}: {e}")
-            
+                        logger.warn(
+                            f"Failed to process {file_path}",
+                            LogCategory.SERVICE_OPERATIONS,
+                            "app.storage.session_document_storage",
+                            data={"file_path": str(file_path)},
+                            error=e
+                        )
+
             # Remove empty session directory
             if files_in_session == 0:
                 try:
                     shutil.rmtree(session_dir)
                     cleanup_stats["directories_deleted"] += 1
-                    logger.debug(f"🗑️ Deleted empty session directory: {session_dir}")
+                    logger.debug(
+                        f"🗑️ Deleted empty session directory: {session_dir}",
+                        LogCategory.SERVICE_OPERATIONS,
+                        "app.storage.session_document_storage",
+                        data={"session_dir": str(session_dir)}
+                    )
                 except Exception as e:
-                    logger.warning(f"Failed to delete session directory {session_dir}: {e}")
-                    
+                    logger.warn(
+                        f"Failed to delete session directory {session_dir}",
+                        LogCategory.SERVICE_OPERATIONS,
+                        "app.storage.session_document_storage",
+                        data={"session_dir": str(session_dir)},
+                        error=e
+                    )
+
         except Exception as e:
-            logger.error(f"Failed to cleanup session directory {session_dir}: {e}")
+            logger.error(
+                f"Failed to cleanup session directory {session_dir}",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.storage.session_document_storage",
+                data={"session_dir": str(session_dir)},
+                error=e
+            )
             cleanup_stats["errors"] += 1
     
     async def _cleanup_temp_directory(self, cleanup_stats: Dict[str, int]):
@@ -449,10 +528,21 @@ class SessionDocumentStorage:
                             
                     except Exception as e:
                         cleanup_stats["errors"] += 1
-                        logger.warning(f"Failed to cleanup temp file {temp_file}: {e}")
-                        
+                        logger.warn(
+                            f"Failed to cleanup temp file {temp_file}",
+                            LogCategory.SERVICE_OPERATIONS,
+                            "app.storage.session_document_storage",
+                            data={"temp_file": str(temp_file)},
+                            error=e
+                        )
+
         except Exception as e:
-            logger.error(f"Failed to cleanup temp directory: {e}")
+            logger.error(
+                "Failed to cleanup temp directory",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.storage.session_document_storage",
+                error=e
+            )
             cleanup_stats["errors"] += 1
     
     async def get_storage_stats(self) -> Dict[str, Any]:
@@ -483,9 +573,14 @@ class SessionDocumentStorage:
                 "usage_percentage": (total_size / self.config.storage.max_storage_size) * 100,
                 "cleanup_needed": total_size > (self.config.storage.max_storage_size * self.config.storage.cleanup_threshold)
             }
-            
+
         except Exception as e:
-            logger.error(f"Failed to get storage stats: {e}")
+            logger.error(
+                "Failed to get storage stats",
+                LogCategory.SERVICE_OPERATIONS,
+                "app.storage.session_document_storage",
+                error=e
+            )
             return {"error": str(e)}
     
     async def create_download_link(
@@ -522,23 +617,28 @@ class SessionDocumentStorage:
             
             # Set file permissions
             download_path.chmod(self.config.storage.file_permissions)
-            
+
             logger.info(
                 "🔗 Download link created",
-                download_id=download_id,
-                session_id=session_id,
-                document_id=document_id,
-                filename=filename
+                LogCategory.SERVICE_OPERATIONS,
+                "app.storage.session_document_storage",
+                data={
+                    "download_id": download_id,
+                    "session_id": session_id,
+                    "document_id": document_id,
+                    "filename": filename
+                }
             )
-            
+
             return download_id
-            
+
         except Exception as e:
             logger.error(
                 "❌ Failed to create download link",
-                session_id=session_id,
-                document_id=document_id,
-                error=str(e)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.storage.session_document_storage",
+                data={"session_id": session_id, "document_id": document_id},
+                error=e
             )
             raise SessionDocumentError(f"Failed to create download link: {str(e)}")
 
@@ -569,9 +669,13 @@ class SessionDocumentStorage:
 
             logger.info(
                 "📦 Document moved to permanent storage",
-                document_id=document_id,
-                session_id=session_id,
-                permanent_path=str(permanent_path)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.storage.session_document_storage",
+                data={
+                    "document_id": document_id,
+                    "session_id": session_id,
+                    "permanent_path": str(permanent_path)
+                }
             )
 
             return True
@@ -579,8 +683,10 @@ class SessionDocumentStorage:
         except Exception as e:
             logger.error(
                 "❌ Failed to move document to permanent storage",
-                document_id=document_id,
-                error=str(e)
+                LogCategory.SERVICE_OPERATIONS,
+                "app.storage.session_document_storage",
+                data={"document_id": document_id},
+                error=e
             )
             return False
 
@@ -588,4 +694,8 @@ class SessionDocumentStorage:
 # Global storage instance
 session_document_storage = SessionDocumentStorage()
 
-logger.info("🔥 Revolutionary Session Document Storage ready")
+logger.info(
+    "🔥 Revolutionary Session Document Storage ready",
+    LogCategory.SERVICE_OPERATIONS,
+    "app.storage.session_document_storage"
+)

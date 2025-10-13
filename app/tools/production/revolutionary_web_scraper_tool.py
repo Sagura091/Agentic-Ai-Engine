@@ -56,7 +56,6 @@ import socket
 from pathlib import Path
 
 # Core libraries
-import structlog
 from bs4 import BeautifulSoup, Comment
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
@@ -64,20 +63,30 @@ import aiohttp
 import httpx
 
 # Import required modules - Using new HTTPClient with connection pooling
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from app.http_client import HTTPClient, ClientConfig, ConnectionPoolConfig
-from app.tools.unified_tool_repository import ToolCategory
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum
 from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 # Advanced scraping libraries (with fallback handling)
 try:
     import undetected_chromedriver as uc
     UNDETECTED_CHROME_AVAILABLE = True
-    logger.info("✅ Undetected ChromeDriver available - ULTIMATE STEALTH MODE ENABLED")
+    logger.info(
+        "✅ Undetected ChromeDriver available - ULTIMATE STEALTH MODE ENABLED",
+        LogCategory.TOOL_OPERATIONS,
+        "RevolutionaryWebScraperTool"
+    )
 except ImportError:
     UNDETECTED_CHROME_AVAILABLE = False
-    logger.warning("⚠️ Undetected ChromeDriver not available - installing for maximum stealth")
+    logger.warn(
+        "⚠️ Undetected ChromeDriver not available - installing for maximum stealth",
+        LogCategory.TOOL_OPERATIONS,
+        "RevolutionaryWebScraperTool"
+    )
 
 try:
     from selenium import webdriver
@@ -88,51 +97,99 @@ try:
     from selenium.webdriver.firefox.options import Options as FirefoxOptions
     from selenium_stealth import stealth
     SELENIUM_AVAILABLE = True
-    logger.info("✅ Selenium with Stealth available - ADVANCED EVASION ENABLED")
+    logger.info(
+        "✅ Selenium with Stealth available - ADVANCED EVASION ENABLED",
+        LogCategory.TOOL_OPERATIONS,
+        "RevolutionaryWebScraperTool"
+    )
 except ImportError:
     SELENIUM_AVAILABLE = False
-    logger.warning("⚠️ Selenium not available - some advanced features disabled")
+    logger.warn(
+        "⚠️ Selenium not available - some advanced features disabled",
+        LogCategory.TOOL_OPERATIONS,
+        "RevolutionaryWebScraperTool"
+    )
 
 try:
     from requests_html import HTMLSession, AsyncHTMLSession
     REQUESTS_HTML_AVAILABLE = True
-    logger.info("✅ Requests-HTML available - JAVASCRIPT RENDERING ENABLED")
+    logger.info(
+        "✅ Requests-HTML available - JAVASCRIPT RENDERING ENABLED",
+        LogCategory.TOOL_OPERATIONS,
+        "RevolutionaryWebScraperTool"
+    )
 except ImportError:
     REQUESTS_HTML_AVAILABLE = False
-    logger.warning("⚠️ Requests-HTML not available - JavaScript rendering limited")
+    logger.warn(
+        "⚠️ Requests-HTML not available - JavaScript rendering limited",
+        LogCategory.TOOL_OPERATIONS,
+        "RevolutionaryWebScraperTool"
+    )
 
 try:
     import cloudscraper
     CLOUDSCRAPER_AVAILABLE = True
-    logger.info("✅ CloudScraper available - CLOUDFLARE BYPASS ENABLED")
+    logger.info(
+        "✅ CloudScraper available - CLOUDFLARE BYPASS ENABLED",
+        LogCategory.TOOL_OPERATIONS,
+        "RevolutionaryWebScraperTool"
+    )
 except ImportError:
     CLOUDSCRAPER_AVAILABLE = False
-    logger.warning("⚠️ CloudScraper not available - Cloudflare bypass limited")
+    logger.warn(
+        "⚠️ CloudScraper not available - Cloudflare bypass limited",
+        LogCategory.TOOL_OPERATIONS,
+        "RevolutionaryWebScraperTool"
+    )
 
 try:
     from fake_useragent import UserAgent
     FAKE_USERAGENT_AVAILABLE = True
-    logger.info("✅ Fake UserAgent available - ADVANCED HEADER ROTATION ENABLED")
+    logger.info(
+        "✅ Fake UserAgent available - ADVANCED HEADER ROTATION ENABLED",
+        LogCategory.TOOL_OPERATIONS,
+        "RevolutionaryWebScraperTool"
+    )
 except ImportError:
     FAKE_USERAGENT_AVAILABLE = False
-    logger.warning("⚠️ Fake UserAgent not available - using built-in headers")
+    logger.warn(
+        "⚠️ Fake UserAgent not available - using built-in headers",
+        LogCategory.TOOL_OPERATIONS,
+        "RevolutionaryWebScraperTool"
+    )
 
 try:
     from playwright.async_api import async_playwright, Browser, BrowserContext, Page
     PLAYWRIGHT_AVAILABLE = True
-    logger.info("✅ Playwright available - FULL BROWSER AUTOMATION ENABLED")
+    logger.info(
+        "✅ Playwright available - FULL BROWSER AUTOMATION ENABLED",
+        LogCategory.TOOL_OPERATIONS,
+        "RevolutionaryWebScraperTool"
+    )
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
-    logger.warning("⚠️ Playwright not available - browser automation limited")
+    logger.warn(
+        "⚠️ Playwright not available - browser automation limited",
+        LogCategory.TOOL_OPERATIONS,
+        "RevolutionaryWebScraperTool"
+    )
 
 try:
     import curl_cffi
     from curl_cffi import requests as cffi_requests
     CURL_CFFI_AVAILABLE = True
-    logger.info("✅ curl-cffi available - TLS FINGERPRINT SPOOFING ENABLED")
+    logger.info(
+        "✅ curl-cffi available - TLS FINGERPRINT SPOOFING ENABLED",
+        LogCategory.TOOL_OPERATIONS,
+        "RevolutionaryWebScraperTool"
+    )
 except ImportError:
     CURL_CFFI_AVAILABLE = False
-    logger.warning("⚠️ curl-cffi not available - TLS spoofing disabled")
+    logger.warn(
+        "⚠️ curl-cffi not available - TLS spoofing disabled",
+        LogCategory.TOOL_OPERATIONS,
+        "RevolutionaryWebScraperTool"
+    )
 
 try:
     import nodriver as nd

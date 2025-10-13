@@ -26,14 +26,15 @@ from enum import Enum
 import os
 import tempfile
 
-import structlog
 from pydantic import BaseModel, Field
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
 from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class VoiceType(str, Enum):
@@ -476,18 +477,27 @@ class AILyricVocalSynthesisTool(BaseTool, MetadataCapableToolMixin):
 
             logger.info(
                 "AI lyric and vocal synthesis completed",
-                style=lyric_style.value,
-                voice_type=voice_type.value,
-                language=language.value,
-                sections=len(lyrics_sections),
-                execution_time=execution_time
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.ai_lyric_vocal_synthesis_tool",
+                data={
+                    "style": lyric_style.value,
+                    "voice_type": voice_type.value,
+                    "language": language.value,
+                    "sections": len(lyrics_sections),
+                    "execution_time": execution_time
+                }
             )
 
             return json.dumps(result, indent=2)
 
         except Exception as e:
             error_msg = f"AI lyric and vocal synthesis failed: {str(e)}"
-            logger.error(error_msg, error=str(e))
+            logger.error(
+                "AI lyric and vocal synthesis failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.ai_lyric_vocal_synthesis_tool",
+                error=e
+            )
             return json.dumps({
                 'success': False,
                 'error': error_msg,
@@ -887,7 +897,12 @@ class AILyricVocalSynthesisTool(BaseTool, MetadataCapableToolMixin):
             }
         }
 
-        logger.info(f"Vocal synthesis completed: {vocal_performance.voice_type.value} voice")
+        logger.info(
+            f"Vocal synthesis completed: {vocal_performance.voice_type.value} voice",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.ai_lyric_vocal_synthesis_tool",
+            data={"voice_type": vocal_performance.voice_type.value}
+        )
         return synthesis_result
 
     def _generate_harmony_vocals(
@@ -1044,24 +1059,44 @@ class AILyricVocalSynthesisTool(BaseTool, MetadataCapableToolMixin):
         if music_result:
             main_file = os.path.join(temp_dir, f"ai_song_{timestamp}.wav")
             output_files['main_song'] = main_file
-            logger.info(f"Main song would be saved to: {main_file}")
+            logger.info(
+                f"Main song would be saved to: {main_file}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.ai_lyric_vocal_synthesis_tool",
+                data={"file": main_file}
+            )
 
         # Vocals only file
         if vocals_only:
             vocals_file = os.path.join(temp_dir, f"ai_vocals_{timestamp}.wav")
             output_files['vocals_only'] = vocals_file
-            logger.info(f"Vocals only would be saved to: {vocals_file}")
+            logger.info(
+                f"Vocals only would be saved to: {vocals_file}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.ai_lyric_vocal_synthesis_tool",
+                data={"file": vocals_file}
+            )
 
         # Karaoke version
         if karaoke:
             karaoke_file = os.path.join(temp_dir, f"ai_karaoke_{timestamp}.wav")
             output_files['karaoke'] = karaoke_file
-            logger.info(f"Karaoke version would be saved to: {karaoke_file}")
+            logger.info(
+                f"Karaoke version would be saved to: {karaoke_file}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.ai_lyric_vocal_synthesis_tool",
+                data={"file": karaoke_file}
+            )
 
         # Lyrics file
         lyrics_file = os.path.join(temp_dir, f"ai_lyrics_{timestamp}.txt")
         output_files['lyrics'] = lyrics_file
-        logger.info(f"Lyrics would be saved to: {lyrics_file}")
+        logger.info(
+            f"Lyrics would be saved to: {lyrics_file}",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.ai_lyric_vocal_synthesis_tool",
+            data={"file": lyrics_file}
+        )
 
         # Metadata file
         metadata_file = os.path.join(temp_dir, f"ai_song_metadata_{timestamp}.json")
@@ -1179,7 +1214,7 @@ AI_LYRIC_VOCAL_SYNTHESIS_TOOL_METADATA = ToolMetadata(
     tool_id="ai_lyric_vocal_synthesis",
     name="AI Lyric & Vocal Synthesis Tool",
     description="Revolutionary AI tool that creates any lyric sound and makes complete music with vocals, supporting multiple languages, voice types, and musical styles",
-    category=ToolCategory.PRODUCTIVITY,  # Changed from ANALYSIS to PRODUCTIVITY
+    category=ToolCategoryEnum.PRODUCTIVITY,  # Changed from ANALYSIS to PRODUCTIVITY
     access_level=ToolAccessLevel.PUBLIC,
     requires_rag=False,
     use_cases={

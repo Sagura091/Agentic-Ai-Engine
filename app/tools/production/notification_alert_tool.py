@@ -20,14 +20,14 @@ from email.mime.base import MIMEBase
 from email import encoders
 import re
 
-import structlog
 from pydantic import BaseModel, Field, validator, EmailStr
 from langchain_core.tools import BaseTool
 
+from app.backend_logging import get_logger
 from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
 from app.tools.metadata import MetadataCapableToolMixin, ToolMetadata as MetadataToolMetadata, ParameterSchema, ParameterType, UsagePattern, UsagePatternType, ConfidenceModifier, ConfidenceModifierType
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class NotificationChannel(str, Enum):

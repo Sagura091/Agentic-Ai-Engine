@@ -20,20 +20,14 @@ from pathlib import Path
 from dataclasses import dataclass
 from enum import Enum
 
-import structlog
 from pydantic import BaseModel, Field, validator
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
 
-# Import backend logging system
-from app.backend_logging.backend_logger import get_logger
-from app.backend_logging.models import LogCategory, LogLevel
-
-# Legacy structlog for backward compatibility
-logger = structlog.get_logger(__name__)
-# Production backend logger
-backend_logger = get_logger()
+logger = get_logger()
 
 
 class FileOperation(str, Enum):
@@ -165,7 +159,12 @@ class FileSystemTool(BaseTool):
             'image/*', 'audio/*', 'video/*'
         }
 
-        logger.info("File System Tool initialized", sandbox_root=str(self._sandbox_root))
+        logger.info(
+            "File System Tool initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "FileSystemTool",
+            data={"sandbox_root": str(self._sandbox_root)}
+        )
 
     def _get_relative_path(self, path: Path) -> str:
         """Get relative path from sandbox root safely."""
@@ -194,7 +193,13 @@ class FileSystemTool(BaseTool):
 
             return safe_path
         except Exception as e:
-            logger.error("Path validation failed", path=path, error=str(e))
+            logger.error(
+                "Path validation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={"path": path},
+                error=e
+            )
             raise ValueError(f"Invalid path: {path}")
 
     def _validate_file_size(self, path: Path, max_size: int) -> bool:
@@ -222,7 +227,12 @@ class FileSystemTool(BaseTool):
             elif mime_type == allowed:
                 return True
         
-        logger.warning("File type not allowed", path=str(path), mime_type=mime_type)
+        logger.warn(
+            "File type not allowed",
+            LogCategory.TOOL_OPERATIONS,
+            "FileSystemTool",
+            data={"path": str(path), "mime_type": mime_type}
+        )
         return False
 
     def _calculate_checksum(self, path: Path) -> str:
@@ -264,11 +274,21 @@ class FileSystemTool(BaseTool):
                 # Create file with content
                 with open(path, 'w', encoding='utf-8') as f:
                     f.write(content)
-                logger.info("File created", path=str(path), size=len(content))
+                logger.info(
+                    "File created",
+                    LogCategory.TOOL_OPERATIONS,
+                    "FileSystemTool",
+                    data={"path": str(path), "size": len(content)}
+                )
             else:
                 # Create directory
                 path.mkdir(exist_ok=True)
-                logger.info("Directory created", path=str(path))
+                logger.info(
+                    "Directory created",
+                    LogCategory.TOOL_OPERATIONS,
+                    "FileSystemTool",
+                    data={"path": str(path)}
+                )
             
             return {
                 "success": True,
@@ -278,7 +298,13 @@ class FileSystemTool(BaseTool):
             }
             
         except Exception as e:
-            logger.error("Create operation failed", path=str(path), error=str(e))
+            logger.error(
+                "Create operation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={"path": str(path)},
+                error=e
+            )
             raise
 
     async def _read_file(self, path: Path) -> Dict[str, Any]:
@@ -296,7 +322,12 @@ class FileSystemTool(BaseTool):
             with open(path, 'r', encoding='utf-8') as f:
                 content = f.read()
             
-            logger.info("File read", path=str(path), size=len(content))
+            logger.info(
+                "File read",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={"path": str(path), "size": len(content)}
+            )
             
             return {
                 "success": True,
@@ -307,7 +338,13 @@ class FileSystemTool(BaseTool):
             }
             
         except Exception as e:
-            logger.error("Read operation failed", path=str(path), error=str(e))
+            logger.error(
+                "Read operation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={"path": str(path)},
+                error=e
+            )
             raise
 
     async def _write_file(self, path: Path, content: str, overwrite: bool = False) -> Dict[str, Any]:
@@ -326,7 +363,12 @@ class FileSystemTool(BaseTool):
             with open(path, 'w', encoding='utf-8') as f:
                 f.write(content)
 
-            logger.info("File written", path=str(path), size=len(content))
+            logger.info(
+                "File written",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={"path": str(path), "size": len(content)}
+            )
 
             return {
                 "success": True,
@@ -337,7 +379,13 @@ class FileSystemTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error("Write operation failed", path=str(path), error=str(e))
+            logger.error(
+                "Write operation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={"path": str(path)},
+                error=e
+            )
             raise
 
     async def _delete_file_or_directory(self, path: Path, recursive: bool = False) -> Dict[str, Any]:
@@ -352,7 +400,12 @@ class FileSystemTool(BaseTool):
                 file_info = self._get_file_info(path)
                 path.unlink()
                 deleted_items.append(file_info.__dict__)
-                logger.info("File deleted", path=str(path))
+                logger.info(
+                    "File deleted",
+                    LogCategory.TOOL_OPERATIONS,
+                    "FileSystemTool",
+                    data={"path": str(path)}
+                )
             elif path.is_dir():
                 if recursive:
                     # Collect info before deletion
@@ -360,13 +413,23 @@ class FileSystemTool(BaseTool):
                         if item.exists():
                             deleted_items.append(self._get_file_info(item).__dict__)
                     shutil.rmtree(path)
-                    logger.info("Directory tree deleted", path=str(path), items=len(deleted_items))
+                    logger.info(
+                        "Directory tree deleted",
+                        LogCategory.TOOL_OPERATIONS,
+                        "FileSystemTool",
+                        data={"path": str(path), "items": len(deleted_items)}
+                    )
                 else:
                     if any(path.iterdir()):
                         raise OSError(f"Directory not empty (use recursive=True): {path}")
                     path.rmdir()
                     deleted_items.append(self._get_file_info(path).__dict__)
-                    logger.info("Empty directory deleted", path=str(path))
+                    logger.info(
+                        "Empty directory deleted",
+                        LogCategory.TOOL_OPERATIONS,
+                        "FileSystemTool",
+                        data={"path": str(path)}
+                    )
 
             return {
                 "success": True,
@@ -377,7 +440,13 @@ class FileSystemTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error("Delete operation failed", path=str(path), error=str(e))
+            logger.error(
+                "Delete operation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={"path": str(path)},
+                error=e
+            )
             raise
 
     async def _copy_file_or_directory(self, source: Path, destination: Path,
@@ -398,7 +467,12 @@ class FileSystemTool(BaseTool):
             if source.is_file():
                 shutil.copy2(source, destination)
                 copied_items.append(self._get_file_info(destination).__dict__)
-                logger.info("File copied", source=str(source), destination=str(destination))
+                logger.info(
+                    "File copied",
+                    LogCategory.TOOL_OPERATIONS,
+                    "FileSystemTool",
+                    data={"source": str(source), "destination": str(destination)}
+                )
             elif source.is_dir():
                 if destination.exists():
                     shutil.rmtree(destination)
@@ -409,8 +483,16 @@ class FileSystemTool(BaseTool):
                     if item.exists():
                         copied_items.append(self._get_file_info(item).__dict__)
 
-                logger.info("Directory copied", source=str(source), destination=str(destination),
-                          items=len(copied_items))
+                logger.info(
+                    "Directory copied",
+                    LogCategory.TOOL_OPERATIONS,
+                    "FileSystemTool",
+                    data={
+                        "source": str(source),
+                        "destination": str(destination),
+                        "items": len(copied_items)
+                    }
+                )
 
             return {
                 "success": True,
@@ -422,8 +504,13 @@ class FileSystemTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error("Copy operation failed", source=str(source),
-                        destination=str(destination), error=str(e))
+            logger.error(
+                "Copy operation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={"source": str(source), "destination": str(destination)},
+                error=e
+            )
             raise
 
     async def _move_file_or_directory(self, source: Path, destination: Path,
@@ -450,7 +537,12 @@ class FileSystemTool(BaseTool):
 
             shutil.move(str(source), str(destination))
 
-            logger.info("Item moved", source=str(source), destination=str(destination))
+            logger.info(
+                "Item moved",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={"source": str(source), "destination": str(destination)}
+            )
 
             return {
                 "success": True,
@@ -462,8 +554,13 @@ class FileSystemTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error("Move operation failed", source=str(source),
-                        destination=str(destination), error=str(e))
+            logger.error(
+                "Move operation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={"source": str(source), "destination": str(destination)},
+                error=e
+            )
             raise
 
     async def _compress_files(self, path: Path, destination: Path,
@@ -509,8 +606,17 @@ class FileSystemTool(BaseTool):
                             if item.exists():
                                 compressed_items.append(self._get_file_info(item).__dict__)
 
-            logger.info("Files compressed", source=str(path), destination=str(destination),
-                       format=compression_format, items=len(compressed_items))
+            logger.info(
+                "Files compressed",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={
+                    "source": str(path),
+                    "destination": str(destination),
+                    "format": compression_format,
+                    "items": len(compressed_items)
+                }
+            )
 
             return {
                 "success": True,
@@ -524,8 +630,13 @@ class FileSystemTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error("Compression failed", source=str(path),
-                        destination=str(destination), error=str(e))
+            logger.error(
+                "Compression failed",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={"source": str(path), "destination": str(destination)},
+                error=e
+            )
             raise
 
     async def _extract_files(self, archive_path: Path, destination: Path,
@@ -563,8 +674,16 @@ class FileSystemTool(BaseTool):
             else:
                 raise ValueError(f"Unsupported archive format: {archive_path.suffix}")
 
-            logger.info("Files extracted", archive=str(archive_path),
-                       destination=str(destination), items=len(extracted_items))
+            logger.info(
+                "Files extracted",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={
+                    "archive": str(archive_path),
+                    "destination": str(destination),
+                    "items": len(extracted_items)
+                }
+            )
 
             return {
                 "success": True,
@@ -576,8 +695,13 @@ class FileSystemTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error("Extraction failed", archive=str(archive_path),
-                        destination=str(destination), error=str(e))
+            logger.error(
+                "Extraction failed",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={"archive": str(archive_path), "destination": str(destination)},
+                error=e
+            )
             raise
 
     async def _search_files(self, path: Path, pattern: str, recursive: bool = True,
@@ -608,7 +732,12 @@ class FileSystemTool(BaseTool):
                             search_directory(item, current_depth + 1)
 
                 except PermissionError:
-                    logger.warning("Permission denied", path=str(dir_path))
+                    logger.warn(
+                        "Permission denied",
+                        LogCategory.TOOL_OPERATIONS,
+                        "FileSystemTool",
+                        data={"path": str(dir_path)}
+                    )
 
             if path.is_file():
                 if regex.search(path.name):
@@ -616,8 +745,12 @@ class FileSystemTool(BaseTool):
             else:
                 search_directory(path)
 
-            logger.info("File search completed", path=str(path), pattern=pattern,
-                       found=len(found_items))
+            logger.info(
+                "File search completed",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={"path": str(path), "pattern": pattern, "found": len(found_items)}
+            )
 
             return {
                 "success": True,
@@ -629,7 +762,13 @@ class FileSystemTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error("Search failed", path=str(path), pattern=pattern, error=str(e))
+            logger.error(
+                "Search failed",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={"path": str(path), "pattern": pattern},
+                error=e
+            )
             raise
 
     async def _list_directory(self, path: Path, recursive: bool = False,
@@ -664,7 +803,12 @@ class FileSystemTool(BaseTool):
                             list_directory_recursive(item, current_depth + 1)
 
                 except PermissionError:
-                    logger.warning("Permission denied", path=str(dir_path))
+                    logger.warn(
+                        "Permission denied",
+                        LogCategory.TOOL_OPERATIONS,
+                        "FileSystemTool",
+                        data={"path": str(dir_path)}
+                    )
 
             list_directory_recursive(path)
 
@@ -672,8 +816,12 @@ class FileSystemTool(BaseTool):
             files = [item for item in items if not item['is_directory']]
             directories = [item for item in items if item['is_directory']]
 
-            logger.info("Directory listed", path=str(path), files=len(files),
-                       directories=len(directories))
+            logger.info(
+                "Directory listed",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={"path": str(path), "files": len(files), "directories": len(directories)}
+            )
 
             return {
                 "success": True,
@@ -687,7 +835,13 @@ class FileSystemTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error("List operation failed", path=str(path), error=str(e))
+            logger.error(
+                "List operation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={"path": str(path)},
+                error=e
+            )
             raise
 
     async def _get_file_info_operation(self, path: Path) -> Dict[str, Any]:
@@ -709,7 +863,12 @@ class FileSystemTool(BaseTool):
                     "extension": path.suffix.lower() if path.suffix else None
                 })
 
-            logger.info("File info retrieved", path=str(path))
+            logger.info(
+                "File info retrieved",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={"path": str(path)}
+            )
 
             return {
                 "success": True,
@@ -719,7 +878,13 @@ class FileSystemTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error("Info operation failed", path=str(path), error=str(e))
+            logger.error(
+                "Info operation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "FileSystemTool",
+                data={"path": str(path)},
+                error=e
+            )
             raise
 
     def _update_metrics(self, success: bool, execution_time: float):
@@ -746,7 +911,7 @@ class FileSystemTool(BaseTool):
             safe_path = self._get_safe_path(input_data.path)
 
             # Backend logging for tool operations
-            backend_logger.info(
+            logger.info(
                 f"File system operation started: {input_data.operation.value}",
                 LogCategory.TOOL_OPERATIONS,
                 "FileSystemTool",
@@ -835,14 +1000,7 @@ class FileSystemTool(BaseTool):
                 }
             })
 
-            logger.info("File system operation completed",
-                       operation=input_data.operation,
-                       path=input_data.path,
-                       execution_time=execution_time,
-                       success=True)
-
-            # Backend logging for successful operations
-            backend_logger.info(
+            logger.info(
                 f"File system operation completed: {input_data.operation.value}",
                 LogCategory.TOOL_OPERATIONS,
                 "FileSystemTool",
@@ -867,14 +1025,7 @@ class FileSystemTool(BaseTool):
                 "timestamp": datetime.now().isoformat()
             }
 
-            logger.error("File system operation failed",
-                        operation=kwargs.get('operation'),
-                        path=kwargs.get('path'),
-                        error=str(e),
-                        execution_time=execution_time)
-
-            # Backend logging for errors
-            backend_logger.error(
+            logger.error(
                 f"File system operation failed: {kwargs.get('operation', 'unknown')}",
                 LogCategory.TOOL_OPERATIONS,
                 "FileSystemTool",
@@ -901,7 +1052,7 @@ FILE_SYSTEM_TOOL_METADATA = ToolMetadata(
     tool_id="file_system_v1",
     name="file_system",
     description="Revolutionary file system operations with enterprise security - Create, read, write, delete files and directories with advanced compression, search, and security features",
-    category=ToolCategory.UTILITY,
+    category=ToolCategoryEnum.UTILITY,
     access_level=ToolAccessLevel.PUBLIC,
     requires_rag=False,
     use_cases={"file_management", "data_processing", "backup_operations", "content_creation", "automation"}

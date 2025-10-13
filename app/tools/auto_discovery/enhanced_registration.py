@@ -42,15 +42,16 @@ from pathlib import Path
 import json
 import hashlib
 
-import structlog
 from pydantic import BaseModel, Field
 from langchain_core.tools import BaseTool
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from app.tools.unified_tool_repository import UnifiedToolRepository, ToolMetadata
 from app.tools.auto_discovery.tool_scanner import ToolInfo, DiscoveryStatus
 from app.tools.testing.universal_tool_tester import UniversalToolTester, ToolTestResult
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class RegistrationStatus(Enum):
@@ -129,60 +130,83 @@ class EnhancedRegistrationSystem:
             "performance_threshold": 5.0,  # seconds
             "memory_threshold": 100.0      # MB
         }
-        
-        logger.info("🚀 Enhanced Registration System initialized")
-    
+
+        logger.info(
+            "🚀 Enhanced Registration System initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.enhanced_registration"
+        )
+
     async def register_tools_batch(self, tools: List[ToolInfo]) -> Dict[str, RegistrationStatus]:
         """
         Register multiple tools with enhanced dependency resolution.
-        
+
         Args:
             tools: List of tools to register
-            
+
         Returns:
             Registration status for each tool
         """
-        logger.info(f"🚀 Starting batch registration of {len(tools)} tools...")
-        
+        logger.info(
+            f"🚀 Starting batch registration of {len(tools)} tools...",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.enhanced_registration",
+            data={"tools_count": len(tools)}
+        )
+
         # Add to registration queue
         self.registration_queue.extend(tools)
-        
+
         # Phase 1: Dependency Analysis
         await self._analyze_dependencies(tools)
-        
+
         # Phase 2: Conflict Detection
         conflicts = await self._detect_conflicts(tools)
-        
+
         # Phase 3: Conflict Resolution
         if conflicts:
             await self._resolve_conflicts(conflicts)
-        
+
         # Phase 4: Dependency Resolution
         await self._resolve_dependencies(tools)
-        
+
         # Phase 5: Registration
         results = await self._register_tools_with_validation(tools)
-        
+
         # Phase 6: Health Checks
         await self._perform_health_checks(tools)
-        
+
         # Phase 7: Performance Optimization
         await self._optimize_registered_tools(tools)
-        
-        logger.info(f"🚀 Batch registration complete: {len(results)} tools processed")
+
+        logger.info(
+            f"🚀 Batch registration complete: {len(results)} tools processed",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.enhanced_registration",
+            data={"results_count": len(results)}
+        )
         return results
-    
+
     async def _analyze_dependencies(self, tools: List[ToolInfo]):
         """Analyze dependencies for all tools."""
-        logger.info("🔍 Analyzing tool dependencies...")
-        
+        logger.info(
+            "🔍 Analyzing tool dependencies...",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.enhanced_registration"
+        )
+
         for tool_info in tools:
             for dep_name in tool_info.dependencies:
                 if dep_name not in self.dependency_cache:
                     dep_info = await self._analyze_dependency(dep_name)
                     self.dependency_cache[dep_name] = dep_info
-        
-        logger.info(f"🔍 Dependency analysis complete: {len(self.dependency_cache)} dependencies analyzed")
+
+        logger.info(
+            f"🔍 Dependency analysis complete: {len(self.dependency_cache)} dependencies analyzed",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.enhanced_registration",
+            data={"dependencies_count": len(self.dependency_cache)}
+        )
     
     async def _analyze_dependency(self, dependency_name: str) -> DependencyInfo:
         """Analyze a single dependency."""
@@ -224,18 +248,33 @@ class EnhancedRegistrationSystem:
                 dep_info.install_command = f"pip install {dependency_name}"
                 
             except subprocess.TimeoutExpired:
-                logger.warning(f"Dependency check timeout for {dependency_name}")
+                logger.warn(
+                    f"Dependency check timeout for {dependency_name}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.auto_discovery.enhanced_registration",
+                    data={"dependency_name": dependency_name}
+                )
                 dep_info.available = False
-            
+
         except Exception as e:
-            logger.error(f"Failed to analyze dependency {dependency_name}: {str(e)}")
+            logger.error(
+                f"Failed to analyze dependency {dependency_name}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.auto_discovery.enhanced_registration",
+                data={"dependency_name": dependency_name},
+                error=e
+            )
             dep_info.available = False
-        
+
         return dep_info
-    
+
     async def _detect_conflicts(self, tools: List[ToolInfo]) -> List[RegistrationConflict]:
         """Detect registration conflicts."""
-        logger.info("🔍 Detecting registration conflicts...")
+        logger.info(
+            "🔍 Detecting registration conflicts...",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.enhanced_registration"
+        )
         
         conflicts = []
         
@@ -282,82 +321,150 @@ class EnhancedRegistrationSystem:
                     ))
         
         self.conflicts.extend(conflicts)
-        logger.info(f"🔍 Conflict detection complete: {len(conflicts)} conflicts found")
+        logger.info(
+            f"🔍 Conflict detection complete: {len(conflicts)} conflicts found",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.enhanced_registration",
+            data={"conflicts_count": len(conflicts)}
+        )
         return conflicts
-    
+
     async def _resolve_conflicts(self, conflicts: List[RegistrationConflict]):
         """Resolve registration conflicts."""
-        logger.info(f"🔧 Resolving {len(conflicts)} conflicts...")
-        
+        logger.info(
+            f"🔧 Resolving {len(conflicts)} conflicts...",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.enhanced_registration",
+            data={"conflicts_count": len(conflicts)}
+        )
+
         for conflict in conflicts:
             try:
                 if conflict.conflict_type == ConflictType.DUPLICATE_ID:
                     # For duplicate IDs, skip the second registration
-                    logger.warning(f"Skipping duplicate tool registration: {conflict.tool_id}")
-                    
+                    logger.warn(
+                        f"Skipping duplicate tool registration: {conflict.tool_id}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.auto_discovery.enhanced_registration",
+                        data={"tool_id": conflict.tool_id}
+                    )
+
                 elif conflict.conflict_type == ConflictType.DEPENDENCY_CONFLICT:
                     # Try to install missing dependencies
                     if self.config["auto_install_dependencies"]:
                         await self._install_dependency(conflict.description.split(": ")[1])
-                    
+
             except Exception as e:
-                logger.error(f"Failed to resolve conflict for {conflict.tool_id}: {str(e)}")
-        
-        logger.info("🔧 Conflict resolution complete")
-    
+                logger.error(
+                    f"Failed to resolve conflict for {conflict.tool_id}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.auto_discovery.enhanced_registration",
+                    data={"tool_id": conflict.tool_id},
+                    error=e
+                )
+
+        logger.info(
+            "🔧 Conflict resolution complete",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.enhanced_registration"
+        )
+
     async def _install_dependency(self, dependency_name: str) -> bool:
         """Install a missing dependency."""
         try:
-            logger.info(f"📦 Installing dependency: {dependency_name}")
-            
+            logger.info(
+                f"📦 Installing dependency: {dependency_name}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.auto_discovery.enhanced_registration",
+                data={"dependency_name": dependency_name}
+            )
+
             result = subprocess.run(
                 [sys.executable, "-m", "pip", "install", dependency_name],
                 capture_output=True,
                 text=True,
                 timeout=self.config["dependency_timeout"]
             )
-            
+
             if result.returncode == 0:
-                logger.info(f"✅ Successfully installed: {dependency_name}")
+                logger.info(
+                    f"✅ Successfully installed: {dependency_name}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.auto_discovery.enhanced_registration",
+                    data={"dependency_name": dependency_name}
+                )
                 # Update cache
                 if dependency_name in self.dependency_cache:
                     self.dependency_cache[dependency_name].installed = True
                 return True
             else:
-                logger.error(f"❌ Failed to install {dependency_name}: {result.stderr}")
+                logger.error(
+                    f"❌ Failed to install {dependency_name}: {result.stderr}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.auto_discovery.enhanced_registration",
+                    data={"dependency_name": dependency_name, "stderr": result.stderr}
+                )
                 return False
-                
+
         except subprocess.TimeoutExpired:
-            logger.error(f"❌ Installation timeout for {dependency_name}")
+            logger.error(
+                f"❌ Installation timeout for {dependency_name}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.auto_discovery.enhanced_registration",
+                data={"dependency_name": dependency_name}
+            )
             return False
         except Exception as e:
-            logger.error(f"❌ Installation error for {dependency_name}: {str(e)}")
+            logger.error(
+                f"❌ Installation error for {dependency_name}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.auto_discovery.enhanced_registration",
+                data={"dependency_name": dependency_name},
+                error=e
+            )
             return False
-    
+
     async def _resolve_dependencies(self, tools: List[ToolInfo]):
         """Resolve dependencies for all tools."""
-        logger.info("📦 Resolving tool dependencies...")
-        
+        logger.info(
+            "📦 Resolving tool dependencies...",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.enhanced_registration"
+        )
+
         missing_deps = []
-        
+
         for tool_info in tools:
             for dep_name in tool_info.dependencies:
                 dep_info = self.dependency_cache.get(dep_name)
                 if dep_info and not dep_info.installed and dep_info.available:
                     missing_deps.append(dep_name)
-        
+
         # Install missing dependencies
         if missing_deps and self.config["auto_install_dependencies"]:
-            logger.info(f"📦 Installing {len(missing_deps)} missing dependencies...")
-            
+            logger.info(
+                f"📦 Installing {len(missing_deps)} missing dependencies...",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.auto_discovery.enhanced_registration",
+                data={"missing_deps_count": len(missing_deps)}
+            )
+
             for dep_name in missing_deps:
                 await self._install_dependency(dep_name)
-        
-        logger.info("📦 Dependency resolution complete")
+
+        logger.info(
+            "📦 Dependency resolution complete",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.enhanced_registration"
+        )
 
     async def _register_tools_with_validation(self, tools: List[ToolInfo]) -> Dict[str, RegistrationStatus]:
         """Register tools with comprehensive validation."""
-        logger.info("📝 Registering tools with validation...")
+        logger.info(
+            "📝 Registering tools with validation...",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.enhanced_registration"
+        )
 
         results = {}
 
@@ -390,7 +497,12 @@ class EnhancedRegistrationSystem:
                     await self.tool_repository.register_tool(tool_instance, tool_info.metadata)
                     results[tool_info.tool_id] = RegistrationStatus.REGISTERED
                     self.registered_tools[tool_info.tool_id] = tool_info
-                    logger.info(f"✅ Registered tool: {tool_info.tool_id}")
+                    logger.info(
+                        f"✅ Registered tool: {tool_info.tool_id}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.auto_discovery.enhanced_registration",
+                        data={"tool_id": tool_info.tool_id}
+                    )
                 else:
                     results[tool_info.tool_id] = RegistrationStatus.FAILED
                     self.failed_registrations[tool_info.tool_id] = "Missing metadata"
@@ -398,9 +510,21 @@ class EnhancedRegistrationSystem:
             except Exception as e:
                 results[tool_info.tool_id] = RegistrationStatus.FAILED
                 self.failed_registrations[tool_info.tool_id] = f"Registration error: {str(e)}"
-                logger.error(f"Failed to register tool {tool_info.tool_id}: {str(e)}")
+                logger.error(
+                    f"Failed to register tool {tool_info.tool_id}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.auto_discovery.enhanced_registration",
+                    data={"tool_id": tool_info.tool_id},
+                    error=e
+                )
 
-        logger.info(f"📝 Registration complete: {len([r for r in results.values() if r == RegistrationStatus.REGISTERED])} successful")
+        successful_count = len([r for r in results.values() if r == RegistrationStatus.REGISTERED])
+        logger.info(
+            f"📝 Registration complete: {successful_count} successful",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.enhanced_registration",
+            data={"successful_count": successful_count}
+        )
         return results
 
     async def _load_tool_instance(self, tool_info: ToolInfo) -> Optional[BaseTool]:
@@ -431,12 +555,22 @@ class EnhancedRegistrationSystem:
             return None
 
         except Exception as e:
-            logger.error(f"Failed to load tool instance for {tool_info.tool_id}: {str(e)}")
+            logger.error(
+                f"Failed to load tool instance for {tool_info.tool_id}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.auto_discovery.enhanced_registration",
+                data={"tool_id": tool_info.tool_id},
+                error=e
+            )
             return None
 
     async def _perform_health_checks(self, tools: List[ToolInfo]):
         """Perform health checks on registered tools."""
-        logger.info("🏥 Performing health checks...")
+        logger.info(
+            "🏥 Performing health checks...",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.enhanced_registration"
+        )
 
         for tool_info in tools:
             if tool_info.tool_id in self.registered_tools:
@@ -445,12 +579,27 @@ class EnhancedRegistrationSystem:
                     self.health_status[tool_info.tool_id] = health_result
 
                     if health_result.status != "healthy":
-                        logger.warning(f"Health check failed for {tool_info.tool_id}: {health_result.error_message}")
+                        logger.warn(
+                            f"Health check failed for {tool_info.tool_id}: {health_result.error_message}",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.auto_discovery.enhanced_registration",
+                            data={"tool_id": tool_info.tool_id, "error_message": health_result.error_message}
+                        )
 
                 except Exception as e:
-                    logger.error(f"Health check error for {tool_info.tool_id}: {str(e)}")
+                    logger.error(
+                        f"Health check error for {tool_info.tool_id}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.auto_discovery.enhanced_registration",
+                        data={"tool_id": tool_info.tool_id},
+                        error=e
+                    )
 
-        logger.info("🏥 Health checks complete")
+        logger.info(
+            "🏥 Health checks complete",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.enhanced_registration"
+        )
 
     async def _health_check_tool(self, tool_info: ToolInfo) -> HealthCheckResult:
         """Perform health check on a single tool."""
@@ -532,7 +681,11 @@ class EnhancedRegistrationSystem:
 
     async def _optimize_registered_tools(self, tools: List[ToolInfo]):
         """Optimize registered tools for performance."""
-        logger.info("⚡ Optimizing registered tools...")
+        logger.info(
+            "⚡ Optimizing registered tools...",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.enhanced_registration"
+        )
 
         for tool_info in tools:
             if tool_info.tool_id in self.registered_tools:
@@ -541,13 +694,28 @@ class EnhancedRegistrationSystem:
                     health_result = self.health_status.get(tool_info.tool_id)
 
                     if health_result and health_result.response_time > self.config["performance_threshold"]:
-                        logger.info(f"⚡ Tool {tool_info.tool_id} needs performance optimization")
+                        logger.info(
+                            f"⚡ Tool {tool_info.tool_id} needs performance optimization",
+                            LogCategory.TOOL_OPERATIONS,
+                            "app.tools.auto_discovery.enhanced_registration",
+                            data={"tool_id": tool_info.tool_id, "response_time": health_result.response_time}
+                        )
                         # TODO: Implement specific optimization strategies
 
                 except Exception as e:
-                    logger.error(f"Optimization error for {tool_info.tool_id}: {str(e)}")
+                    logger.error(
+                        f"Optimization error for {tool_info.tool_id}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.auto_discovery.enhanced_registration",
+                        data={"tool_id": tool_info.tool_id},
+                        error=e
+                    )
 
-        logger.info("⚡ Tool optimization complete")
+        logger.info(
+            "⚡ Tool optimization complete",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.auto_discovery.enhanced_registration"
+        )
 
     def get_registration_report(self) -> Dict[str, Any]:
         """Generate comprehensive registration report."""

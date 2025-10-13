@@ -22,7 +22,6 @@ import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple
 import asyncio
-import structlog
 from pathlib import Path
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
@@ -33,7 +32,10 @@ warnings.filterwarnings('ignore')
 
 from langchain_core.tools import BaseTool
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+
+logger = get_logger()
 
 
 class AdvancedStockTradingTool(BaseTool):
@@ -118,9 +120,13 @@ class AdvancedStockTradingTool(BaseTool):
             'take_profit_pct': 0.15,   # 15% take profit
             'max_portfolio_risk': 0.02 # 2% max portfolio risk per trade
         }
-        
-        logger.info("Advanced Stock Trading Tool initialized")
-    
+
+        logger.info(
+            "Advanced Stock Trading Tool initialized",
+            LogCategory.TOOL_OPERATIONS,
+            "app.tools.production.advanced_stock_trading_tool"
+        )
+
     def _run(self, **kwargs) -> str:
         """
         LangChain BaseTool required method - synchronous wrapper for execute.
@@ -131,19 +137,24 @@ class AdvancedStockTradingTool(BaseTool):
             result = asyncio.run(self.execute(**kwargs))
             return str(result)
         except Exception as e:
-            logger.error(f"Error in _run: {str(e)}")
+            logger.error(
+                "Error in _run",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool",
+                error=e
+            )
             return f"Error: {str(e)}"
 
     async def execute(self, **kwargs) -> Dict[str, Any]:
         """
         Execute stock trading analysis and decision-making.
-        
+
         Args:
             action: Action to perform (analyze, portfolio, opportunities, report)
             symbols: List of stock symbols to analyze
             portfolio_value: Current portfolio value
             **kwargs: Additional parameters
-            
+
         Returns:
             Dict containing analysis results and recommendations
         """
@@ -151,9 +162,14 @@ class AdvancedStockTradingTool(BaseTool):
             action = kwargs.get('action', 'analyze')
             symbols = kwargs.get('symbols', list(self.target_stocks.keys()))
             portfolio_value = kwargs.get('portfolio_value', 100000)  # Default $100k
-            
-            logger.info(f"Executing stock trading action: {action}")
-            
+
+            logger.info(
+                f"Executing stock trading action: {action}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool",
+                data={"action": action}
+            )
+
             if action == 'analyze':
                 return await self._analyze_stocks(symbols)
             elif action == 'portfolio':
@@ -170,9 +186,14 @@ class AdvancedStockTradingTool(BaseTool):
                     'error': f'Unknown action: {action}',
                     'available_actions': ['analyze', 'portfolio', 'opportunities', 'report', 'decision']
                 }
-                
+
         except Exception as e:
-            logger.error(f"Stock trading tool execution failed: {str(e)}")
+            logger.error(
+                "Stock trading tool execution failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool",
+                error=e
+            )
             return {
                 'success': False,
                 'error': str(e),
@@ -183,17 +204,27 @@ class AdvancedStockTradingTool(BaseTool):
         """Perform comprehensive stock analysis."""
         try:
             analysis_results = {}
-            
+
             for symbol in symbols:
-                logger.info(f"Analyzing stock: {symbol}")
-                
+                logger.info(
+                    f"Analyzing stock: {symbol}",
+                    LogCategory.TOOL_OPERATIONS,
+                    "app.tools.production.advanced_stock_trading_tool",
+                    data={"symbol": symbol}
+                )
+
                 # Get stock data
                 stock = yf.Ticker(symbol)
                 hist = stock.history(period="1y")
                 info = stock.info
-                
+
                 if hist.empty:
-                    logger.warning(f"No data available for {symbol}")
+                    logger.warn(
+                        f"No data available for {symbol}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.advanced_stock_trading_tool",
+                        data={"symbol": symbol}
+                    )
                     continue
                 
                 # Calculate technical indicators
@@ -231,9 +262,14 @@ class AdvancedStockTradingTool(BaseTool):
                 'summary': self._generate_analysis_summary(analysis_results),
                 'timestamp': datetime.now().isoformat()
             }
-            
+
         except Exception as e:
-            logger.error(f"Stock analysis failed: {str(e)}")
+            logger.error(
+                "Stock analysis failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool",
+                error=e
+            )
             return {'success': False, 'error': str(e)}
     
     def _calculate_technical_indicators(self, hist: pd.DataFrame) -> Dict[str, Any]:
@@ -294,11 +330,16 @@ class AdvancedStockTradingTool(BaseTool):
                 'trend_direction': 'bullish' if sma_20.iloc[-1] > sma_50.iloc[-1] else 'bearish',
                 'momentum': 'positive' if macd.iloc[-1] > macd_signal.iloc[-1] else 'negative'
             }
-            
+
         except Exception as e:
-            logger.error(f"Technical indicator calculation failed: {str(e)}")
+            logger.error(
+                "Technical indicator calculation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool",
+                error=e
+            )
             return {}
-    
+
     def _analyze_fundamentals(self, info: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze fundamental metrics."""
         try:
@@ -319,9 +360,14 @@ class AdvancedStockTradingTool(BaseTool):
                 'sector': info.get('sector', 'Unknown'),
                 'industry': info.get('industry', 'Unknown')
             }
-            
+
         except Exception as e:
-            logger.error(f"Fundamental analysis failed: {str(e)}")
+            logger.error(
+                "Fundamental analysis failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool",
+                error=e
+            )
             return {}
     
     def _assess_risk(self, hist: pd.DataFrame, info: Dict[str, Any]) -> Dict[str, Any]:
@@ -361,9 +407,14 @@ class AdvancedStockTradingTool(BaseTool):
                 'risk_score': float(risk_score),
                 'risk_level': self._categorize_risk(risk_score)
             }
-            
+
         except Exception as e:
-            logger.error(f"Risk assessment failed: {str(e)}")
+            logger.error(
+                "Risk assessment failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool",
+                error=e
+            )
             return {'risk_level': 'unknown'}
     
     def _calculate_max_drawdown(self, prices: pd.Series) -> float:
@@ -480,7 +531,12 @@ class AdvancedStockTradingTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Trading signal generation failed: {str(e)}")
+            logger.error(
+                "Trading signal generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool",
+                error=e
+            )
             return {
                 'action': 'HOLD',
                 'signal_strength': 0.5,
@@ -492,7 +548,12 @@ class AdvancedStockTradingTool(BaseTool):
     async def _make_trading_decision(self, symbol: str) -> Dict[str, Any]:
         """Make a comprehensive trading decision for a single stock."""
         try:
-            logger.info(f"Making trading decision for {symbol}")
+            logger.info(
+                f"Making trading decision for {symbol}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool",
+                data={"symbol": symbol}
+            )
 
             # Get comprehensive analysis
             analysis = await self._analyze_stocks([symbol])
@@ -553,7 +614,13 @@ class AdvancedStockTradingTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Trading decision failed for {symbol}: {str(e)}")
+            logger.error(
+                f"Trading decision failed for {symbol}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool",
+                data={"symbol": symbol},
+                error=e
+            )
             return {
                 'success': False,
                 'error': str(e),
@@ -579,7 +646,12 @@ class AdvancedStockTradingTool(BaseTool):
             return min(position_size, self.risk_params['max_position_size'])
 
         except Exception as e:
-            logger.error(f"Position size calculation failed: {str(e)}")
+            logger.error(
+                "Position size calculation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool",
+                error=e
+            )
             return 0.05  # Conservative default
 
     def _generate_detailed_reasoning(self, stock_data: Dict[str, Any]) -> Dict[str, List[str]]:
@@ -635,7 +707,12 @@ class AdvancedStockTradingTool(BaseTool):
             return reasoning
 
         except Exception as e:
-            logger.error(f"Detailed reasoning generation failed: {str(e)}")
+            logger.error(
+                "Detailed reasoning generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool",
+                error=e
+            )
             return {
                 'technical': ['Technical analysis unavailable'],
                 'fundamental': ['Fundamental analysis unavailable'],
@@ -647,7 +724,12 @@ class AdvancedStockTradingTool(BaseTool):
     async def _analyze_portfolio(self, symbols: List[str], portfolio_value: float) -> Dict[str, Any]:
         """Analyze portfolio performance and allocation."""
         try:
-            logger.info(f"Analyzing portfolio with {len(symbols)} positions, value: ${portfolio_value:,.2f}")
+            logger.info(
+                f"Analyzing portfolio with {len(symbols)} positions, value: ${portfolio_value:,.2f}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool",
+                data={"num_positions": len(symbols), "portfolio_value": portfolio_value}
+            )
 
             # Get analysis for all positions
             analysis = await self._analyze_stocks(symbols)
@@ -708,7 +790,12 @@ class AdvancedStockTradingTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Portfolio analysis failed: {str(e)}")
+            logger.error(
+                "Portfolio analysis failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool",
+                error=e
+            )
             return {'success': False, 'error': str(e)}
 
     def _generate_portfolio_recommendations(self, portfolio_data: List[Dict], avg_risk: float) -> List[str]:
@@ -759,7 +846,11 @@ class AdvancedStockTradingTool(BaseTool):
     async def _find_opportunities(self) -> Dict[str, Any]:
         """Find upcoming stock opportunities using screening criteria."""
         try:
-            logger.info("Scanning for stock opportunities")
+            logger.info(
+                "Scanning for stock opportunities",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool"
+            )
 
             # Extended list of stocks to screen
             screening_symbols = [
@@ -850,7 +941,13 @@ class AdvancedStockTradingTool(BaseTool):
                         })
 
                 except Exception as e:
-                    logger.warning(f"Failed to screen {symbol}: {str(e)}")
+                    logger.warn(
+                        f"Failed to screen {symbol}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "app.tools.production.advanced_stock_trading_tool",
+                        data={"symbol": symbol},
+                        error=e
+                    )
                     continue
 
             # Sort by opportunity score
@@ -869,7 +966,12 @@ class AdvancedStockTradingTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Opportunity screening failed: {str(e)}")
+            logger.error(
+                "Opportunity screening failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool",
+                error=e
+            )
             return {'success': False, 'error': str(e)}
 
     def _generate_analysis_summary(self, analysis_results: Dict[str, Any]) -> Dict[str, Any]:
@@ -898,13 +1000,22 @@ class AdvancedStockTradingTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Analysis summary generation failed: {str(e)}")
+            logger.error(
+                "Analysis summary generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool",
+                error=e
+            )
             return {'message': 'Summary generation failed'}
 
     async def _generate_comprehensive_report(self, symbols: List[str], portfolio_value: float) -> Dict[str, Any]:
         """Generate comprehensive Excel report with all analysis."""
         try:
-            logger.info("Generating comprehensive Excel report")
+            logger.info(
+                "Generating comprehensive Excel report",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool"
+            )
 
             # Get all analysis data
             stock_analysis = await self._analyze_stocks(symbols)
@@ -937,7 +1048,12 @@ class AdvancedStockTradingTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Comprehensive report generation failed: {str(e)}")
+            logger.error(
+                "Comprehensive report generation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool",
+                error=e
+            )
             return {'success': False, 'error': str(e)}
 
     def _create_excel_report(self, stock_data: Dict, portfolio_data: List, opportunities: List, file_path: Path) -> Dict[str, Any]:
@@ -966,7 +1082,12 @@ class AdvancedStockTradingTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Excel report creation failed: {str(e)}")
+            logger.error(
+                "Excel report creation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.production.advanced_stock_trading_tool",
+                error=e
+            )
             return {'file_created': False, 'error': str(e)}
 
     def _create_summary_sheet(self, wb: openpyxl.Workbook, stock_data: Dict, portfolio_data: List):

@@ -10,10 +10,12 @@ from datetime import datetime
 from pathlib import Path
 import json
 
-import structlog
 from pydantic import BaseModel, Field
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+
+logger = get_logger()
 
 
 class ToolTemplate(BaseModel):
@@ -362,8 +364,13 @@ class {TOOL_NAME}(BaseTool):
             "data_processing_tool": data_template,
             "rag_tool": rag_template
         }
-        
-        logger.info("Loaded built-in tool templates", count=len(self.templates))
+
+        logger.info(
+            "Loaded built-in tool templates",
+            LogCategory.SERVICE_OPERATIONS,
+            "app.services.tool_template_service",
+            data={"count": len(self.templates)}
+        )
     
     def get_template(self, template_id: str) -> Optional[ToolTemplate]:
         """Get a specific template by ID."""

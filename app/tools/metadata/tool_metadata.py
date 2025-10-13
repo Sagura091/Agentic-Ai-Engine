@@ -8,9 +8,11 @@ capabilities, usage patterns, and behavioral characteristics.
 from dataclasses import dataclass, field
 from typing import Dict, List, Any, Optional, Union, Callable
 from enum import Enum
-import structlog
 
-logger = structlog.get_logger(__name__)
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
+
+logger = get_logger()
 
 
 class ParameterType(Enum):
@@ -166,11 +168,17 @@ class ToolMetadata:
                 total_weight += pattern.weight
             
             return total_score / total_weight if total_weight > 0 else 0.0
-            
+
         except Exception as e:
-            logger.warning(f"Context matching failed for tool {self.name}", error=str(e))
+            logger.warn(
+                f"Context matching failed for tool {self.name}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.tool_metadata",
+                data={"tool_name": self.name},
+                error=e
+            )
             return 0.0
-    
+
     def _evaluate_usage_pattern(self, pattern: UsagePattern, context: Dict[str, Any]) -> float:
         """Evaluate a single usage pattern against context."""
         try:
@@ -182,9 +190,15 @@ class ToolMetadata:
                 return self._evaluate_task_type_pattern(pattern, context)
             else:
                 return 0.0
-                
+
         except Exception as e:
-            logger.warning(f"Pattern evaluation failed", pattern=pattern.pattern, error=str(e))
+            logger.warn(
+                "Pattern evaluation failed",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.tool_metadata",
+                data={"pattern": pattern.pattern},
+                error=e
+            )
             return 0.0
     
     def _evaluate_keyword_pattern(self, pattern: UsagePattern, context: Dict[str, Any]) -> float:

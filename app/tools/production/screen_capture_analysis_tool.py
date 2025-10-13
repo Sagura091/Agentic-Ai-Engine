@@ -38,10 +38,12 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple, Union
 from enum import Enum
 
-import structlog
 from PIL import Image, ImageDraw, ImageFont
 from pydantic import BaseModel, Field
 from langchain_core.tools import BaseTool
+
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 
 # Platform-specific imports
 try:
@@ -52,11 +54,15 @@ try:
     SCREEN_CAPTURE_AVAILABLE = True
 except ImportError:
     SCREEN_CAPTURE_AVAILABLE = False
-    structlog.get_logger(__name__).warning("Screen capture dependencies not available")
+    get_logger().warn(
+        "Screen capture dependencies not available",
+        LogCategory.TOOL_OPERATIONS,
+        "ScreenCaptureAnalysisTool"
+    )
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class CaptureMode(str, Enum):
@@ -221,7 +227,11 @@ class ScreenCaptureAnalysisTool(BaseTool):
         
         # Check dependencies
         if not SCREEN_CAPTURE_AVAILABLE:
-            logger.warning("Screen capture dependencies not available. Install: pip install pyautogui mss opencv-python")
+            logger.warn(
+                "Screen capture dependencies not available. Install: pip install pyautogui mss opencv-python",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureAnalysisTool"
+            )
     
     def _run(self, **kwargs) -> str:
         """Synchronous wrapper for async execution."""
@@ -259,7 +269,12 @@ class ScreenCaptureAnalysisTool(BaseTool):
             return json.dumps(result, indent=2)
             
         except Exception as e:
-            logger.error(f"Screen capture analysis failed: {str(e)}")
+            logger.error(
+                f"Screen capture analysis failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureAnalysisTool",
+                error=e
+            )
             return json.dumps({
                 "success": False,
                 "error": str(e),
@@ -345,7 +360,12 @@ class ScreenCaptureAnalysisTool(BaseTool):
             
         except Exception as e:
             self.capture_stats["failed_captures"] += 1
-            logger.error(f"Screen capture failed: {str(e)}")
+            logger.error(
+                f"Screen capture failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureAnalysisTool",
+                error=e
+            )
             raise
 
     async def _analyze_image_with_llm(self, image_base64: str, analysis_types: List[AnalysisType], custom_prompt: Optional[str] = None) -> Dict[str, Any]:
@@ -399,7 +419,13 @@ class ScreenCaptureAnalysisTool(BaseTool):
 
                 except Exception as e:
                     analyses[analysis_type.value] = f"Analysis failed: {str(e)}"
-                    logger.error(f"LLM analysis failed for {analysis_type}: {str(e)}")
+                    logger.error(
+                        f"LLM analysis failed for {analysis_type}: {str(e)}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "ScreenCaptureAnalysisTool",
+                        data={"analysis_type": str(analysis_type)},
+                        error=e
+                    )
 
             self.capture_stats["total_analyses"] += 1
 
@@ -411,7 +437,12 @@ class ScreenCaptureAnalysisTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Image analysis failed: {str(e)}")
+            logger.error(
+                f"Image analysis failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureAnalysisTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e)
@@ -442,7 +473,12 @@ class ScreenCaptureAnalysisTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Capture and analysis failed: {str(e)}")
+            logger.error(
+                f"Capture and analysis failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureAnalysisTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e)
@@ -455,7 +491,15 @@ class ScreenCaptureAnalysisTool(BaseTool):
             start_time = time.time()
             end_time = start_time + input_data.monitor_duration
 
-            logger.info(f"Starting screen monitoring for {input_data.monitor_duration} seconds with {input_data.monitor_interval}s intervals")
+            logger.info(
+                f"Starting screen monitoring for {input_data.monitor_duration} seconds with {input_data.monitor_interval}s intervals",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureAnalysisTool",
+                data={
+                    "monitor_duration": input_data.monitor_duration,
+                    "monitor_interval": input_data.monitor_interval
+                }
+            )
 
             while time.time() < end_time:
                 try:
@@ -470,7 +514,12 @@ class ScreenCaptureAnalysisTool(BaseTool):
                     await asyncio.sleep(input_data.monitor_interval)
 
                 except Exception as e:
-                    logger.error(f"Monitor iteration failed: {str(e)}")
+                    logger.error(
+                        f"Monitor iteration failed: {str(e)}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "ScreenCaptureAnalysisTool",
+                        error=e
+                    )
                     monitoring_results.append({
                         "success": False,
                         "error": str(e),
@@ -487,7 +536,12 @@ class ScreenCaptureAnalysisTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Screen monitoring failed: {str(e)}")
+            logger.error(
+                f"Screen monitoring failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureAnalysisTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e)
@@ -513,7 +567,13 @@ class ScreenCaptureAnalysisTool(BaseTool):
                     await asyncio.sleep(1)
 
                 except Exception as e:
-                    logger.error(f"Batch capture {i} failed: {str(e)}")
+                    logger.error(
+                        f"Batch capture {i} failed: {str(e)}",
+                        LogCategory.TOOL_OPERATIONS,
+                        "ScreenCaptureAnalysisTool",
+                        data={"batch_index": i},
+                        error=e
+                    )
                     batch_results.append({
                         "success": False,
                         "error": str(e),
@@ -529,7 +589,12 @@ class ScreenCaptureAnalysisTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Batch capture failed: {str(e)}")
+            logger.error(
+                f"Batch capture failed: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "ScreenCaptureAnalysisTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e)

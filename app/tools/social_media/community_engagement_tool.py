@@ -44,13 +44,15 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from enum import Enum
 
-import structlog
 from pydantic import BaseModel, Field
 from langchain_core.tools import BaseTool
 
-from app.tools.unified_tool_repository import ToolCategory, ToolAccessLevel, ToolMetadata
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 
-logger = structlog.get_logger(__name__)
+from app.tools.unified_tool_repository import ToolCategory as ToolCategoryEnum, ToolAccessLevel, ToolMetadata
+
+logger = get_logger()
 
 
 class EngagementType(str, Enum):
@@ -243,15 +245,24 @@ class CommunityEngagementTool(BaseTool):
             
             logger.info(
                 "Community engagement completed",
-                engagement_type=input_data.engagement_type,
-                platforms=input_data.platforms,
-                success=result.get("success", False)
+                LogCategory.TOOL_OPERATIONS,
+                "CommunityEngagementTool",
+                data={
+                    "engagement_type": input_data.engagement_type,
+                    "platforms": input_data.platforms,
+                    "success": result.get("success", False)
+                }
             )
             
             return result
             
         except Exception as e:
-            logger.error(f"Community engagement error: {str(e)}")
+            logger.error(
+                f"Community engagement error: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "CommunityEngagementTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -337,7 +348,12 @@ class CommunityEngagementTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Error welcoming new members: {str(e)}")
+            logger.error(
+                f"Error welcoming new members: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "CommunityEngagementTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -394,7 +410,12 @@ class CommunityEngagementTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Error building relationships: {str(e)}")
+            logger.error(
+                f"Error building relationships: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "CommunityEngagementTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -460,7 +481,12 @@ class CommunityEngagementTool(BaseTool):
             }
 
         except Exception as e:
-            logger.error(f"Error hosting community events: {str(e)}")
+            logger.error(
+                f"Error hosting community events: {str(e)}",
+                LogCategory.TOOL_OPERATIONS,
+                "CommunityEngagementTool",
+                error=e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -553,7 +579,7 @@ COMMUNITY_ENGAGEMENT_TOOL_METADATA = ToolMetadata(
     tool_id="community_engagement",
     name="Community Engagement Tool",
     description="Revolutionary community engagement and relationship building tool",
-    category=ToolCategory.COMMUNICATION,
+    category=ToolCategoryEnum.COMMUNICATION,
     access_level=ToolAccessLevel.PRIVATE,
     requires_rag=False,
     use_cases={"community_management", "relationship_building", "social_media", "customer_engagement"}

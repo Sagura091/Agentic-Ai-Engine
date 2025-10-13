@@ -6,12 +6,13 @@ Defines interfaces and mixins for tools to implement metadata-driven behavior.
 
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
-import structlog
 
+from app.backend_logging import get_logger
+from app.backend_logging.models import LogCategory
 from .tool_metadata import ToolMetadata
 from .parameter_generator import ParameterGenerator
 
-logger = structlog.get_logger(__name__)
+logger = get_logger()
 
 
 class ParameterGeneratorInterface(ABC):
@@ -63,21 +64,27 @@ class MetadataCapableToolMixin:
             metadata = self.get_tool_metadata()
             return self._parameter_generator.generate_parameters(metadata, context)
         except Exception as e:
-            logger.error(f"Parameter generation failed for {self.__class__.__name__}", error=str(e))
+            logger.error(
+                f"Parameter generation failed for {self.__class__.__name__}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.metadata_interfaces",
+                data={"class_name": self.__class__.__name__},
+                error=e
+            )
             return {}
-    
+
     def validate_context_requirements(self, context: Dict[str, Any]) -> tuple[bool, list[str]]:
         """Validate that context meets tool requirements."""
         try:
             metadata = self.get_tool_metadata()
             requirements = metadata.context_requirements
             missing_requirements = []
-            
+
             # Check required context keys
             for required_key in requirements.required_context_keys:
                 if required_key not in context:
                     missing_requirements.append(f"Missing required context key: {required_key}")
-            
+
             # Run context validators
             for validator in requirements.context_validators:
                 try:
@@ -85,20 +92,32 @@ class MetadataCapableToolMixin:
                         missing_requirements.append(f"Context validation failed: {validator.__name__}")
                 except Exception as e:
                     missing_requirements.append(f"Context validator error: {str(e)}")
-            
+
             return len(missing_requirements) == 0, missing_requirements
-            
+
         except Exception as e:
-            logger.error(f"Context validation failed for {self.__class__.__name__}", error=str(e))
+            logger.error(
+                f"Context validation failed for {self.__class__.__name__}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.metadata_interfaces",
+                data={"class_name": self.__class__.__name__},
+                error=e
+            )
             return False, [f"Validation error: {str(e)}"]
-    
+
     def calculate_confidence_for_context(self, context: Dict[str, Any]) -> float:
         """Calculate confidence score for this tool in the given context."""
         try:
             metadata = self.get_tool_metadata()
             return metadata.matches_context(context)
         except Exception as e:
-            logger.warning(f"Confidence calculation failed for {self.__class__.__name__}", error=str(e))
+            logger.warn(
+                f"Confidence calculation failed for {self.__class__.__name__}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.metadata_interfaces",
+                data={"class_name": self.__class__.__name__},
+                error=e
+            )
             return 0.0
     
     def is_suitable_for_context(self, context: Dict[str, Any]) -> bool:
@@ -120,9 +139,15 @@ class MetadataCapableToolMixin:
                     return False
             
             return True
-            
+
         except Exception as e:
-            logger.warning(f"Context suitability check failed for {self.__class__.__name__}", error=str(e))
+            logger.warn(
+                f"Context suitability check failed for {self.__class__.__name__}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.metadata_interfaces",
+                data={"class_name": self.__class__.__name__},
+                error=e
+            )
             return True  # Default to suitable if check fails
 
 
@@ -182,9 +207,20 @@ class MetadataAwareBaseTool(MetadataCapableToolMixin):
             from .metadata_registry import register_tool_metadata
             metadata = self.get_tool_metadata()
             register_tool_metadata(metadata)
-            logger.info(f"Registered metadata for tool: {metadata.name}")
+            logger.info(
+                f"Registered metadata for tool: {metadata.name}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.metadata_interfaces",
+                data={"tool_name": metadata.name}
+            )
         except Exception as e:
-            logger.error(f"Failed to register metadata for {self.__class__.__name__}", error=str(e))
+            logger.error(
+                f"Failed to register metadata for {self.__class__.__name__}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.metadata_interfaces",
+                data={"class_name": self.__class__.__name__},
+                error=e
+            )
     
     def execute_with_context(self, context: Dict[str, Any], **kwargs) -> Any:
         """Execute tool with context-aware parameter generation."""
@@ -202,9 +238,15 @@ class MetadataAwareBaseTool(MetadataCapableToolMixin):
             
             # Execute the tool
             return self._execute_with_params(final_params)
-            
+
         except Exception as e:
-            logger.error(f"Context-aware execution failed for {self.__class__.__name__}", error=str(e))
+            logger.error(
+                f"Context-aware execution failed for {self.__class__.__name__}",
+                LogCategory.TOOL_OPERATIONS,
+                "app.tools.metadata.metadata_interfaces",
+                data={"class_name": self.__class__.__name__},
+                error=e
+            )
             raise
     
     @abstractmethod
