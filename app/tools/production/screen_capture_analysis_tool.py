@@ -227,7 +227,7 @@ class ScreenCaptureAnalysisTool(BaseTool):
         
         # Check dependencies
         if not SCREEN_CAPTURE_AVAILABLE:
-            logger.warn(
+            logger.warning(
                 "Screen capture dependencies not available. Install: pip install pyautogui mss opencv-python",
                 LogCategory.TOOL_OPERATIONS,
                 "ScreenCaptureAnalysisTool"

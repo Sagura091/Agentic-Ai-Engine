@@ -195,7 +195,7 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
                             pytesseract.pytesseract.tesseract_cmd = path
                             break
             except Exception as e:
-                logger.warn(
+                logger.warning(
                     f"OCR setup warning: {e}",
                     LogCategory.TOOL_OPERATIONS,
                     "ScreenCaptureTool",
@@ -214,7 +214,7 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
             missing_deps.append("pytesseract")
         
         if missing_deps:
-            logger.warn(
+            logger.warning(
                 f"Missing optional dependencies: {missing_deps}",
                 LogCategory.TOOL_OPERATIONS,
                 "ScreenCaptureTool",
@@ -326,7 +326,7 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
                 try:
                     extracted_text = pytesseract.image_to_string(screenshot)
                 except Exception as e:
-                    logger.warn(
+                    logger.warning(
                         f"OCR failed: {e}",
                         LogCategory.TOOL_OPERATIONS,
                         "ScreenCaptureTool",
@@ -522,7 +522,7 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
                 try:
                     extracted_text = pytesseract.image_to_string(screenshot)
                 except Exception as e:
-                    logger.warn(
+                    logger.warning(
                         f"OCR failed: {e}",
                         LogCategory.TOOL_OPERATIONS,
                         "ScreenCaptureTool",
@@ -586,7 +586,7 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
             return sorted(filtered_apps)[:20]  # Limit to top 20
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 f"Failed to get active applications: {e}",
                 LogCategory.TOOL_OPERATIONS,
                 "ScreenCaptureTool",
@@ -606,7 +606,7 @@ class ScreenCaptureTool(BaseTool, MetadataCapableToolMixin):
             return sorted(list(set(titles)))[:20]  # Limit to top 20
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 f"Failed to get window titles: {e}",
                 LogCategory.TOOL_OPERATIONS,
                 "ScreenCaptureTool",

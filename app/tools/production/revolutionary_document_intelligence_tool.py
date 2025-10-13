@@ -184,7 +184,7 @@ class RevolutionaryDocumentIntelligenceEngine:
                 error=e
             )
             # Continue without AI features
-            logger.warn(
+            logger.warning(
                 "⚠️ Running in basic mode without AI features",
                 LogCategory.TOOL_OPERATIONS,
                 "RevolutionaryDocumentIntelligenceTool"

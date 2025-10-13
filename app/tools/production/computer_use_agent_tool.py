@@ -249,7 +249,7 @@ class RevolutionaryComputerUseAgent:
                 await self._take_screenshot("capability_test")
                 capabilities.append("screenshot")
             except Exception:
-                logger.warn(
+                logger.warning(
                     "Screenshot capability not available",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.production.computer_use_agent_tool"
@@ -270,7 +270,7 @@ class RevolutionaryComputerUseAgent:
                     import pyautogui
                     capabilities.append("mouse_keyboard")
             except ImportError:
-                logger.warn(
+                logger.warning(
                     "Mouse/keyboard automation not available - install pyautogui",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.production.computer_use_agent_tool"
@@ -493,7 +493,7 @@ class RevolutionaryComputerUseAgent:
                 screenshot.save(screenshot_path)
                 return screenshot_path
             except ImportError:
-                logger.warn(
+                logger.warning(
                     "PyAutoGUI not available for screenshots",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.production.computer_use_agent_tool"
@@ -506,7 +506,7 @@ class RevolutionaryComputerUseAgent:
                     import win32ui
                     import win32con
                     # Windows-specific screenshot code would go here
-                    logger.warn(
+                    logger.warning(
                         "Windows-specific screenshot not implemented",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.production.computer_use_agent_tool"
@@ -561,7 +561,7 @@ class RevolutionaryComputerUseAgent:
                 return True
 
             except ImportError:
-                logger.warn(
+                logger.warning(
                     "PyAutoGUI not available for clicking",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.production.computer_use_agent_tool"
@@ -592,7 +592,7 @@ class RevolutionaryComputerUseAgent:
                 return True
 
             except ImportError:
-                logger.warn(
+                logger.warning(
                     "PyAutoGUI not available for typing",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.production.computer_use_agent_tool"
@@ -749,7 +749,7 @@ class RevolutionaryComputerUseAgent:
         }
         self.security_violations.append(violation)
 
-        logger.warn(
+        logger.warning(
             f"🚨 Security violation: {message}",
             LogCategory.SECURITY_EVENTS,
             "app.tools.production.computer_use_agent_tool",
@@ -783,7 +783,7 @@ class RevolutionaryComputerUseAgent:
                 self.action_history = self.action_history[-500:]  # Keep last 500 actions
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 "Failed to record action",
                 LogCategory.TOOL_OPERATIONS,
                 "app.tools.production.computer_use_agent_tool",

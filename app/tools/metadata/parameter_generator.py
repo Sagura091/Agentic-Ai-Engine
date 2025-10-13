@@ -127,7 +127,7 @@ class ParameterGenerator:
             return self._generate_by_type(param_schema, context, metadata)
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 f"Parameter value generation failed",
                 LogCategory.TOOL_OPERATIONS,
                 "app.tools.metadata.parameter_generator",

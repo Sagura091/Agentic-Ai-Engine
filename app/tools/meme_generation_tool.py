@@ -477,7 +477,7 @@ class MemeGenerationTool(BaseTool, MetadataCapableToolMixin):
                     return image
             
             # 4. Fallback: Create placeholder image
-            logger.warn(
+            logger.warning(
                 "No AI image generation service available, creating placeholder",
                 LogCategory.TOOL_OPERATIONS,
                 "app.tools.meme_generation_tool"

@@ -236,7 +236,7 @@ class RevolutionaryUniversalWordTool(BaseUniversalTool):
     def _verify_dependencies(self):
         """Verify required dependencies are available."""
         if not DOCX_AVAILABLE:
-            logger.warn(
+            logger.warning(
                 "python-docx not available - core Word functionality disabled",
                 LogCategory.TOOL_OPERATIONS,
                 "RevolutionaryUniversalWordTool"

@@ -177,7 +177,7 @@ class ToolAutoDiscovery:
         tools = {}
 
         if not directory.exists():
-            logger.warn(
+            logger.warning(
                 f"Directory does not exist: {directory}",
                 LogCategory.TOOL_OPERATIONS,
                 "app.tools.auto_discovery.tool_scanner",
@@ -238,7 +238,7 @@ class ToolAutoDiscovery:
             try:
                 tree = ast.parse(content, filename=str(file_path))
             except SyntaxError as e:
-                logger.warn(
+                logger.warning(
                     f"Syntax error in {file_path}",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.auto_discovery.tool_scanner",

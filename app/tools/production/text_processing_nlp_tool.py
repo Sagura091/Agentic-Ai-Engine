@@ -349,7 +349,7 @@ class TextProcessingNLPTool(BaseTool, MetadataCapableToolMixin):
                 return 'en', 0.5  # Default to English with low confidence
                 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 "Language detection failed",
                 LogCategory.TOOL_OPERATIONS,
                 "TextProcessingNLPTool",

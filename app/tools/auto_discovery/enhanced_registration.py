@@ -248,7 +248,7 @@ class EnhancedRegistrationSystem:
                 dep_info.install_command = f"pip install {dependency_name}"
                 
             except subprocess.TimeoutExpired:
-                logger.warn(
+                logger.warning(
                     f"Dependency check timeout for {dependency_name}",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.auto_discovery.enhanced_registration",
@@ -342,7 +342,7 @@ class EnhancedRegistrationSystem:
             try:
                 if conflict.conflict_type == ConflictType.DUPLICATE_ID:
                     # For duplicate IDs, skip the second registration
-                    logger.warn(
+                    logger.warning(
                         f"Skipping duplicate tool registration: {conflict.tool_id}",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.auto_discovery.enhanced_registration",
@@ -579,7 +579,7 @@ class EnhancedRegistrationSystem:
                     self.health_status[tool_info.tool_id] = health_result
 
                     if health_result.status != "healthy":
-                        logger.warn(
+                        logger.warning(
                             f"Health check failed for {tool_info.tool_id}: {health_result.error_message}",
                             LogCategory.TOOL_OPERATIONS,
                             "app.tools.auto_discovery.enhanced_registration",

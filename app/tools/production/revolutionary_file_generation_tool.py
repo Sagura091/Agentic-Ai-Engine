@@ -478,7 +478,7 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
             ws.add_chart(chart, "E5")
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 f"Chart creation failed: {str(e)}",
                 LogCategory.TOOL_OPERATIONS,
                 "RevolutionaryFileGenerationTool",
@@ -506,7 +506,7 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
                     row += 1
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 f"Summary sheet creation failed: {str(e)}",
                 LogCategory.TOOL_OPERATIONS,
                 "RevolutionaryFileGenerationTool",
@@ -624,7 +624,7 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
                         row_cells[i].text = str(value)
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 f"Table creation failed: {str(e)}",
                 LogCategory.TOOL_OPERATIONS,
                 "RevolutionaryFileGenerationTool",
@@ -645,7 +645,7 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
                     run.font.size = Pt(font_size)
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 f"Styling application failed: {str(e)}",
                 LogCategory.TOOL_OPERATIONS,
                 "RevolutionaryFileGenerationTool",
@@ -737,7 +737,7 @@ class RevolutionaryFileGenerationTool(BaseTool, MetadataCapableToolMixin):
                 slide.placeholders[1].text = slide_data['content']
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 f"Slide creation failed: {str(e)}",
                 LogCategory.TOOL_OPERATIONS,
                 "RevolutionaryFileGenerationTool",

@@ -111,7 +111,7 @@ class MetadataCapableToolMixin:
             metadata = self.get_tool_metadata()
             return metadata.matches_context(context)
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 f"Confidence calculation failed for {self.__class__.__name__}",
                 LogCategory.TOOL_OPERATIONS,
                 "app.tools.metadata.metadata_interfaces",
@@ -141,7 +141,7 @@ class MetadataCapableToolMixin:
             return True
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 f"Context suitability check failed for {self.__class__.__name__}",
                 LogCategory.TOOL_OPERATIONS,
                 "app.tools.metadata.metadata_interfaces",

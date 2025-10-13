@@ -112,7 +112,7 @@ class BusinessIntelligenceTool(BaseTool):
                 return real_data
 
             except Exception as e:
-                logger.warn(
+                logger.warning(
                     f"Yahoo Finance failed",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.business_intelligence_tool",
@@ -215,7 +215,7 @@ class BusinessIntelligenceTool(BaseTool):
                     data={"symbol": real_stock_data.get('symbol'), "current_price": real_stock_data.get('current_price')}
                 )
             else:
-                logger.warn(
+                logger.warning(
                     "⚠️ No real data available - using context data only",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.business_intelligence_tool"

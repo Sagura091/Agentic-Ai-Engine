@@ -267,7 +267,7 @@ class APIIntegrationTool(BaseTool):
 
             if self._circuit_breaker_failures >= 5:  # Threshold
                 self._circuit_breaker_state = "open"
-                logger.warn(
+                logger.warning(
                     "Circuit breaker opened - service failing",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.production.api_integration_tool"
@@ -400,7 +400,7 @@ class APIIntegrationTool(BaseTool):
                             try:
                                 parsed_content = json.loads(content_text)
                             except json.JSONDecodeError:
-                                logger.warn(
+                                logger.warning(
                                     "Failed to parse JSON response",
                                     LogCategory.TOOL_OPERATIONS,
                                     "app.tools.production.api_integration_tool",
@@ -442,7 +442,7 @@ class APIIntegrationTool(BaseTool):
                     last_exception = e
                     if attempt < input_data.max_retries:
                         delay = input_data.retry_delay * (2 ** attempt)  # Exponential backoff
-                        logger.warn(
+                        logger.warning(
                             "Request failed, retrying",
                             LogCategory.TOOL_OPERATIONS,
                             "app.tools.production.api_integration_tool",

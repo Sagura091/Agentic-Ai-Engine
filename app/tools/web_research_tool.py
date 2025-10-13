@@ -49,7 +49,7 @@ try:
     )
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
-    logger.warn(
+    logger.warning(
         "⚠️ Playwright not available - JavaScript execution disabled",
         LogCategory.TOOL_OPERATIONS,
         "app.tools.web_research_tool"
@@ -858,7 +858,7 @@ class RevolutionaryWebResearchTool(BaseTool):
     async def _get_browser_page(self) -> Optional[Tuple[Browser, BrowserContext, Page]]:
         """REVOLUTIONARY stealth browser with maximum anti-detection capabilities."""
         if not PLAYWRIGHT_AVAILABLE:
-            logger.warn(
+            logger.warning(
                 "Playwright not available - falling back to HTTP client",
                 LogCategory.TOOL_OPERATIONS,
                 "app.tools.web_research_tool"
@@ -1060,7 +1060,7 @@ class RevolutionaryWebResearchTool(BaseTool):
     async def _search_with_javascript(self, search_engine: str, query: str) -> Dict[str, Any]:
         """Perform search using JavaScript execution for dynamic content."""
         if not PLAYWRIGHT_AVAILABLE:
-            logger.warn(
+            logger.warning(
                 "JavaScript execution not available - falling back to HTTP client",
                 LogCategory.TOOL_OPERATIONS,
                 "app.tools.web_research_tool"
@@ -1103,7 +1103,7 @@ class RevolutionaryWebResearchTool(BaseTool):
                 await context.close()
                 await browser.close()
             except Exception as e:
-                logger.warn(
+                logger.warning(
                     "Error closing browser",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.web_research_tool",
@@ -1154,7 +1154,7 @@ class RevolutionaryWebResearchTool(BaseTool):
                 await page.wait_for_load_state("networkidle", timeout=10000)
                 await asyncio.sleep(2)  # Reduced wait time
             except Exception as e:
-                logger.warn(
+                logger.warning(
                     "Page load timeout, proceeding anyway",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.web_research_tool",
@@ -1269,7 +1269,7 @@ class RevolutionaryWebResearchTool(BaseTool):
                 await page.wait_for_load_state("networkidle", timeout=10000)
                 await asyncio.sleep(1)  # Reduced wait time
             except Exception as e:
-                logger.warn(
+                logger.warning(
                     "Bing page load timeout, proceeding anyway",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.web_research_tool",
@@ -1804,7 +1804,7 @@ class RevolutionaryWebResearchTool(BaseTool):
                             if len(all_results) >= request.num_results:
                                 break
                         else:
-                            logger.warn(
+                            logger.warning(
                                 f"⚠️ {engine} returned no results",
                                 LogCategory.TOOL_OPERATIONS,
                                 "app.tools.web_research_tool",
@@ -1812,7 +1812,7 @@ class RevolutionaryWebResearchTool(BaseTool):
                             )
                     else:
                         error_msg = engine_result.get('error', 'Unknown error') if isinstance(engine_result, dict) else str(engine_result)
-                        logger.warn(
+                        logger.warning(
                             f"⚠️ {engine} search failed: {error_msg}",
                             LogCategory.TOOL_OPERATIONS,
                             "app.tools.web_research_tool",
@@ -1833,7 +1833,7 @@ class RevolutionaryWebResearchTool(BaseTool):
 
             # If no engines worked, try one last desperate fallback
             if not all_results:
-                logger.warn(
+                logger.warning(
                     "🚨 All primary search engines failed, trying emergency fallback",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.web_research_tool"
@@ -2270,7 +2270,7 @@ class RevolutionaryWebResearchTool(BaseTool):
                             "execution_time": time.time() - start_time
                         }
                     else:
-                        logger.warn(
+                        logger.warning(
                             "JavaScript fallback also failed",
                             LogCategory.TOOL_OPERATIONS,
                             "app.tools.web_research_tool"
@@ -2389,7 +2389,7 @@ class RevolutionaryWebResearchTool(BaseTool):
                 response = await client.get("/search", params=params)
 
                 if response.status_code != 200:
-                    logger.warn(
+                    logger.warning(
                         f"Google search failed with status {response.status_code}",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.web_research_tool",
@@ -2414,7 +2414,7 @@ class RevolutionaryWebResearchTool(BaseTool):
 
                 # Debug: Check if we got blocked
                 if "unusual traffic" in response.text.lower() or "captcha" in response.text.lower():
-                    logger.warn(
+                    logger.warning(
                         "Google detected unusual traffic - likely blocked",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.web_research_tool"
@@ -2451,7 +2451,7 @@ class RevolutionaryWebResearchTool(BaseTool):
 
                 found_indicators = [indicator for indicator in blocking_indicators if indicator in response_lower]
                 if found_indicators:
-                    logger.warn(
+                    logger.warning(
                         f"Google blocking indicators found: {found_indicators}",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.web_research_tool",
@@ -2497,7 +2497,7 @@ class RevolutionaryWebResearchTool(BaseTool):
 
                         if not result_divs:
                             # Log the page structure to understand what we're getting
-                            logger.warn(
+                            logger.warning(
                                 "No Google results found with any selector",
                                 LogCategory.TOOL_OPERATIONS,
                                 "app.tools.web_research_tool"
@@ -2565,7 +2565,7 @@ class RevolutionaryWebResearchTool(BaseTool):
                                     "execution_time": time.time() - start_time
                                 }
                             else:
-                                logger.warn(
+                                logger.warning(
                                     "JavaScript fallback also failed",
                                     LogCategory.TOOL_OPERATIONS,
                                     "app.tools.web_research_tool"
@@ -2676,7 +2676,7 @@ class RevolutionaryWebResearchTool(BaseTool):
                 response = await client.get("/search", params=params)
 
                 if response.status_code != 200:
-                    logger.warn(
+                    logger.warning(
                         f"Bing search failed with status {response.status_code}",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.web_research_tool",
@@ -2729,7 +2729,7 @@ class RevolutionaryWebResearchTool(BaseTool):
 
                 found_indicators = [indicator for indicator in blocking_indicators if indicator in response_lower]
                 if found_indicators:
-                    logger.warn(
+                    logger.warning(
                         f"Bing blocking indicators found: {found_indicators}",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.web_research_tool",
@@ -2775,7 +2775,7 @@ class RevolutionaryWebResearchTool(BaseTool):
 
                         if not result_divs:
                             # Log the page structure to understand what we're getting
-                            logger.warn(
+                            logger.warning(
                                 "No Bing results found with any selector",
                                 LogCategory.TOOL_OPERATIONS,
                                 "app.tools.web_research_tool"
@@ -2852,7 +2852,7 @@ class RevolutionaryWebResearchTool(BaseTool):
                                     "execution_time": time.time() - start_time
                                 }
                             else:
-                                logger.warn(
+                                logger.warning(
                                     "JavaScript fallback also failed",
                                     LogCategory.TOOL_OPERATIONS,
                                     "app.tools.web_research_tool"
@@ -2953,7 +2953,7 @@ class RevolutionaryWebResearchTool(BaseTool):
                 response = await client.get("/sp/search", params=params)
 
                 if response.status_code != 200:
-                    logger.warn(
+                    logger.warning(
                         f"Startpage search failed with status {response.status_code}",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.web_research_tool",
@@ -3187,7 +3187,7 @@ class RevolutionaryWebResearchTool(BaseTool):
                 response = await client.get("/search/", params=params)
 
                 if response.status_code != 200:
-                    logger.warn(
+                    logger.warning(
                         f"Yandex search failed with status {response.status_code}",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.web_research_tool",
@@ -3291,7 +3291,7 @@ class RevolutionaryWebResearchTool(BaseTool):
                 response = await client.get("/search", params=params)
 
                 if response.status_code != 200:
-                    logger.warn(
+                    logger.warning(
                         f"Brave search failed with status {response.status_code}",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.web_research_tool",

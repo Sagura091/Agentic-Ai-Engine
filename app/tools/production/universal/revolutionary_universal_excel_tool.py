@@ -870,7 +870,7 @@ class RevolutionaryUniversalExcelTool(BaseUniversalTool):
 
             # Check if workbook is open
             if str(path) not in self._open_workbooks:
-                logger.warn(
+                logger.warning(
                     "Workbook not in cache",
                     LogCategory.TOOL_OPERATIONS,
                     "RevolutionaryUniversalExcelTool",

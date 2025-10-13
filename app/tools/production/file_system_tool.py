@@ -226,8 +226,8 @@ class FileSystemTool(BaseTool):
                     return True
             elif mime_type == allowed:
                 return True
-        
-        logger.warn(
+
+        logger.warning(
             "File type not allowed",
             LogCategory.TOOL_OPERATIONS,
             "FileSystemTool",
@@ -732,7 +732,7 @@ class FileSystemTool(BaseTool):
                             search_directory(item, current_depth + 1)
 
                 except PermissionError:
-                    logger.warn(
+                    logger.warning(
                         "Permission denied",
                         LogCategory.TOOL_OPERATIONS,
                         "FileSystemTool",
@@ -803,7 +803,7 @@ class FileSystemTool(BaseTool):
                             list_directory_recursive(item, current_depth + 1)
 
                 except PermissionError:
-                    logger.warn(
+                    logger.warning(
                         "Permission denied",
                         LogCategory.TOOL_OPERATIONS,
                         "FileSystemTool",

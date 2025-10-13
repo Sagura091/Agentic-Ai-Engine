@@ -73,7 +73,7 @@ try:
     revolutionary_web_scraper_tool = None
     _get_revolutionary_web_scraper_tool = get_revolutionary_web_scraper_tool
 except ImportError as e:
-    _backend_logger.warn(
+    _backend_logger.warning(
         f"Failed to import revolutionary web scraper tool: {e}",
         LogCategory.TOOL_OPERATIONS,
         "app.tools.production.__init__"
@@ -87,7 +87,7 @@ try:
     screen_capture_tool = None
     _get_screen_capture_tool = get_screen_capture_tool
 except ImportError as e:
-    _backend_logger.warn(
+    _backend_logger.warning(
         f"Failed to import screen capture tool: {e}",
         LogCategory.TOOL_OPERATIONS,
         "app.tools.production.__init__"

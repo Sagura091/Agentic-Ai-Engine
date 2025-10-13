@@ -56,7 +56,7 @@ class ToolMetadataRegistry:
                 self.register_tool_metadata(metadata)
             else:
                 tool_name = getattr(tool, 'name', 'unknown')
-                logger.warn(
+                logger.warning(
                     f"Tool {tool_name} does not have metadata capability",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.metadata.metadata_registry",
@@ -150,7 +150,7 @@ class ToolMetadataRegistry:
             return max(0.0, min(1.0, base_confidence))
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 f"Confidence calculation failed for tool {tool_name}",
                 LogCategory.TOOL_OPERATIONS,
                 "app.tools.metadata.metadata_registry",
@@ -250,7 +250,7 @@ class ToolMetadataRegistry:
                 return condition in context
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 "Condition evaluation failed",
                 LogCategory.TOOL_OPERATIONS,
                 "app.tools.metadata.metadata_registry",
@@ -279,7 +279,7 @@ class ToolMetadataRegistry:
             return True
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 "Context suitability check failed",
                 LogCategory.TOOL_OPERATIONS,
                 "app.tools.metadata.metadata_registry",

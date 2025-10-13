@@ -280,7 +280,7 @@ def cleanup_temp_files() -> int:
             _TEMP_FILES_REGISTRY.remove(path)
             
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 "Failed to clean up temporary file",
                 LogCategory.TOOL_OPERATIONS,
                 "app.tools.production.universal.shared.utils",

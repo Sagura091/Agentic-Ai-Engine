@@ -188,7 +188,7 @@ class UnifiedToolRepository:
             tool_id = metadata.tool_id
 
             if tool_id in self.tools:
-                logger.warn(
+                logger.warning(
                     f"Tool {tool_id} already registered",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.unified_tool_repository",
@@ -363,7 +363,7 @@ class UnifiedToolRepository:
         """
         try:
             if agent_id in self.agent_profiles:
-                logger.warn(
+                logger.warning(
                     f"Tool profile already exists for agent {agent_id}",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.unified_tool_repository",
@@ -533,7 +533,7 @@ class UnifiedToolRepository:
             if loop.is_running():
                 # If we're in an async context, we can't use run_until_complete
                 # So we'll need to handle this differently
-                logger.warn(
+                logger.warning(
                     f"Tool {tool_id} not loaded yet - consider using async loading",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.unified_tool_repository",
@@ -669,7 +669,7 @@ class UnifiedToolRepository:
                 await self._load_revolutionary_universal_pdf_tool()
                 return True
             else:
-                logger.warn(
+                logger.warning(
                     f"No on-demand loader available for tool: {tool_id}",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.unified_tool_repository",

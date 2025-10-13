@@ -82,7 +82,7 @@ try:
     )
 except ImportError:
     UNDETECTED_CHROME_AVAILABLE = False
-    logger.warn(
+    logger.warning(
         "⚠️ Undetected ChromeDriver not available - installing for maximum stealth",
         LogCategory.TOOL_OPERATIONS,
         "RevolutionaryWebScraperTool"
@@ -104,7 +104,7 @@ try:
     )
 except ImportError:
     SELENIUM_AVAILABLE = False
-    logger.warn(
+    logger.warning(
         "⚠️ Selenium not available - some advanced features disabled",
         LogCategory.TOOL_OPERATIONS,
         "RevolutionaryWebScraperTool"
@@ -120,7 +120,7 @@ try:
     )
 except ImportError:
     REQUESTS_HTML_AVAILABLE = False
-    logger.warn(
+    logger.warning(
         "⚠️ Requests-HTML not available - JavaScript rendering limited",
         LogCategory.TOOL_OPERATIONS,
         "RevolutionaryWebScraperTool"
@@ -136,7 +136,7 @@ try:
     )
 except ImportError:
     CLOUDSCRAPER_AVAILABLE = False
-    logger.warn(
+    logger.warning(
         "⚠️ CloudScraper not available - Cloudflare bypass limited",
         LogCategory.TOOL_OPERATIONS,
         "RevolutionaryWebScraperTool"
@@ -152,7 +152,7 @@ try:
     )
 except ImportError:
     FAKE_USERAGENT_AVAILABLE = False
-    logger.warn(
+    logger.warning(
         "⚠️ Fake UserAgent not available - using built-in headers",
         LogCategory.TOOL_OPERATIONS,
         "RevolutionaryWebScraperTool"
@@ -168,7 +168,7 @@ try:
     )
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
-    logger.warn(
+    logger.warning(
         "⚠️ Playwright not available - browser automation limited",
         LogCategory.TOOL_OPERATIONS,
         "RevolutionaryWebScraperTool"
@@ -185,7 +185,7 @@ try:
     )
 except ImportError:
     CURL_CFFI_AVAILABLE = False
-    logger.warn(
+    logger.warning(
         "⚠️ curl-cffi not available - TLS spoofing disabled",
         LogCategory.TOOL_OPERATIONS,
         "RevolutionaryWebScraperTool"

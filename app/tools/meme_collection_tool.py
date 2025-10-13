@@ -165,7 +165,7 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
         """Initialize Reddit API client."""
         try:
             if not PRAW_AVAILABLE:
-                logger.warn(
+                logger.warning(
                     "PRAW not available - Reddit collection disabled. Install with: pip install praw",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.meme_collection_tool"
@@ -185,7 +185,7 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
                     "app.tools.meme_collection_tool"
                 )
             else:
-                logger.warn(
+                logger.warning(
                     "Reddit credentials not provided, using read-only mode",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.meme_collection_tool"
@@ -606,7 +606,7 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
                         )
 
                 except Exception as e:
-                    logger.warn(
+                    logger.warning(
                         f"⚠️ Failed to download image {i+1}",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.meme_collection_tool",
@@ -1112,7 +1112,7 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
                         data={"title": meme.title}
                     )
                 else:
-                    logger.warn(
+                    logger.warning(
                         f"❌ Failed to download meme: {meme.title}",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.meme_collection_tool",
@@ -1226,7 +1226,7 @@ class MemeCollectionTool(BaseTool, MetadataCapableToolMixin):
                 )
 
             except Exception as e:
-                logger.warn(
+                logger.warning(
                     "Failed to convert to PNG, saving original",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.meme_collection_tool",

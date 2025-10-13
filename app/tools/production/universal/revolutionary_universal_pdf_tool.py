@@ -239,7 +239,7 @@ class RevolutionaryUniversalPDFTool(BaseUniversalTool):
     def _verify_dependencies(self):
         """Verify required dependencies are available."""
         if not PYMUPDF_AVAILABLE:
-            logger.warn(
+            logger.warning(
                 "PyMuPDF not available - core PDF functionality disabled",
                 LogCategory.TOOL_OPERATIONS,
                 "RevolutionaryUniversalPDFTool"

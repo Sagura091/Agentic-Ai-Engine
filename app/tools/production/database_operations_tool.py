@@ -267,7 +267,7 @@ class DatabaseOperationsTool(BaseTool):
         query_lower = query.lower()
         for pattern in dangerous_patterns:
             if re.search(pattern, query_lower):
-                logger.warn(
+                logger.warning(
                     "Dangerous SQL pattern detected",
                     LogCategory.SECURITY_EVENTS,
                     "app.tools.production.database_operations_tool",

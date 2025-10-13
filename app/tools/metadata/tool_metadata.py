@@ -170,7 +170,7 @@ class ToolMetadata:
             return total_score / total_weight if total_weight > 0 else 0.0
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 f"Context matching failed for tool {self.name}",
                 LogCategory.TOOL_OPERATIONS,
                 "app.tools.metadata.tool_metadata",
@@ -192,7 +192,7 @@ class ToolMetadata:
                 return 0.0
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 "Pattern evaluation failed",
                 LogCategory.TOOL_OPERATIONS,
                 "app.tools.metadata.tool_metadata",

@@ -418,7 +418,7 @@ class SessionDocumentTool(BaseTool):
                     })
 
                 except Exception as e:
-                    logger.warn(
+                    logger.warning(
                         f"Analysis failed for document {doc.document_id}: {e}",
                         LogCategory.TOOL_OPERATIONS,
                         "SessionDocumentTool",

@@ -216,7 +216,7 @@ class RevolutionaryBrowserAutomator:
             try:
                 from playwright.async_api import async_playwright
             except ImportError:
-                logger.warn(
+                logger.warning(
                     "Playwright not installed. Browser automation will use fallback methods.",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.production.browser_automation_tool"
@@ -621,7 +621,7 @@ class RevolutionaryBrowserAutomator:
                         "timestamp": datetime.now().isoformat()
                     })
                 except Exception as e:
-                    logger.warn(
+                    logger.warning(
                         "Could not extract additional page data",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.production.browser_automation_tool",
@@ -786,7 +786,7 @@ class RevolutionaryBrowserAutomator:
                 self.action_history = self.action_history[-500:]  # Keep last 500 actions
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 "Failed to record action",
                 LogCategory.TOOL_OPERATIONS,
                 "app.tools.production.browser_automation_tool",

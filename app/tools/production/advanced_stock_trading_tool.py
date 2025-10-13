@@ -219,7 +219,7 @@ class AdvancedStockTradingTool(BaseTool):
                 info = stock.info
 
                 if hist.empty:
-                    logger.warn(
+                    logger.warning(
                         f"No data available for {symbol}",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.production.advanced_stock_trading_tool",
@@ -941,7 +941,7 @@ class AdvancedStockTradingTool(BaseTool):
                         })
 
                 except Exception as e:
-                    logger.warn(
+                    logger.warning(
                         f"Failed to screen {symbol}",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.production.advanced_stock_trading_tool",

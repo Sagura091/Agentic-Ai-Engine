@@ -320,7 +320,7 @@ class MemeAnalysisTool(BaseTool, MetadataCapableToolMixin):
         """Perform comprehensive analysis on a single meme."""
         try:
             if not meme.local_path or not os.path.exists(meme.local_path):
-                logger.warn(
+                logger.warning(
                     f"Meme file not found: {meme.local_path}",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.meme_analysis_tool",

@@ -424,7 +424,7 @@ class AdvancedWebHarvesterTool(BaseTool):
                         image_urls.add(bg_url)
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 "BeautifulSoup parsing failed",
                 LogCategory.TOOL_OPERATIONS,
                 "app.tools.production.advanced_web_harvester_tool",
@@ -470,7 +470,7 @@ class AdvancedWebHarvesterTool(BaseTool):
                 await self._create_session()
 
             if engine not in SEARCH_ENGINES:
-                logger.warn(
+                logger.warning(
                     f"Unknown search engine: {engine}, using Google",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.production.advanced_web_harvester_tool",
@@ -780,7 +780,7 @@ class AdvancedWebHarvesterTool(BaseTool):
         try:
             # Safety check
             if not self._is_safe_domain(url):
-                logger.warn(
+                logger.warning(
                     f"🚫 Skipping unsafe domain: {url}",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.production.advanced_web_harvester_tool",
@@ -810,7 +810,7 @@ class AdvancedWebHarvesterTool(BaseTool):
 
                     # Skip HTML files - we want actual media
                     if 'text/html' in content_type.lower():
-                        logger.warn(
+                        logger.warning(
                             f"⚠️ Skipping HTML file: {url}",
                             LogCategory.TOOL_OPERATIONS,
                             "app.tools.production.advanced_web_harvester_tool",
@@ -838,7 +838,7 @@ class AdvancedWebHarvesterTool(BaseTool):
 
                     # Verify it's actually media content (not HTML disguised)
                     if content.startswith(b'<!DOCTYPE') or content.startswith(b'<html'):
-                        logger.warn(
+                        logger.warning(
                             f"⚠️ Skipping HTML content disguised as media: {url}",
                             LogCategory.TOOL_OPERATIONS,
                             "app.tools.production.advanced_web_harvester_tool",
@@ -848,7 +848,7 @@ class AdvancedWebHarvesterTool(BaseTool):
 
                     # Additional validation for image content
                     if len(content) < 1024:  # Skip very small files (likely errors)
-                        logger.warn(
+                        logger.warning(
                             f"⚠️ Skipping suspiciously small file: {url} ({len(content)} bytes)",
                             LogCategory.TOOL_OPERATIONS,
                             "app.tools.production.advanced_web_harvester_tool",
@@ -873,7 +873,7 @@ class AdvancedWebHarvesterTool(BaseTool):
                     return True
 
                 elif response.status == 403:
-                    logger.warn(
+                    logger.warning(
                         f"🚫 Access forbidden for {url} - trying alternative approach",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.production.advanced_web_harvester_tool",
@@ -881,7 +881,7 @@ class AdvancedWebHarvesterTool(BaseTool):
                     )
                     return False
                 elif response.status == 404:
-                    logger.warn(
+                    logger.warning(
                         f"🔍 File not found: {url}",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.production.advanced_web_harvester_tool",
@@ -889,7 +889,7 @@ class AdvancedWebHarvesterTool(BaseTool):
                     )
                     return False
                 else:
-                    logger.warn(
+                    logger.warning(
                         f"⚠️ Download failed for {url}: HTTP {response.status}",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.production.advanced_web_harvester_tool",
@@ -962,7 +962,7 @@ class AdvancedWebHarvesterTool(BaseTool):
                     )
                     return unique_memes[:30]  # Limit per subreddit
                 else:
-                    logger.warn(
+                    logger.warning(
                         f"Reddit returned status {response.status} for {subreddit_url}",
                         LogCategory.TOOL_OPERATIONS,
                         "app.tools.production.advanced_web_harvester_tool",

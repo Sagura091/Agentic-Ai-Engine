@@ -111,7 +111,7 @@ class UniversalToolError(Exception):
                 error=self.original_exception
             )
         elif self.severity == ErrorSeverity.MEDIUM:
-            logger.warn(
+            logger.warning(
                 "Universal Tool Error",
                 LogCategory.TOOL_OPERATIONS,
                 "app.tools.production.universal.shared.error_handlers",

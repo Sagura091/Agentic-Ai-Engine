@@ -231,7 +231,7 @@ class RevolutionaryScreenshotAnalyzer:
                             break
             
             if not primary_available:
-                logger.warn(
+                logger.warning(
                     f"Primary multimodal model {self.config.primary_llm_model} not available",
                     LogCategory.TOOL_OPERATIONS,
                     "ScreenshotAnalysisTool",
@@ -257,7 +257,7 @@ class RevolutionaryScreenshotAnalyzer:
             )
             
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 f"Could not validate multimodal capabilities: {e}",
                 LogCategory.TOOL_OPERATIONS,
                 "ScreenshotAnalysisTool",
@@ -350,7 +350,7 @@ class RevolutionaryScreenshotAnalyzer:
 
     async def _capture_browser_screenshot(self, output_path: str) -> Optional[str]:
         """Capture browser screenshot (placeholder for browser automation integration)."""
-        logger.warn(
+        logger.warning(
             "Browser screenshot capture requires browser automation tool integration",
             LogCategory.TOOL_OPERATIONS,
             "ScreenshotAnalysisTool"
@@ -359,7 +359,7 @@ class RevolutionaryScreenshotAnalyzer:
 
     async def _capture_application_screenshot(self, output_path: str) -> Optional[str]:
         """Capture specific application screenshot (placeholder)."""
-        logger.warn(
+        logger.warning(
             "Application screenshot capture requires window management integration",
             LogCategory.TOOL_OPERATIONS,
             "ScreenshotAnalysisTool"
@@ -465,7 +465,7 @@ class RevolutionaryScreenshotAnalyzer:
         """Perform OCR analysis using existing OCR engine."""
         try:
             if not self.ocr_engine:
-                logger.warn(
+                logger.warning(
                     "OCR engine not available",
                     LogCategory.TOOL_OPERATIONS,
                     "ScreenshotAnalysisTool"
@@ -669,7 +669,7 @@ class RevolutionaryScreenshotAnalyzer:
         """Perform visual reasoning using multi-modal LLMs."""
         try:
             if not self.llm_manager:
-                logger.warn(
+                logger.warning(
                     "LLM manager not available for visual reasoning",
                     LogCategory.TOOL_OPERATIONS,
                     "ScreenshotAnalysisTool"
@@ -706,7 +706,7 @@ class RevolutionaryScreenshotAnalyzer:
                     "ScreenshotAnalysisTool"
                 )
             else:
-                logger.warn(
+                logger.warning(
                     "Visual reasoning failed with all providers",
                     LogCategory.TOOL_OPERATIONS,
                     "ScreenshotAnalysisTool"

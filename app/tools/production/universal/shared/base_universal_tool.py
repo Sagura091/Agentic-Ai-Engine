@@ -203,7 +203,7 @@ class BaseUniversalTool(BaseTool, ABC):
             try:
                 cleanup_temp_files()
             except Exception as e:
-                logger.warn(
+                logger.warning(
                     "Failed to cleanup temporary files",
                     LogCategory.TOOL_OPERATIONS,
                     "app.tools.production.universal.shared.base_universal_tool",
